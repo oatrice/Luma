@@ -37,6 +37,35 @@ def coder_agent(state: AgentState):
     response = llm.invoke(messages)
     return {"code_content": response.content}
 
+def reviewer_agent(state: AgentState):
+    """(New Node) Reviewer Agent: ตรวจสอบและแก้ไขโค้ด"""
+    print(f"🧐 Reviewing code for: {state['filename']}...")
+    
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    
+    # Prompt สำหรับ Reviewer
+    review_prompt = f"""
+    Task: {state['task']}
+    
+    Current Code:
+    {state['code_content']}
+    
+    Role:
+    You are a Senior Code Reviewer. Your job is to:
+    1. Analyze the code for bugs, race conditions, and style issues.
+    2. Fix any issues found.
+    3. Ensure it strictly follows Go standards.
+    4. Output ONLY the final, corrected code. Do NOT output markdown ticks (```go).
+    """
+    
+    messages = [
+        SystemMessage(content="You are a Senior Code Reviewer. Output ONLY the fixed code. No markdown."),
+        HumanMessage(content=review_prompt)
+    ]
+    
+    response = llm.invoke(messages)
+    return {"code_content": response.content}
+
 def file_writer(state: AgentState):
     """ทำหน้าที่บันทึกไฟล์ลง Disk"""
     full_path = os.path.join(TARGET_DIR, state['filename'])
@@ -56,11 +85,13 @@ workflow = StateGraph(AgentState)
 
 # เพิ่ม Node
 workflow.add_node("Coder", coder_agent)
+workflow.add_node("Reviewer", reviewer_agent)
 workflow.add_node("Writer", file_writer)
 
 # เชื่อมเส้น
 workflow.set_entry_point("Coder")
-workflow.add_edge("Coder", "Writer")
+workflow.add_edge("Coder", "Reviewer")
+workflow.add_edge("Reviewer", "Writer")
 workflow.add_edge("Writer", END)
 
 # Compile
