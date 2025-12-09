@@ -22,8 +22,8 @@ def test_go_architect_execution():
     
     mock_code = "package main\nfunc main() { print('test') }"
 
-    # We mock ChatOpenAI to avoid real calls and costs during unit tests
-    with patch('main.ChatOpenAI') as MockLLM:
+    # We mock ChatGoogleGenerativeAI to avoid real calls and costs during unit tests
+    with patch('main.ChatGoogleGenerativeAI') as MockLLM:
         mock_instance = MockLLM.return_value
         mock_instance.invoke.return_value.content = mock_code
         
