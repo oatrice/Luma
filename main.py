@@ -47,24 +47,34 @@ def reviewer_agent(state: AgentState):
     review_prompt = f"""
     Task: {state['task']}
     
-    Current Code:
+    Current Code input:
     {state['code_content']}
     
     Role:
-    You are a Senior Code Reviewer. Your job is to:
+    You are a Senior Code Reviewer for Go (Golang). Your job is to:
     1. Analyze the code for bugs, race conditions, and style issues.
     2. Fix any issues found.
     3. Ensure it strictly follows Go standards.
-    4. Output ONLY the final, corrected code. Do NOT output markdown ticks (```go).
+    4. CRITICAL: The code MUST start with 'package <name>'. If unsure, use 'package main'.
+    5. Output ONLY the final, corrected code. Do NOT output markdown ticks (```go).
     """
     
     messages = [
-        SystemMessage(content="You are a Senior Code Reviewer. Output ONLY the fixed code. No markdown."),
+        SystemMessage(content="You are a Senior Code Reviewer. Output ONLY the fixed code. No markdown. Always start with 'package'."),
         HumanMessage(content=review_prompt)
     ]
     
     response = llm.invoke(messages)
-    return {"code_content": response.content}
+    content = response.content.strip()
+    
+    # --- Heuristic Check ---
+    # ถ้าเป็นไฟล์ Go แล้วไม่มี package declaration ให้เติมให้
+    if state['filename'].endswith(".go"):
+        if not content.startswith("package "):
+            print(f"⚠️ Auto-Fixing: Added 'package main' to {state['filename']}")
+            content = "package main\n\n" + content
+            
+    return {"code_content": content}
 
 def file_writer(state: AgentState):
     """ทำหน้าที่บันทึกไฟล์ลง Disk"""
