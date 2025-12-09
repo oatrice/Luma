@@ -38,3 +38,32 @@ def test_reviewer_logic():
         # Test direct function call
         result = main.reviewer_agent(state)
         assert "Reviewed" in result['code_content']
+
+def test_reviewer_enforces_package_declaration():
+    """
+    Test that the Reviewer node automatically fixes missing 'package' declaration
+    if the LLM output is imperfect.
+    """
+    state = {
+        "task": "Create a server",
+        "code_content": "func main() {}", 
+        "filename": "server.go"
+    }
+    
+    # Mock LLM: Returns code MISSING the package declaration
+    imperfect_code = """import "fmt"
+
+func main() {
+    fmt.Println("Hello")
+}"""
+    
+    with patch('main.ChatGoogleGenerativeAI') as MockLLM:
+        mock_instance = MockLLM.return_value
+        mock_instance.invoke.return_value.content = imperfect_code
+        
+        # Execute
+        result = main.reviewer_agent(state)
+        
+        # Assert
+        assert result['code_content'].strip().startswith("package main"), \
+            f"Reviewer failed to enforce 'package main'. Got: {result['code_content'][:20]}..."
