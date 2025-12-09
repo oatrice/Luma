@@ -1,8 +1,14 @@
 import os
+from dotenv import load_dotenv
 from typing import TypedDict
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
+
+# Load environment variables from .env file
+load_dotenv()
+
+# --- Config ---
 
 # --- Config ---
 # ระบุ Path ปลายทางของโปรเจ็ค Tetris
@@ -20,7 +26,8 @@ def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go Expert เขียนโค้ดตามคำสั่ง"""
     print(f"🤖 Luma is thinking about: {state['task']}...")
     
-    llm = ChatOpenAI(model="gpt-4o", temperature=0) # ใช้ gpt-4o หรือ gpt-3.5-turbo ก็ได้
+    # ใช้ Gemini แทน OpenAI
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     
     messages = [
         SystemMessage(content="You are a Senior Go (Golang) Developer. Write clean, working code. Output ONLY the code, no markdown block."),
@@ -61,12 +68,20 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # โจทย์: สร้าง WebSocket Server ง่ายๆ ด้วย Go
+    # โจทย์ 2: อัปเกรดเป็น WebSocket Server
     mission = {
-        "task": "Create a simple Golang HTTP server that listens on port 8080 and returns 'Hello from Luma Tetris Server' at root path.",
+        "task": """
+        Upgrade the existing Go server to handle WebSocket connections.
+        1. Use 'github.com/gorilla/websocket'.
+        2. Create a struct `GameSession` (thread-safe with Mutex) to hold state.
+        3. Implement a `/ws` endpoint that upgrades HTTP to WebSocket.
+        4. When a client connects, print "New Player Connected".
+        5. Keep the root `/` handler for "Hello" message (Regression).
+        6. In the main function, register both handlers.
+        """,
         "filename": "server.go",
         "code_content": ""
     }
     
     app.invoke(mission)
-    print("✅ Mission Complete! Check the Tetris-Battle folder.")
+    print("✅ Mission 2 Complete! WebSocket Server upgrade deployed.")
