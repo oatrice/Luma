@@ -436,31 +436,40 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Implement DAS (Delayed Auto Shift) for Movement
+    Feature: Soft Drop Safety (Reset on Spawn)
     
-    The user wants to be able to hold the LEFT/RIGHT arrow keys to move the piece continuously (not just one click per press).
+    The user wants to prevent the DOWN key (Soft Drop) from affecting such the NEW piece if it was held down during the previous piece's lock/spawn.
+    The user must release the DOWN key and press it again to soft drop the new piece.
     
-    1. Update `client/game.h`:
+    1. Update `client/logic.h`:
+       - Add a public member `int spawnCounter = 0;` to `Logic` class.
+       
+    2. Update `client/logic.cpp`:
+       - In `Logic::SpawnPiece()`: Increment `spawnCounter++`.
+       
+    3. Update `client/game.h`:
        - Add private members to `Game` class:
-         - `float dasTimer = 0.0f;` (Timer for auto shift)
-         - `float dasDelay = 0.2f;` (Initial delay before repeating, e.g. 0.2s)
-         - `float dasRate = 0.05f;` (Speed of repeating, e.g. 0.05s)
-         - `int lastMoveDir = 0;` (-1 for left, 1 for right)
+         - `int lastSpawnCounter = 0;`
+         - `bool waitForDownRelease = false;`
          
-    2. Update `client/game.cpp`:
-       - In `HandleInput()` function:
-         - Implement logic for KEY_LEFT and KEY_RIGHT holding:
-           - If Key Pressed (Just Pressed): Move immediately, set `dasTimer = 0`, set `lastMoveDir`.
-           - If Key Down (Held): Increase `dasTimer`. If `dasTimer > dasDelay`:
-             - Move again.
-             - `dasTimer` should essentially reset to `dasDelay - dasRate` (or logic to keep firing every `dasRate`).
-             - BE CAREFUL: Only move if `IsKeyDown`.
-         - Ensure Raylib's `GetFrameTime()` is used for the timer.
+    4. Update `client/game.cpp`:
+       - Initialize `lastSpawnCounter` in Constructor (sync with `logic.spawnCounter`).
+       - In `HandleInput()`:
+         - Check for Spawn Event:
+           If `logic.spawnCounter != lastSpawnCounter`:
+             - Update `lastSpawnCounter = logic.spawnCounter`.
+             - If `IsKeyDown(KEY_DOWN)` is true, Set `waitForDownRelease = true`.
+         - Check for Release:
+           If `!IsKeyDown(KEY_DOWN)` (key is up), Set `waitForDownRelease = false`.
+         - Modify Soft Drop Logic:
+           Only call `logic.Move(0, 1)` if `IsKeyDown(KEY_DOWN)` AND `!waitForDownRelease`.
     """,
     "iterations": 0,
-    "changes": {},
+    'changes': {},
     "test_errors": "",
     "source_files": [
+        "client/logic.h",
+        "client/logic.cpp",
         "client/game.h",
         "client/game.cpp"
     ]
