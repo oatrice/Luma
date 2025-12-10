@@ -23,12 +23,17 @@ class AgentState(TypedDict):
     iterations: int     # (New) จำนวนรอบที่วน Loop แก้ไปแล้ว
     approved: bool      # (New) สถานะการอนุมัติจาก User
     disable_log_truncation: bool # (New) Flag to disable log truncation
+    changes: dict[str, str]      # (New) Supports multi-file changes {filename: content}
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
 def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go Expert เขียนโค้ดตามคำสั่ง"""
     print(f"🤖 Luma is thinking about: {state['task']}...")
+    
+    # (Note: For now, Coder still outputs single file logic. 
+    #  To fully utilize multi-file, we need to update Coder prompt to return JSON/Multiple files.
+    #  But for this step, we just prepare the infrastructure.)
     
     # ใช้ Gemini แทน OpenAI
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
@@ -60,13 +65,17 @@ def coder_agent(state: AgentState):
     ]
     
     response = llm.invoke(messages)
+    # Forward compatibility: If Coder produced single file, wrap in changes check later
     return {"code_content": response.content}
 
 import subprocess
 
 def reviewer_agent(state: AgentState):
     """(New Node) Reviewer Agent: ตรวจสอบและแก้ไขโค้ด"""
-    print(f"🧐 Reviewing code for: {state['filename']}...")
+    # For simplicity, Reviewer currently reviews the main 'code_content'. 
+    # Multi-file review logic would iterate 'changes'.
+    filename = state.get('filename', 'unknown')
+    print(f"🧐 Reviewing code for: {filename}...")
     
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     
@@ -95,10 +104,9 @@ def reviewer_agent(state: AgentState):
     content = response.content.strip()
     
     # --- Heuristic Check ---
-    # ถ้าเป็นไฟล์ Go แล้วไม่มี package declaration ให้เติมให้
-    if state['filename'].endswith(".go"):
+    if filename.endswith(".go"):
         if not content.startswith("package "):
-            print(f"⚠️ Auto-Fixing: Added 'package main' to {state['filename']}")
+            print(f"⚠️ Auto-Fixing: Added 'package main' to {filename}")
             content = "package main\n\n" + content
             
     return {"code_content": content}
@@ -106,22 +114,34 @@ def reviewer_agent(state: AgentState):
 import shutil
 
 def tester_agent(state: AgentState):
-    """(New Node) Tester Agent: รัน Unit Test ตรวจสอบความถูกต้อง (Ephemeral Testing)"""
-    print(f"🧪 Testing code logic for {state['filename']}...")
+    """(New Node) Tester Agent: รัน Unit Test ตรวจสอบความถูกต้อง (Ephemeral Testing with Multi-File support)"""
+    # 1. Prepare Changes
+    changes = state.get('changes', {})
+    if not changes and state.get('filename'):
+        changes = {state['filename']: state['code_content']}
+        
+    print(f"🧪 Testing code logic for {list(changes.keys())}...")
     
-    full_path = os.path.join(TARGET_DIR, state['filename'])
-    backup_path = full_path + ".bak"
-    file_existed = os.path.exists(full_path)
-    
-    # 1. Backup Original File
-    if file_existed:
-        shutil.copy2(full_path, backup_path)
+    backups = {} # Map full_path -> backup_path
+    created_files = [] # List of full_paths created from scratch
     
     try:
-        # 2. Write 'Draft' for testing
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(state['code_content'])
+        # 2. Batch Backup & Write
+        for filename, content in changes.items():
+            full_path = os.path.join(TARGET_DIR, filename)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            # Backup
+            if os.path.exists(full_path):
+                backup_path = full_path + ".bak"
+                shutil.copy2(full_path, backup_path)
+                backups[full_path] = backup_path
+            else:
+                created_files.append(full_path)
+            
+            # Write Draft
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
         
         # 3. Run Go Test
         cmd = ["go", "test", "./..."]
@@ -156,15 +176,15 @@ def tester_agent(state: AgentState):
         return {"test_errors": str(e)}
         
     finally:
-        # 4. RESTORE Original File (Clean up dirty writes)
-        if file_existed:
-            shutil.move(backup_path, full_path) # Restore
-            # print("♻️ Restored original file.")
-        else:
-            # If it was a new file, remove the draft
+        # 4. RESTORE (Clean up)
+        # Restore backups
+        for full_path, backup_path in backups.items():
+            shutil.move(backup_path, full_path)
+        
+        # Remove newly created Drafts
+        for full_path in created_files:
             if os.path.exists(full_path):
                 os.remove(full_path)
-                # print("♻️ Removed draft file.")
         
     return {}
 
@@ -181,17 +201,24 @@ def should_continue(state: AgentState):
     return "pass"
 
 def human_approval_agent(state: AgentState):
-    """(New Node) ขออนุมัติจากมนุษย์"""
-    print(f"\n--- ✋ Approval Request for {state['filename']} ---")
-    print("Code Preview (First 20 lines):")
-    print("-" * 40)
-    print("\n".join(state['code_content'].splitlines()[:20]))
-    print("-" * 40)
+    """(New Node) ขออนุมัติจากมนุษย์ (Supports Multi-File Preview)"""
+    changes = state.get('changes', {})
+    if not changes and state.get('filename'):
+        changes = {state['filename']: state['code_content']}
+        
+    print(f"\n--- ✋ Approval Request for {list(changes.keys())} ---")
+    
+    for filename, content in changes.items():
+        print(f"\n📄 File: {filename}")
+        print("-" * 40)
+        print("\n".join(content.splitlines()[:15]))
+        print("... (Preview truncated) ...")
+        print("-" * 40)
     
     try:
-        user_input = input(f"Approve save to {state['filename']}? (y/n): ").strip().lower()
+        user_input = input(f"Approve save? (y/n): ").strip().lower()
     except EOFError:
-        user_input = 'n' # Default to no if input fails (e.g. in non-interactive env)
+        user_input = 'n'
 
     if user_input == 'y':
         print("✅ User Approved.")
@@ -206,16 +233,18 @@ def approval_gate(state: AgentState):
     return "no"
 
 def file_writer(state: AgentState):
-    """ทำหน้าที่บันทึกไฟล์ลง Disk"""
-    full_path = os.path.join(TARGET_DIR, state['filename'])
-    
-    print(f"💾 Saving file to: {full_path}")
-    
-    # ตรวจสอบว่ามีโฟลเดอร์ไหม ถ้าไม่มีให้สร้าง
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    
-    with open(full_path, "w", encoding="utf-8") as f:
-        f.write(state['code_content'])
+    """ทำหน้าที่บันทึกไฟล์ลง Disk (Supports Multi-File)"""
+    changes = state.get('changes', {})
+    if not changes and state.get('filename'):
+        changes = {state['filename']: state['code_content']}
+        
+    for filename, content in changes.items():
+        full_path = os.path.join(TARGET_DIR, filename)
+        print(f"💾 Saving file to: {full_path}")
+        
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(content)
         
     return {}
 
