@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
 from typing import TypedDict
-# from langchain_google_genai import ChatGoogleGenerativeAI # Commented out
-from langchain_openai import ChatOpenAI # Use OpenAI client for OpenRouter
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 
@@ -10,10 +10,17 @@ from langgraph.graph import StateGraph, END
 load_dotenv()
 
 # --- Config ---
+# Select Provider: "gemini" or "openrouter"
+LLM_PROVIDER = "gemini" 
+
 # OpenRouter Configuration
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-# Example models: "google/gemini-2.0-flash-001", "anthropic/claude-3.5-sonnet", "deepseek/deepseek-r1"
-MODEL_NAME = "google/gemini-2.0-flash-001" 
+OPENROUTER_MODEL = "qwen/qwen3-coder:free"
+
+# Gemini Configuration
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_MODEL = "gemini-2.5-flash"
+
 TARGET_DIR = "../Tetris-Battle"
 
 # --- 1. Define State (หน่วยความจำของ Agent) ---
@@ -27,6 +34,29 @@ class AgentState(TypedDict):
     disable_log_truncation: bool # (New) Flag to disable log truncation
     changes: dict[str, str]      # (New) Supports multi-file changes {filename: content}
     source_files: list[str]      # (New) List of files to provide as context
+
+# --- 1.5 Helper Functions ---
+def get_llm(temperature=0.7):
+    """Factory function to get the configured LLM instance"""
+    if LLM_PROVIDER == "openrouter":
+        print(f"🔌 Using OpenRouter ({OPENROUTER_MODEL})...")
+        return ChatOpenAI(
+            model=OPENROUTER_MODEL,
+            openai_api_key=OPENROUTER_API_KEY,
+            openai_api_base="https://openrouter.ai/api/v1",
+            temperature=temperature,
+            max_tokens=4000
+        )
+    elif LLM_PROVIDER == "gemini":
+        print(f"🔌 Using Gemini ({GEMINI_MODEL})...")
+        return ChatGoogleGenerativeAI(
+            model=GEMINI_MODEL, 
+            google_api_key=GOOGLE_API_KEY,
+            temperature=temperature,
+            request_timeout=120
+        )
+    else:
+        raise ValueError(f"Unknown LLM_PROVIDER: {LLM_PROVIDER}")
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
@@ -54,14 +84,8 @@ def coder_agent(state: AgentState):
             else:
                 source_context += f"\nFile: {rel_path} (NOT FOUND)\n"
 
-    # Initialize ChatOpenAI for OpenRouter
-    llm = ChatOpenAI(
-        model=MODEL_NAME,
-        openai_api_key=OPENROUTER_API_KEY,
-        openai_api_base="https://openrouter.ai/api/v1",
-        temperature=0.7,
-        max_tokens=4000
-    )
+    # Initialize LLM based on Provider
+    llm = get_llm(temperature=0.7)
     
     system_prompt = """You are a Senior Polyglot Developer (Python, Go, C++).
     Your goal is to write high-quality, production-ready code based on the user's task.
@@ -146,7 +170,8 @@ def reviewer_agent(state: AgentState):
     filename = state.get('filename', 'unknown')
     print(f"🧐 Reviewing code for: {filename}...")
     
-    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0)
+    # Initialize LLM based on Provider
+    llm = get_llm(temperature=0)
     
     # Prompt สำหรับ Reviewer
     review_prompt = f"""
