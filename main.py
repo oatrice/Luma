@@ -460,21 +460,38 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Expand Next Piece Preview Box
+    Feature: Game Over State & Restart
     
-    The user reported that the 'I' piece (Long Bar) extends beyond the preview box boundary when rotated horizontally.
-    The preview box needs to be larger.
+    The user wants to implement a Game Over condition and a Restart button.
     
-    1. Update `client/game.cpp`:
-       - In `Game::DrawNextPiece()`:
-         - Increase the `previewSize` (e.g. from `4 * cellSize` to `6 * cellSize`).
-         - Adjust `centerX` and `centerY` calculation to ensure pieces are centered in this larger box.
-         - Ensure the background `BLACK` rectangle and the border `WHITE` rectangle use this new larger size.
+    1. Update `client/logic.h`:
+       - Add `bool isGameOver = false;` to `Logic` class.
+       - Add `void Reset();` method to `Logic` class.
+       
+    2. Update `client/logic.cpp`:
+       - In `Logic::SpawnPiece()`: After spawning, check if the piece collides immediately (`!IsValid(currentPiece)`). If yes, set `isGameOver = true`.
+       - Implement `Logic::Reset()`: Clear the board (memset 0), reset score/lines, reset `isGameOver`, and spawn a new piece.
+       
+    3. Update `client/game.h`:
+       - Add `void ResetGame();` to `Game` class.
+       - Add a Restart Button member: `Button btnRestart;`.
+       
+    4. Update `client/game.cpp`:
+       - Initialize `btnRestart` in Constructor (center screen or below Game Over text).
+       - Implement `Game::ResetGame()`: Call `logic.Reset()` and reset any game-specific timers (`dasTimer`, `gravityTimer`).
+       - In `Game::Update()`: If `logic.isGameOver` is true, SKIP the main game loop updates (gravity, input). Instead, ONLY check for Restart button input.
+       - In `Game::Draw()`: If `logic.isGameOver` is true:
+         - Draw a semi-transparent black overlay over the board.
+         - Draw "GAME OVER" text (Red/White) in the center.
+         - Draw the Restart Button.
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
+        "client/logic.h",
+        "client/logic.cpp",
+        "client/game.h",
         "client/game.cpp"
     ]
 }    # Run Simulation
