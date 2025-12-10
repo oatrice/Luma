@@ -24,6 +24,7 @@ class AgentState(TypedDict):
     approved: bool      # (New) สถานะการอนุมัติจาก User
     disable_log_truncation: bool # (New) Flag to disable log truncation
     changes: dict[str, str]      # (New) Supports multi-file changes {filename: content}
+    source_files: list[str]      # (New) List of files to provide as context
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
@@ -31,17 +32,27 @@ import json
 
 def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go/C++ Expert เขียนโค้ดตามคำสั่ง (Multi-file Support)"""
-    print(f"🤖 Luma is thinking about: {state['task']}...")
+    print(f"🤖 Luma is thinking about: {state['task'][:100]}...")
     
-    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0)
-    
-    # Construct Prompt
-    prompt_content = state['task']
-    
-    # Error Handling Logic
-    if state.get('test_errors'):
-        print(f"🔧 Fixing bugs (Attempt {state.get('iterations', 1)})...")
-    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0.7) # เพิ่ม Temp นิดนึงให้ Creative
+    # 1. Read Source Files for Context
+    source_context = ""
+    if state.get("source_files"):
+        print(f"🧐 Reviewing code for: {state['source_files']}...")
+        source_context += "\n\n--- CURRENT SOURCE CODE ---\n"
+        for rel_path in state["source_files"]:
+            abs_path = os.path.join(TARGET_DIR, rel_path)
+            if os.path.exists(abs_path):
+                try:
+                    with open(abs_path, "r", encoding="utf-8") as f:
+                        content_read = f.read()
+                        print(f"   📖 Read context: {rel_path} ({len(content_read)} bytes)")
+                        source_context += f"\nFile: {rel_path}\n```\n{content_read}\n```\n"
+                except Exception as e:
+                    source_context += f"\nFile: {rel_path} (Error reading: {e})\n"
+            else:
+                source_context += f"\nFile: {rel_path} (NOT FOUND)\n"
+
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0, request_timeout=120)
     
     system_prompt = """You are a Senior Polyglot Developer (Python, Go, C++).
     Your goal is to write high-quality, production-ready code based on the user's task.
@@ -64,6 +75,7 @@ def coder_agent(state: AgentState):
     
     # Error Handling Logic
     if state.get('test_errors') and state.get('iterations', 0) > 0:
+        print(f"🔧 Fixing bugs (Attempt {state.get('iterations', 1)})...")
         task_content = f"""
         Original Task: {state['task']}
         
@@ -76,6 +88,16 @@ def coder_agent(state: AgentState):
         """
     else:
         task_content = state['task']
+        
+    # Append Source Context
+    if source_context:
+        task_content += f"\n\nContext for the task:\n{source_context}"
+        
+    print(f"📨 Sending Prompt to LLM ({len(task_content)} chars)...")
+    if "--- CURRENT SOURCE CODE ---" in task_content:
+        print("   ✅ Source Code Context verified in prompt payload.")
+    else:
+        print("   ⚠️ Source Code Context MISSING in prompt payload!")
     
     messages = [
         SystemMessage(content=system_prompt),
@@ -385,52 +407,40 @@ if __name__ == "__main__":
     # Mission: Implement Collision Detection & Locking (TDD)
     initial_state = {
     "task": """
-    Feature: Input Handling & Line Clearing
+    Feature: Next Piece Preview (TDD)
     
     1. Update `client/logic.h`:
-       - Add methods: `void Move(int dx, int dy);`, `void Rotate();`, `void CheckLines();`
-       - Add helper: `int RotateIndex(int x, int y, int r);` (or similar)
+       - Add field `Piece nextPiece;` to store the upcoming piece.
+       - Ensure it is public so Game class can draw it.
        
     2. Update `client/logic.cpp`:
-       - `Move(dx, dy)`: Check `IsValidPosition`. If valid, update `currentPiece`.
-       - `Rotate()`: Rotate piece 90 degrees. Check `IsValidPosition`. If invalid, revert (Wall Kick is optional for now).
-       - `CheckLines()`: partial logic to clear full rows. Called in `LockPiece`.
-       - `LockPiece()`: Call `CheckLines()` after locking.
-       
+       - `Logic()` constructor: Initialize `nextPiece` with a random piece (in addition to `currentPiece`).
+       - `SpawnPiece()` modification:
+         - Set `currentPiece = nextPiece;` (Shift from next to current)
+         - Reset `currentPiece.x/y` to spawn position.
+         - Generate a NEW random `nextPiece`.
+         
     3. Update `client/tests/logic_test.cpp`:
-       - Add tests for `MoveLeft`, `MoveRight`, `Rotate`, `LineClear`.
-
-    Current `client/logic.h`:
-    #ifndef LOGIC_H
-    #define LOGIC_H
-    #include "board.h"
-    #include "piece.h"
-    const int BOARD_WIDTH = 10;
-    const int BOARD_HEIGHT = 20;
-    class Logic {
-    public:
-        Logic();
-        void Tick();
-        void SpawnPiece();
-        bool IsValidPosition(const Piece& p) const;
-        void LockPiece();
-        Board board;
-        Piece currentPiece;
-    };
-    #endif
-
-    Current `client/logic.cpp` (excerpt):
-    // ... IsValidPosition uses (boardY, boardX) correctly ...
-    bool Logic::IsValidPosition(const Piece& p) const {
-        // ...
-        // FIXED: Using (boardY, boardX) because GetCell expects (row, col)
-        if (board.GetCell(boardY, boardX) != 0) return false;
-        // ...
-    }
+       - Add test `NextPieceSpawn`:
+         - Check that `nextPiece` is not NONE initially.
+         - Store `nextPiece` type.
+         - Call `LockPiece()` (which trigger SpawnPiece).
+         - Assert that `currentPiece.type` is equal to the OLD `nextPiece.type`.
+         - Assert that `nextPiece` has changed (or at least valid).
+         
+    CURRENT `client/piece.h` (Use this exact enum):
+    enum class PieceType { NONE=0, I, O, T, S, Z, J, L };
+    struct Piece { PieceType type; ... };
     """,
     "iterations": 0,
     "changes": {},
-    "test_errors": ""
+    "test_errors": "",
+    "source_files": [
+        "client/logic.h",
+        "client/logic.cpp",
+        "client/tests/logic_test.cpp",
+        "client/piece.h"
+    ]
 }    # Run Simulation
     final_state = app.invoke(initial_state)
     print("✅ Simulation Complete.")
