@@ -261,20 +261,30 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # โจทย์ 2: อัปเกรดเป็น WebSocket Server
+    # โจทย์ 3: Simulation - Add Game Start Logic
     mission = {
         "task": """
-        Upgrade the existing Go server to handle WebSocket connections.
-        1. Use 'github.com/gorilla/websocket'.
-        2. Create a struct `GameSession` (thread-safe with Mutex) to hold state.
-        3. Implement a `/ws` endpoint that upgrades HTTP to WebSocket.
-        4. When a client connects, print "New Player Connected".
-        5. Keep the root `/` handler for "Hello" message (Regression).
-        6. In the main function, register both handlers.
+        Update 'server.go' to include a 'StartGame' method in GameSession.
+        1. Add a boolean field `isStarted` to GameSession struct.
+        2. Implement `StartGame()` which sets `isStarted` to true (thread-safe).
+        3. IMPORTANT: You must also create/update 'server_test.go' to test this method.
+           (Wait... I can only write one file per turn? 
+            Okay, for this simulation, just update 'server.go' first. 
+            We will assume 'server_test.go' needs to be updated in a separate task or combined if possible.
+            Actually, let's ask Coder to put BOTH implementation and test in 'server.go' 
+            (using a package test trick) OR just write 'server.go' and I will manually run test that fails).
+            
+            BETTER: Just update 'server.go'. The existing 'server_test.go' might fail if struct changes?
+            No, adding field is non-breaking usually.
+            
+            Let's force a failure: "Change the ServeHello message to 'Welcome to Tetris'". 
+            (Assuming existing test checks for 'Hello from Go server').
         """,
         "filename": "server.go",
-        "code_content": ""
+        "code_content": "",
+        "test_errors": "",
+        "iterations": 0
     }
     
     app.invoke(mission)
-    print("✅ Mission 2 Complete! WebSocket Server upgrade deployed.")
+    print("✅ Simulation Complete.")
