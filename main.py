@@ -460,20 +460,22 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Darker Main App Background
+    Feature: Expand Next Piece Preview Box
     
-    The user wants the main application background (in `client/main.cpp`) to be darker to match the game board theme.
-    Currently it is `RAYWHITE`.
+    The user reported that the 'I' piece (Long Bar) extends beyond the preview box boundary when rotated horizontally.
+    The preview box needs to be larger.
     
-    1. Update `client/main.cpp`:
-       - Change `ClearBackground(RAYWHITE)` to `ClearBackground(BLACK)` or a very dark gray (e.g., `Color{20, 20, 20, 255}`).
-       - Also maybe change the text color `DrawText("Tetris Battle Client", ...)` to something visible on dark background (e.g. `WHITE` or `LIGHTGRAY`).
+    1. Update `client/game.cpp`:
+       - In `Game::DrawNextPiece()`:
+         - Increase the `previewSize` (e.g. from `4 * cellSize` to `6 * cellSize`).
+         - Adjust `centerX` and `centerY` calculation to ensure pieces are centered in this larger box.
+         - Ensure the background `BLACK` rectangle and the border `WHITE` rectangle use this new larger size.
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/main.cpp"
+        "client/game.cpp"
     ]
 }    # Run Simulation
     final_state = app.invoke(initial_state)
