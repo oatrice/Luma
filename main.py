@@ -362,12 +362,16 @@ def human_approval_agent(state: AgentState):
         
         # --- Open VS Code Diff ---
         if os.path.exists(abs_path):
-            print(f"👀 Opening Diff in Editor: code --diff {filename} ...")
-            try:
-                # Open VS Code Diff View
-                subprocess.run(["code", "--diff", abs_path, draft_filename], check=False)
-            except Exception as e:
-                print(f"   ⚠️ Could not open editor diff (is 'code' in PATH?): {e}")
+            if shutil.which("code"):
+                print(f"👀 Opening Diff in Editor: code --diff {filename} ...")
+                try:
+                    subprocess.run(["code", "--diff", abs_path, draft_filename], check=False)
+                except Exception as e:
+                    print(f"   ⚠️ Failed to launch VS Code: {e}")
+            else:
+                # Fallback for Mac: Open the draft file using default editor
+                print(f"👀 Opening Draft: open {draft_filename} ...")
+                subprocess.run(["open", draft_filename], check=False)
 
         draft_files.append(draft_filename)
 
