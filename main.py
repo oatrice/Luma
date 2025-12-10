@@ -348,25 +348,15 @@ def human_approval_agent(state: AgentState):
             
         print(f"📝 Review Draft created: {draft_filename}")
         
-        # --- Create HTML Diff ---
+        # --- Open VS Code Diff ---
         if os.path.exists(abs_path):
-            with open(abs_path, "r", encoding="utf-8") as f:
-                original_lines = f.read().splitlines()
-            new_lines = content.splitlines()
-            
-            diff_html = difflib.HtmlDiff().make_file(
-                original_lines, 
-                new_lines, 
-                fromdesc=f"Original: {filename}", 
-                todesc=f"New (Draft): {filename}"
-            )
-            
-            diff_filename = f"{TARGET_DIR}/{filename}.diff.html"
-            with open(diff_filename, "w", encoding="utf-8") as f:
-                f.write(diff_html)
-                
-            print(f"📊 Diff Report created: {diff_filename} (Open this file to see side-by-side diff!)")
-        
+            print(f"👀 Opening Diff in Editor: code --diff {filename} ...")
+            try:
+                # Open VS Code Diff View
+                subprocess.run(["code", "--diff", abs_path, draft_filename], check=False)
+            except Exception as e:
+                print(f"   ⚠️ Could not open editor diff (is 'code' in PATH?): {e}")
+
         draft_files.append(draft_filename)
 
     user_input = input("Approve changes? (y/n): ").strip().lower()
