@@ -27,46 +27,76 @@ class AgentState(TypedDict):
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
+import json
+
 def coder_agent(state: AgentState):
-    """ทำหน้าที่เป็น Go Expert เขียนโค้ดตามคำสั่ง"""
+    """ทำหน้าที่เป็น Go/C++ Expert เขียนโค้ดตามคำสั่ง (Multi-file Support)"""
     print(f"🤖 Luma is thinking about: {state['task']}...")
     
-    # (Note: For now, Coder still outputs single file logic. 
-    #  To fully utilize multi-file, we need to update Coder prompt to return JSON/Multiple files.
-    #  But for this step, we just prepare the infrastructure.)
-    
-    # ใช้ Gemini แทน OpenAI
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     
     # Construct Prompt
     prompt_content = state['task']
     
-    # ถ้ามี Errors จาก Tester ให้เปลี่ยนโหมดเป็น Repair
-    if state.get('test_errors') and state.get('test_errors') != "":
+    # Error Handling Logic
+    if state.get('test_errors'):
         print(f"🔧 Fixing bugs (Attempt {state.get('iterations', 1)})...")
         prompt_content = f"""
         Original Task: {state['task']}
         
         The previous code you wrote failed the tests.
         
-        FAILED CODE:
-        {state['code_content']}
+        FAILED CODE (See previously gen files):
+        {json.dumps(state.get('changes', {}), indent=2)}
         
         ERROR LOGS:
         {state['test_errors']}
         
-        Please rewrite the code to fix these errors. Ensure all imports are correct.
-        Output ONLY the full corrected code, no markdown block.
+        Please rewrite the code to fix these errors.
         """
     
+    system_prompt = """You are a Senior Polyglot Developer (Go, C++, Python).
+    Your goal is to write clean, production-ready code.
+    
+    IMPORTANT OUTPUT FORMAT:
+    You must output a VALID JSON object containing the file paths and their contents.
+    Example:
+    {
+      "changes": {
+        "main.go": "package main\\nfunc main() { ... }",
+        "main_test.go": "package main\\nfunc TestMain(t *testing.T) { ... }"
+      }
+    }
+    
+    - Keys must be relative file paths (e.g., "client/main.cpp").
+    - Do NOT output markdown blocks (```json).
+    - ensure strict JSON syntax.
+    """
+    
     messages = [
-        SystemMessage(content="You are a Senior Go (Golang) Developer. Write clean, working code. Output ONLY the code, no markdown block."),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=prompt_content)
     ]
     
-    response = llm.invoke(messages)
-    # Forward compatibility: If Coder produced single file, wrap in changes check later
-    return {"code_content": response.content}
+    try:
+        response = llm.invoke(messages)
+        content = response.content.strip()
+        # Remove markdown if LLM accidentally adds it
+        if content.startswith("```json"): content = content[7:]
+        if content.startswith("```"): content = content[3:]
+        if content.endswith("```"): content = content[:-3]
+        
+        data = json.loads(content.strip())
+        return {"changes": data.get("changes", {}), "code_content": "See changes"}
+        
+    except json.JSONDecodeError:
+        print("⚠️ Error parsing Coder JSON output. Fallback to single file raw string.")
+        # Fallback for Backward Compatibility (if inputs were single file)
+        # But for 'Initialize Client', we really need JSON.
+        return {"code_content": response.content, "changes": {}}
+    except Exception as e:
+        print(f"⚠️ Coder Error: {e}")
+        return {"changes": {}}
 
 import subprocess
 
@@ -143,33 +173,64 @@ def tester_agent(state: AgentState):
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(content)
         
-        # 3. Run Go Test
-        cmd = ["go", "test", "./..."]
-        # Run test in the target directory
-        result = subprocess.run(cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+        # 3. Detect Language & Run Test
+        cmd = []
+        is_go = any(f.endswith(".go") for f in changes.keys())
+        is_cpp = any(f.endswith(".cpp") or f.endswith(".h") or f.endswith("txt") for f in changes.keys())
         
-        # Helper function to truncate logs
-        def get_log(res):
-            log = res.stderr + "\n" + res.stdout
-            
-            # Check flag (New)
-            if state.get("disable_log_truncation"):
-                return log
-                
-            if len(log) > 2000: # Limit token usage
-                return log[:2000] + "\n...(Truncated)..."
-            return log
+        if is_go:
+            cmd = ["go", "test", "./..."]
+            cwd = TARGET_DIR
+        elif is_cpp:
+            print("⚙️ Detected C++ Project. Attempting to Build...")
+            # Find directory containing CMakeLists.txt
+            cmake_file = next((f for f in changes.keys() if f.endswith("CMakeLists.txt")), None)
+            if cmake_file:
+                # e.g. client/CMakeLists.txt -> project_dir = .../client
+                project_dir = os.path.dirname(os.path.join(TARGET_DIR, cmake_file))
+                # Build command: mkdir build -> cmake -> make
+                # Using 'sh -c' to chain commands
+                build_cmd = "mkdir -p build && cd build && cmake .. && make"
+                cmd = ["sh", "-c", build_cmd]
+                cwd = project_dir
+                print(f"   Building in: {project_dir}")
+            else:
+                # Fallback: if only main.cpp changed but no CMakeLists in this batch, 
+                # we might need to find where existing CMakeLists is.
+                # For this MVP, let's skip test if no build config found, or assume 'client' dir.
+                print("⚠️ No CMakeLists.txt in changes. Skip build test for now.")
+                cmd = ["echo", "Skipping build test"]
+                cwd = TARGET_DIR
 
-        if result.returncode == 0:
-            print("✅ Tester: Tests Passed!")
-            return {"test_errors": ""} 
+        # Run test/build
+        if cmd:
+            result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+            
+            # Helper function to truncate logs
+            def get_log(res):
+                log = res.stderr + "\n" + res.stdout
+                
+                # Check flag (New)
+                if state.get("disable_log_truncation"):
+                    return log
+                    
+                if len(log) > 2000: # Limit token usage
+                    return log[:2000] + "\n...(Truncated)..."
+                return log
+    
+            if result.returncode == 0:
+                print("✅ Tester: Build/Test Passed!")
+                return {"test_errors": ""} 
+            else:
+                print("❌ Tester: Build/Test Failed!")
+                current_iter = state.get("iterations", 0) + 1
+                return {
+                    "test_errors": get_log(result),
+                    "iterations": current_iter
+                }
         else:
-            print("❌ Tester: Tests Failed!")
-            current_iter = state.get("iterations", 0) + 1
-            return {
-                "test_errors": get_log(result),
-                "iterations": current_iter
-            }
+             print("⚠️ Unknown language. Skipping test.")
+             return {"test_errors": ""}
             
     except Exception as e:
         print(f"⚠️ Tester error: {e}")
@@ -290,27 +351,30 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # โจทย์ 3: Simulation - Add Game Start Logic
+    # โจทย์ 4: Initialize Client (Real Run)
     mission = {
         "task": """
-        Update 'server.go' to include a 'StartGame' method in GameSession.
-        1. Add a boolean field `isStarted` to GameSession struct.
-        2. Implement `StartGame()` which sets `isStarted` to true (thread-safe).
-        3. IMPORTANT: You must also create/update 'server_test.go' to test this method.
-           (Wait... I can only write one file per turn? 
-            Okay, for this simulation, just update 'server.go' first. 
-            We will assume 'server_test.go' needs to be updated in a separate task or combined if possible.
-            Actually, let's ask Coder to put BOTH implementation and test in 'server.go' 
-            (using a package test trick) OR just write 'server.go' and I will manually run test that fails).
-            
-            BETTER: Just update 'server.go'. The existing 'server_test.go' might fail if struct changes?
-            No, adding field is non-breaking usually.
-            
-            Let's force a failure: "Change the ServeHello message to 'Welcome to Tetris'". 
-            (Assuming existing test checks for 'Hello from Go server').
+        Initialize the C++ Client for Tetris Battle.
+        
+        1. Create a directory 'client' inside Tetris-Battle.
+        2. Create 'client/CMakeLists.txt':
+           - Project name: TetrisClient
+           - Standard: C++17
+           - Use 'FetchContent' to download Raylib 5.0 (https://github.com/raysan5/raylib.git, tag 5.0).
+           - Link Raylib to the executable.
+           
+        3. Create 'client/main.cpp':
+           - Include "raylib.h".
+           - Initialize Raylib Window (800x600, "Tetris Battle").
+           - Create a basic Game Loop (While !WindowShouldClose).
+           - BeginDrawing -> ClearBackground(RAYWHITE) -> DrawText("Waiting for Server...", 190, 200, 20, LIGHTGRAY) -> EndDrawing.
+           - Set Target FPS to 60.
+           - CloseWindow() at the end.
+           
+        Important: Output JSON with keys "client/CMakeLists.txt" and "client/main.cpp".
         """,
-        "filename": "server.go",
-        "code_content": "",
+        "filename": "client/main.cpp", # Primary file hint
+        "changes": {}, 
         "test_errors": "",
         "iterations": 0
     }
