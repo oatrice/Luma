@@ -21,6 +21,7 @@ class AgentState(TypedDict):
     filename: str       # ชื่อไฟล์ที่จะบันทึก
     test_errors: str    # (New) Error Log จากการรัน Test
     iterations: int     # (New) จำนวนรอบที่วน Loop แก้ไปแล้ว
+    approved: bool      # (New) สถานะการอนุมัติจาก User
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
@@ -145,8 +146,33 @@ def should_continue(state: AgentState):
     if errors and iterations < 3:
         return "retry"
     
-    # ถ้าไม่มี Error หรือครบโควต้าแล้ว -> ไปต่อ (Pass)
+    # ถ้าไม่มี Error หรือครบโควต้าแล้ว -> ไปต่อ Approver (Pass)
     return "pass"
+
+def human_approval_agent(state: AgentState):
+    """(New Node) ขออนุมัติจากมนุษย์"""
+    print(f"\n--- ✋ Approval Request for {state['filename']} ---")
+    print("Code Preview (First 20 lines):")
+    print("-" * 40)
+    print("\n".join(state['code_content'].splitlines()[:20]))
+    print("-" * 40)
+    
+    try:
+        user_input = input(f"Approve save to {state['filename']}? (y/n): ").strip().lower()
+    except EOFError:
+        user_input = 'n' # Default to no if input fails (e.g. in non-interactive env)
+
+    if user_input == 'y':
+        print("✅ User Approved.")
+        return {"approved": True}
+    else:
+        print("⛔ User Rejected/Aborted.")
+        return {"approved": False}
+
+def approval_gate(state: AgentState):
+    if state.get("approved"):
+        return "yes"
+    return "no"
 
 def file_writer(state: AgentState):
     """ทำหน้าที่บันทึกไฟล์ลง Disk"""
@@ -169,6 +195,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("Coder", coder_agent)
 workflow.add_node("Reviewer", reviewer_agent)
 workflow.add_node("Tester", tester_agent)
+workflow.add_node("Approver", human_approval_agent)
 workflow.add_node("Writer", file_writer)
 
 # เชื่อมเส้น
@@ -176,13 +203,23 @@ workflow.set_entry_point("Coder")
 workflow.add_edge("Coder", "Reviewer")
 workflow.add_edge("Reviewer", "Tester")
 
-# Conditional Edge
+# Conditional Edge 1: Tester Logic
 workflow.add_conditional_edges(
     "Tester",
     should_continue,
     {
         "retry": "Coder",
-        "pass": "Writer"
+        "pass": "Approver"
+    }
+)
+
+# Conditional Edge 2: Approval Logic
+workflow.add_conditional_edges(
+    "Approver",
+    approval_gate,
+    {
+        "yes": "Writer",
+        "no": END
     }
 )
 
