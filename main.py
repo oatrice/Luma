@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
 from typing import TypedDict
-from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_google_genai import ChatGoogleGenerativeAI # Commented out
+from langchain_openai import ChatOpenAI # Use OpenAI client for OpenRouter
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 
@@ -9,10 +10,11 @@ from langgraph.graph import StateGraph, END
 load_dotenv()
 
 # --- Config ---
-
-# --- 0. Configuration ---
-MODEL_NAME = "gemini-2.5-flash"
-TARGET_DIR = "../Tetris-Battle" # Directory เป้าหมายที่ Agent จะเข้าไปเขียนโค้ด
+# OpenRouter Configuration
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+# Example models: "google/gemini-2.0-flash-001", "anthropic/claude-3.5-sonnet", "deepseek/deepseek-r1"
+MODEL_NAME = "google/gemini-2.0-flash-001" 
+TARGET_DIR = "../Tetris-Battle"
 
 # --- 1. Define State (หน่วยความจำของ Agent) ---
 class AgentState(TypedDict):
@@ -52,7 +54,14 @@ def coder_agent(state: AgentState):
             else:
                 source_context += f"\nFile: {rel_path} (NOT FOUND)\n"
 
-    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0, request_timeout=120)
+    # Initialize ChatOpenAI for OpenRouter
+    llm = ChatOpenAI(
+        model=MODEL_NAME,
+        openai_api_key=OPENROUTER_API_KEY,
+        openai_api_base="https://openrouter.ai/api/v1",
+        temperature=0.7,
+        max_tokens=4000
+    )
     
     system_prompt = """You are a Senior Polyglot Developer (Python, Go, C++).
     Your goal is to write high-quality, production-ready code based on the user's task.
