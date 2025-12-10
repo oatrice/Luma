@@ -167,8 +167,12 @@ def reviewer_agent(state: AgentState):
     """(New Node) Reviewer Agent: ตรวจสอบและแก้ไขโค้ด"""
     # For simplicity, Reviewer currently reviews the main 'code_content'. 
     # Multi-file review logic would iterate 'changes'.
-    filename = state.get('filename', 'unknown')
-    print(f"🧐 Reviewing code for: {filename}...")
+    changes = state.get('changes', {})
+    if changes:
+        target_files = list(changes.keys())
+        print(f"🧐 Reviewing code for: {target_files}...")
+    else:
+        print(f"🧐 Reviewing code for: New Generated Code...")
     
     # Initialize LLM based on Provider
     llm = get_llm(temperature=0)
