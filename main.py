@@ -10,9 +10,9 @@ load_dotenv()
 
 # --- Config ---
 
-# --- Config ---
-# ระบุ Path ปลายทางของโปรเจ็ค Tetris
-TARGET_DIR = "../Tetris-Battle"
+# --- 0. Configuration ---
+MODEL_NAME = "gemini-2.0-flash"
+TARGET_DIR = "../Tetris-Battle" # Directory เป้าหมายที่ Agent จะเข้าไปเขียนโค้ด
 
 # --- 1. Define State (หน่วยความจำของ Agent) ---
 class AgentState(TypedDict):
@@ -33,7 +33,7 @@ def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go/C++ Expert เขียนโค้ดตามคำสั่ง (Multi-file Support)"""
     print(f"🤖 Luma is thinking about: {state['task']}...")
     
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0)
     
     # Construct Prompt
     prompt_content = state['task']
@@ -107,7 +107,7 @@ def reviewer_agent(state: AgentState):
     filename = state.get('filename', 'unknown')
     print(f"🧐 Reviewing code for: {filename}...")
     
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0)
     
     # Prompt สำหรับ Reviewer
     review_prompt = f"""
