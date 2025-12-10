@@ -262,30 +262,51 @@ def should_continue(state: AgentState):
     return "pass"
 
 def human_approval_agent(state: AgentState):
-    """(New Node) ขออนุมัติจากมนุษย์ (Supports Multi-File Preview)"""
+    """(New Node) ขออนุมัติจากมนุษย์ (Supports Multi-File Preview & Drafts)"""
     changes = state.get('changes', {})
     if not changes and state.get('filename'):
         changes = {state['filename']: state['code_content']}
         
     print(f"\n--- ✋ Approval Request for {list(changes.keys())} ---")
+    draft_files = []
     
     for filename, content in changes.items():
-        print(f"\n📄 File: {filename}")
-        print("-" * 40)
-        print("\n".join(content.splitlines()[:15]))
-        print("... (Preview truncated) ...")
-        print("-" * 40)
+        # 1. Write Drafts for Review
+        full_path = os.path.join(TARGET_DIR, filename)
+        draft_path = full_path + ".draft"
+        
+        try:
+            os.makedirs(os.path.dirname(draft_path), exist_ok=True)
+            with open(draft_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            draft_files.append(draft_path)
+            
+            print(f"📝 Review Draft created: {draft_path}")
+            print("-" * 40)
+            print("\n".join(content.splitlines()[:10]))
+            print(f"... (Open {filename}.draft to see full content) ...")
+            print("-" * 40)
+        except Exception as e:
+            print(f"⚠️ Failed to create draft for {filename}: {e}")
     
     try:
-        user_input = input(f"Approve save? (y/n): ").strip().lower()
+        user_input = input(f"Approve changes? (y/n): ").strip().lower()
     except EOFError:
         user_input = 'n'
 
+    # Cleanup Drafts Logic
+    def cleanup_drafts():
+        for d in draft_files:
+            if os.path.exists(d): 
+                os.remove(d)
+                
     if user_input == 'y':
-        print("✅ User Approved.")
+        print("✅ User Approved. Applying changes...")
+        cleanup_drafts() # Clean up drafts before real writing (or after? doesn't matter much)
         return {"approved": True}
     else:
-        print("⛔ User Rejected/Aborted.")
+        print("⛔ User Rejected. Discarding drafts...")
+        cleanup_drafts()
         return {"approved": False}
 
 def approval_gate(state: AgentState):
