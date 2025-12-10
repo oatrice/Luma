@@ -168,6 +168,7 @@ def reviewer_agent(state: AgentState):
     # For simplicity, Reviewer currently reviews the main 'code_content'. 
     # Multi-file review logic would iterate 'changes'.
     changes = state.get('changes', {})
+    target_files = [] 
     if changes:
         target_files = list(changes.keys())
         print(f"🧐 Reviewing code for: {target_files}...")
@@ -460,38 +461,18 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Game Over State & Restart
+    Feature: Rename Rotate Button
     
-    The user wants to implement a Game Over condition and a Restart button.
+    The user feels the 'R' label on the Rotate button is confusing.
     
-    1. Update `client/logic.h`:
-       - Add `bool isGameOver = false;` to `Logic` class.
-       - Add `void Reset();` method to `Logic` class.
-       
-    2. Update `client/logic.cpp`:
-       - In `Logic::SpawnPiece()`: After spawning, check if the piece collides immediately (`!IsValid(currentPiece)`). If yes, set `isGameOver = true`.
-       - Implement `Logic::Reset()`: Clear the board (memset 0), reset score/lines, reset `isGameOver`, and spawn a new piece.
-       
-    3. Update `client/game.h`:
-       - Add `void ResetGame();` to `Game` class.
-       - Add a Restart Button member: `Button btnRestart;`.
-       
-    4. Update `client/game.cpp`:
-       - Initialize `btnRestart` in Constructor (center screen or below Game Over text).
-       - Implement `Game::ResetGame()`: Call `logic.Reset()` and reset any game-specific timers (`dasTimer`, `gravityTimer`).
-       - In `Game::Update()`: If `logic.isGameOver` is true, SKIP the main game loop updates (gravity, input). Instead, ONLY check for Restart button input.
-       - In `Game::Draw()`: If `logic.isGameOver` is true:
-         - Draw a semi-transparent black overlay over the board.
-         - Draw "GAME OVER" text (Red/White) in the center.
-         - Draw the Restart Button.
+    1. Update `client/game.cpp`:
+       - In `Game::Game()` (Constructor):
+         - Change the text for `btnRotate` from `"R"` to `"Rot"` (or a clearer symbol like `^` if preferred, but "Rot" is safe).
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/logic.h",
-        "client/logic.cpp",
-        "client/game.h",
         "client/game.cpp"
     ]
 }    # Run Simulation
