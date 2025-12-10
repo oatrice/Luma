@@ -177,24 +177,32 @@ def reviewer_agent(state: AgentState):
     # Initialize LLM based on Provider
     llm = get_llm(temperature=0)
     
+    # Determine primary language from first file
+    primary_file = target_files[0] if target_files else "unknown.py"
+    
     # Prompt สำหรับ Reviewer
     review_prompt = f"""
     Task: {state['task']}
     
     Current Code input:
-    {state['code_content']}
+    {json.dumps(changes, indent=2)}
     
-    Role:
-    You are a Senior Code Reviewer for Go (Golang). Your job is to:
-    1. Analyze the code for bugs, race conditions, and style issues.
-    2. Fix any issues found.
-    3. Ensure it strictly follows Go standards.
-    4. CRITICAL: The code MUST start with 'package <name>'. If unsure, use 'package main'.
-    5. Output ONLY the final, corrected code. Do NOT output markdown ticks (```go).
+    Instructions:
+    1. Review the code changes in the JSON above.
+    2. Check for Logic Errors, Infinite Loops, and Memory Leaks.
     """
     
+    if primary_file.endswith(".go"):
+        review_prompt += "\n3. Ensure Go concurrency best practices (Channels, Goroutines)."
+    elif primary_file.endswith(".cpp") or primary_file.endswith(".h"):
+        review_prompt += "\n3. Ensure C++ memory safety (RAII) and Raylib correctness."
+    else:
+        review_prompt += "\n3. Ensure Python PEP8 and Type Hinting."
+        
+    review_prompt += "\n\nIf the code looks correct, output ONLY 'PASS'. Otherwise, explain the fix."
+    
     messages = [
-        SystemMessage(content="You are a Senior Code Reviewer. Output ONLY the fixed code. No markdown. Always start with 'package'."),
+        SystemMessage(content="You are a Senior Code Reviewer. Your goal is to review the provided code changes. If the code is correct and meets all instructions, output ONLY 'PASS'. If there are issues, explain the fix or the problem clearly."),
         HumanMessage(content=review_prompt)
     ]
     
@@ -202,9 +210,9 @@ def reviewer_agent(state: AgentState):
     content = response.content.strip()
     
     # --- Heuristic Check ---
-    if filename.endswith(".go"):
+    if primary_file.endswith(".go"):
         if not content.startswith("package "):
-            print(f"⚠️ Auto-Fixing: Added 'package main' to {filename}")
+            print(f"⚠️ Auto-Fixing: Added 'package main' to {primary_file}")
             content = "package main\n\n" + content
             
     return {"code_content": content}
