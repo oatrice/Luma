@@ -382,25 +382,53 @@ app = workflow.compile()
 if __name__ == "__main__":
     # Mission: Implement Collision Detection & Locking (TDD)
     initial_state = {
-        "task": """
-        Implement Collision Detection and Piece Locking in 'client/logic.cpp' using TDD.
-
-        1. Update 'client/tests/logic_test.cpp':
-           - Add a test 'CollisionFloor': Spawn piece, move it to bottom (y=19), try Tick() -> Should NOT move down further.
-           - Add a test 'LockPiece': When piece hits bottom and Tick() is called, it should Lock into the Board (Board::GetCell > 0) and Spawn a new piece.
-
-        2. Modify 'client/logic.h' & 'client/logic.cpp':
-           - Implement 'bool IsValidPosition(Piece p)' to check bounds and existing grid blocks.
-           - Update 'Tick()' to check IsValidPosition before moving.
-           - If move invalid (hit bottom), call 'LockPiece()' to copy piece to board and 'SpawnPiece()' next.
-
-        Constraint:
-        - Output JSON with keys: "client/tests/logic_test.cpp", "client/logic.h", "client/logic.cpp".
-        - KEEP existing logic! Only ADD/MODIFY relevant parts.
-        """,
-        "iterations": 0
-    }
+    "task": """
+    Feature: Input Handling & Line Clearing
     
-    # Run Simulation
+    1. Update `client/logic.h`:
+       - Add methods: `void Move(int dx, int dy);`, `void Rotate();`, `void CheckLines();`
+       - Add helper: `int RotateIndex(int x, int y, int r);` (or similar)
+       
+    2. Update `client/logic.cpp`:
+       - `Move(dx, dy)`: Check `IsValidPosition`. If valid, update `currentPiece`.
+       - `Rotate()`: Rotate piece 90 degrees. Check `IsValidPosition`. If invalid, revert (Wall Kick is optional for now).
+       - `CheckLines()`: partial logic to clear full rows. Called in `LockPiece`.
+       - `LockPiece()`: Call `CheckLines()` after locking.
+       
+    3. Update `client/tests/logic_test.cpp`:
+       - Add tests for `MoveLeft`, `MoveRight`, `Rotate`, `LineClear`.
+
+    Current `client/logic.h`:
+    #ifndef LOGIC_H
+    #define LOGIC_H
+    #include "board.h"
+    #include "piece.h"
+    const int BOARD_WIDTH = 10;
+    const int BOARD_HEIGHT = 20;
+    class Logic {
+    public:
+        Logic();
+        void Tick();
+        void SpawnPiece();
+        bool IsValidPosition(const Piece& p) const;
+        void LockPiece();
+        Board board;
+        Piece currentPiece;
+    };
+    #endif
+
+    Current `client/logic.cpp` (excerpt):
+    // ... IsValidPosition uses (boardY, boardX) correctly ...
+    bool Logic::IsValidPosition(const Piece& p) const {
+        // ...
+        // FIXED: Using (boardY, boardX) because GetCell expects (row, col)
+        if (board.GetCell(boardY, boardX) != 0) return false;
+        // ...
+    }
+    """,
+    "iterations": 0,
+    "changes": {},
+    "test_errors": ""
+}    # Run Simulation
     final_state = app.invoke(initial_state)
     print("✅ Simulation Complete.")
