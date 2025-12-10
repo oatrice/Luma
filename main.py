@@ -463,11 +463,12 @@ if __name__ == "__main__":
     "task": """
     Feature: Rename Rotate Button
     
-    The user feels the 'R' label on the Rotate button is confusing.
+    The user feels the 'R' or 'Rot' label on the Rotate button is confusing.
+    They want to use a symbol instead.
     
     1. Update `client/game.cpp`:
        - In `Game::Game()` (Constructor):
-         - Change the text for `btnRotate` from `"R"` to `"Rot"` (or a clearer symbol like `^` if preferred, but "Rot" is safe).
+         - Change the text for `btnRotate` to `"^"`.
     """,
     "iterations": 0,
     "changes": {},
