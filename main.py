@@ -33,7 +33,7 @@ def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go/C++ Expert เขียนโค้ดตามคำสั่ง (Multi-file Support)"""
     print(f"🤖 Luma is thinking about: {state['task']}...")
     
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
     
     # Construct Prompt
     prompt_content = state['task']
@@ -107,7 +107,7 @@ def reviewer_agent(state: AgentState):
     filename = state.get('filename', 'unknown')
     print(f"🧐 Reviewing code for: {filename}...")
     
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
     
     # Prompt สำหรับ Reviewer
     review_prompt = f"""
@@ -372,30 +372,39 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # โจทย์ 4: Initialize Client (Real Run)
+    # โจทย์ 5: Basic Gameplay Implementation
     mission = {
         "task": """
-        Initialize the C++ Client for Tetris Battle.
+        Implement basic Tetris Gameplay in C++.
         
-        1. Create a directory 'client' inside Tetris-Battle.
-        2. Create 'client/CMakeLists.txt':
-           - Project name: TetrisClient
-           - Standard: C++17
-           - Use 'FetchContent' to download Raylib 5.0 (https://github.com/raysan5/raylib.git, tag 5.0).
-           - Link Raylib to the executable.
+        1. Create 'client/game.h':
+           - Class 'Game'
+           - Method 'Update()' (handle input later).
+           - Method 'Draw()' (render grid and pieces).
+           - Member 'int grid[20][10]' (initialize to 0).
+           - Define cellSize = 30;
            
-        3. Create 'client/main.cpp':
-           - Include "raylib.h".
-           - Initialize Raylib Window (800x600, "Tetris Battle").
-           - Create a basic Game Loop (While !WindowShouldClose).
-           - BeginDrawing -> ClearBackground(RAYWHITE) -> DrawText("Waiting for Server...", 190, 200, 20, LIGHTGRAY) -> EndDrawing.
-           - Set Target FPS to 60.
-           - CloseWindow() at the end.
+        2. Create 'client/game.cpp':
+           - Implement 'Draw()': 
+             - Draw a background rectangle for the board (DarkGray).
+             - Loop 20x10. If grid[row][col] is 0, draw empty cell (Line). If >0, draw filled rectangle (Color).
+             - Align board to center of screen.
            
-        Important: Output JSON with keys "client/CMakeLists.txt" and "client/main.cpp".
+        3. Update 'client/main.cpp':
+           - Include "game.h".
+           - Create 'Game game;' before loop.
+           - Inside loop: game.Update(); game.Draw();
+           
+        4. Update 'client/CMakeLists.txt':
+           - Add 'game.cpp' to add_executable sources.
+           - Keep the Policy Fix we added earlier! (Or Luma might revert it if not careful. 
+             Actually Luma reads files? No, Coder overwrites if not careful. 
+             Tell Coder to KEEP existing policy lines).
+             
+        Output JSON: { "changes": { "client/game.h": "...", "client/game.cpp": "...", "client/main.cpp": "...", "client/CMakeLists.txt": "..." } }
         """,
-        "filename": "client/main.cpp", # Primary file hint
-        "changes": {}, 
+        "filename": "client/main.cpp", # Hint
+        "changes": {},
         "test_errors": "",
         "iterations": 0
     }
