@@ -19,6 +19,8 @@ class AgentState(TypedDict):
     task: str           # คำสั่งจากเรา
     code_content: str   # โค้ดที่ AI เขียนเสร็จแล้ว
     filename: str       # ชื่อไฟล์ที่จะบันทึก
+    test_errors: str    # (New) Error Log จากการรัน Test
+    iterations: int     # (New) จำนวนรอบที่วน Loop แก้ไปแล้ว
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
@@ -29,13 +31,36 @@ def coder_agent(state: AgentState):
     # ใช้ Gemini แทน OpenAI
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     
+    # Construct Prompt
+    prompt_content = state['task']
+    
+    # ถ้ามี Errors จาก Tester ให้เปลี่ยนโหมดเป็น Repair
+    if state.get('test_errors') and state.get('test_errors') != "":
+        print(f"🔧 Fixing bugs (Attempt {state.get('iterations', 1)})...")
+        prompt_content = f"""
+        Original Task: {state['task']}
+        
+        The previous code you wrote failed the tests.
+        
+        FAILED CODE:
+        {state['code_content']}
+        
+        ERROR LOGS:
+        {state['test_errors']}
+        
+        Please rewrite the code to fix these errors. Ensure all imports are correct.
+        Output ONLY the full corrected code, no markdown block.
+        """
+    
     messages = [
         SystemMessage(content="You are a Senior Go (Golang) Developer. Write clean, working code. Output ONLY the code, no markdown block."),
-        HumanMessage(content=state['task'])
+        HumanMessage(content=prompt_content)
     ]
     
     response = llm.invoke(messages)
     return {"code_content": response.content}
+
+import subprocess
 
 def reviewer_agent(state: AgentState):
     """(New Node) Reviewer Agent: ตรวจสอบและแก้ไขโค้ด"""
@@ -76,6 +101,53 @@ def reviewer_agent(state: AgentState):
             
     return {"code_content": content}
 
+def tester_agent(state: AgentState):
+    """(New Node) Tester Agent: รัน Unit Test ตรวจสอบความถูกต้อง"""
+    print(f"🧪 Testing code logic for {state['filename']}...")
+    
+    # เขียนไฟล์ชั่วคราวเพื่อรัน Test
+    full_path = os.path.join(TARGET_DIR, state['filename'])
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    
+    # Write 'Draft' for testing
+    with open(full_path, "w", encoding="utf-8") as f:
+        f.write(state['code_content'])
+    
+    # Run Go Test
+    cmd = ["go", "test", "./..."]
+    try:
+        # Run test in the target directory
+        result = subprocess.run(cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ Tester: Tests Passed!")
+            return {"test_errors": ""} # Clear previous errors
+        else:
+            print("❌ Tester: Tests Failed!")
+            # Increment iterations
+            current_iter = state.get("iterations", 0) + 1
+            return {
+                "test_errors": result.stderr + "\n" + result.stdout,
+                "iterations": current_iter
+            }
+            # Todo: In future, loop back to Coder with error message
+    except Exception as e:
+        print(f"⚠️ Tester error: {e}")
+        return {"test_errors": str(e)}
+        
+    return {}
+
+def should_continue(state: AgentState):
+    """ตัดสินใจว่าจะไปแก้โค้ดใหม่หรือไปต่อ"""
+    errors = state.get('test_errors', "")
+    iterations = state.get('iterations', 0)
+    
+    # ถ้ามี Error และยังวนไม่เกิน 3 รอบ -> กลับไปแก้ (Retry)
+    if errors and iterations < 3:
+        return "retry"
+    
+    # ถ้าไม่มี Error หรือครบโควต้าแล้ว -> ไปต่อ (Pass)
+    return "pass"
+
 def file_writer(state: AgentState):
     """ทำหน้าที่บันทึกไฟล์ลง Disk"""
     full_path = os.path.join(TARGET_DIR, state['filename'])
@@ -96,12 +168,24 @@ workflow = StateGraph(AgentState)
 # เพิ่ม Node
 workflow.add_node("Coder", coder_agent)
 workflow.add_node("Reviewer", reviewer_agent)
+workflow.add_node("Tester", tester_agent)
 workflow.add_node("Writer", file_writer)
 
 # เชื่อมเส้น
 workflow.set_entry_point("Coder")
 workflow.add_edge("Coder", "Reviewer")
-workflow.add_edge("Reviewer", "Writer")
+workflow.add_edge("Reviewer", "Tester")
+
+# Conditional Edge
+workflow.add_conditional_edges(
+    "Tester",
+    should_continue,
+    {
+        "retry": "Coder",
+        "pass": "Writer"
+    }
+)
+
 workflow.add_edge("Writer", END)
 
 # Compile
