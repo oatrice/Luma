@@ -281,7 +281,9 @@ def human_approval_agent(state: AgentState):
     for filename, content in changes.items():
         # 1. Write Drafts for Review
         full_path = os.path.join(TARGET_DIR, filename)
-        draft_path = full_path + ".draft"
+        # Append original extension so VS Code recognizes syntax (e.g. logic.cpp.draft.cpp)
+        file_ext = os.path.splitext(full_path)[1]
+        draft_path = full_path + ".draft" + file_ext
         
         try:
             os.makedirs(os.path.dirname(draft_path), exist_ok=True)
