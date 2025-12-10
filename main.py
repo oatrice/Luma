@@ -460,22 +460,20 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Darker Board Background
+    Feature: Darker Main App Background
     
-    The user feels the current board background (DARKGRAY) is too light/white-ish.
-    They want a darker background for better contrast.
+    The user wants the main application background (in `client/main.cpp`) to be darker to match the game board theme.
+    Currently it is `RAYWHITE`.
     
-    1. Update `client/game.cpp`:
-       - In `Game::Draw()`:
-         - Change the `DrawRectangle` color for the Board Background (Section 1).
-         - Current: `DARKGRAY`.
-         - Target: `BLACK` or a custom very dark color e.g. `Color{20, 20, 20, 255}`.
+    1. Update `client/main.cpp`:
+       - Change `ClearBackground(RAYWHITE)` to `ClearBackground(BLACK)` or a very dark gray (e.g., `Color{20, 20, 20, 255}`).
+       - Also maybe change the text color `DrawText("Tetris Battle Client", ...)` to something visible on dark background (e.g. `WHITE` or `LIGHTGRAY`).
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/game.cpp"
+        "client/main.cpp"
     ]
 }    # Run Simulation
     final_state = app.invoke(initial_state)
