@@ -102,38 +102,63 @@ def reviewer_agent(state: AgentState):
             
     return {"code_content": content}
 
+import shutil
+
 def tester_agent(state: AgentState):
-    """(New Node) Tester Agent: รัน Unit Test ตรวจสอบความถูกต้อง"""
+    """(New Node) Tester Agent: รัน Unit Test ตรวจสอบความถูกต้อง (Ephemeral Testing)"""
     print(f"🧪 Testing code logic for {state['filename']}...")
     
-    # เขียนไฟล์ชั่วคราวเพื่อรัน Test
     full_path = os.path.join(TARGET_DIR, state['filename'])
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    backup_path = full_path + ".bak"
+    file_existed = os.path.exists(full_path)
     
-    # Write 'Draft' for testing
-    with open(full_path, "w", encoding="utf-8") as f:
-        f.write(state['code_content'])
+    # 1. Backup Original File
+    if file_existed:
+        shutil.copy2(full_path, backup_path)
     
-    # Run Go Test
-    cmd = ["go", "test", "./..."]
     try:
+        # 2. Write 'Draft' for testing
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(state['code_content'])
+        
+        # 3. Run Go Test
+        cmd = ["go", "test", "./..."]
         # Run test in the target directory
         result = subprocess.run(cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+        
+        # Helper function to truncate logs
+        def get_log(res):
+            log = res.stderr + "\n" + res.stdout
+            if len(log) > 2000: # Limit token usage
+                return log[:2000] + "\n...(Truncated)..."
+            return log
+
         if result.returncode == 0:
             print("✅ Tester: Tests Passed!")
-            return {"test_errors": ""} # Clear previous errors
+            return {"test_errors": ""} 
         else:
             print("❌ Tester: Tests Failed!")
-            # Increment iterations
             current_iter = state.get("iterations", 0) + 1
             return {
-                "test_errors": result.stderr + "\n" + result.stdout,
+                "test_errors": get_log(result),
                 "iterations": current_iter
             }
-            # Todo: In future, loop back to Coder with error message
+            
     except Exception as e:
         print(f"⚠️ Tester error: {e}")
         return {"test_errors": str(e)}
+        
+    finally:
+        # 4. RESTORE Original File (Clean up dirty writes)
+        if file_existed:
+            shutil.move(backup_path, full_path) # Restore
+            # print("♻️ Restored original file.")
+        else:
+            # If it was a new file, remove the draft
+            if os.path.exists(full_path):
+                os.remove(full_path)
+                # print("♻️ Removed draft file.")
         
     return {}
 
