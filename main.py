@@ -325,55 +325,56 @@ def should_continue(state: AgentState):
     # ถ้าไม่มี Error หรือครบโควต้าแล้ว -> ไปต่อ Approver (Pass)
     return "pass"
 
+# --- 3. Define Human Approval (การตรวจสอบจาก User) ---
+import difflib
+import webbrowser
+
 def human_approval_agent(state: AgentState):
-    """(New Node) ขออนุมัติจากมนุษย์ (Supports Multi-File Preview & Drafts)"""
-    changes = state.get('changes', {})
-    if not changes and state.get('filename'):
-        changes = {state['filename']: state['code_content']}
-        
-    print(f"\n--- ✋ Approval Request for {list(changes.keys())} ---")
+    """(Mock) ให้ User ตรวจสอบโค้ดก่อนบันทึก"""
+    print("\n--- ✋ Approval Request for " + str(list(state['changes'].keys())) + " ---")
+    
     draft_files = []
     
-    for filename, content in changes.items():
-        # 1. Write Drafts for Review
-        full_path = os.path.join(TARGET_DIR, filename)
-        # Append original extension so VS Code recognizes syntax (e.g. logic.cpp.draft.cpp)
-        file_ext = os.path.splitext(full_path)[1]
-        draft_path = full_path + ".draft" + file_ext
+    for filename, content in state['changes'].items():
+        # Create draft file
+        draft_filename = f"{TARGET_DIR}/{filename}.draft{os.path.splitext(filename)[1]}" 
+        abs_path = os.path.join(TARGET_DIR, filename)
         
-        try:
-            os.makedirs(os.path.dirname(draft_path), exist_ok=True)
-            with open(draft_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            draft_files.append(draft_path)
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(draft_filename), exist_ok=True)
+        
+        with open(draft_filename, "w", encoding="utf-8") as f:
+            f.write(content)
             
-            print(f"📝 Review Draft created: {draft_path}")
-            print("-" * 40)
-            print("\n".join(content.splitlines()[:10]))
-            print(f"... (Open {filename}.draft to see full content) ...")
-            print("-" * 40)
-        except Exception as e:
-            print(f"⚠️ Failed to create draft for {filename}: {e}")
-    
-    try:
-        user_input = input(f"Approve changes? (y/n): ").strip().lower()
-    except EOFError:
-        user_input = 'n'
-
-    # Cleanup Drafts Logic
-    def cleanup_drafts():
-        for d in draft_files:
-            if os.path.exists(d): 
-                os.remove(d)
+        print(f"📝 Review Draft created: {draft_filename}")
+        
+        # --- Create HTML Diff ---
+        if os.path.exists(abs_path):
+            with open(abs_path, "r", encoding="utf-8") as f:
+                original_lines = f.read().splitlines()
+            new_lines = content.splitlines()
+            
+            diff_html = difflib.HtmlDiff().make_file(
+                original_lines, 
+                new_lines, 
+                fromdesc=f"Original: {filename}", 
+                todesc=f"New (Draft): {filename}"
+            )
+            
+            diff_filename = f"{TARGET_DIR}/{filename}.diff.html"
+            with open(diff_filename, "w", encoding="utf-8") as f:
+                f.write(diff_html)
                 
+            print(f"📊 Diff Report created: {diff_filename} (Open this file to see side-by-side diff!)")
+        
+        draft_files.append(draft_filename)
+
+    user_input = input("Approve changes? (y/n): ").strip().lower()
+    
     if user_input == 'y':
-        print("✅ User Approved. Applying changes...")
-        cleanup_drafts() # Clean up drafts before real writing (or after? doesn't matter much)
-        return {"approved": True}
+        return {"approved": True, "filename": str(draft_files)}
     else:
-        print("⛔ User Rejected. Discarding drafts...")
-        cleanup_drafts()
-        return {"approved": False}
+        return {"approved": False, "filename": ""}
 
 def approval_gate(state: AgentState):
     if state.get("approved"):
