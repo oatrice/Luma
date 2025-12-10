@@ -413,41 +413,24 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # Mission: Implement Collision Detection & Locking (TDD)
+    # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Next Piece Preview (TDD)
+    Feature: High Contrast Preview Color
     
-    1. Update `client/logic.h`:
-       - Add field `Piece nextPiece;` to store the upcoming piece.
-       - Ensure it is public so Game class can draw it.
-       
-    2. Update `client/logic.cpp`:
-       - `Logic()` constructor: Initialize `nextPiece` with a random piece (in addition to `currentPiece`).
-       - `SpawnPiece()` modification:
-         - Set `currentPiece = nextPiece;` (Shift from next to current)
-         - Reset `currentPiece.x/y` to spawn position.
-         - Generate a NEW random `nextPiece`.
-         
-    3. Update `client/tests/logic_test.cpp`:
-       - Add test `NextPieceSpawn`:
-         - Check that `nextPiece` is not NONE initially.
-         - Store `nextPiece` type.
-         - Call `LockPiece()` (which trigger SpawnPiece).
-         - Assert that `currentPiece.type` is equal to the OLD `nextPiece.type`.
-         - Assert that `nextPiece` has changed (or at least valid).
-         
-    CURRENT `client/piece.h` (Use this exact enum):
-    enum class PieceType { NONE=0, I, O, T, S, Z, J, L };
-    struct Piece { PieceType type; ... };
+    The user wants the Next Piece Preview to be more visible (High Contrast).
+    
+    1. Update `client/game.cpp`:
+       - In `Game::DrawNextPiece()` function:
+         - Change the color of the drawn blocks from `YELLOW` to `GOLD` (or a similar high-contrast color constant like `ORANGE` or `MAGENTA` if GOLD is not available).
+         - Ensure the text "NEXT" and the border remain WHITE.
+         - Do NOT change the logic, only the drawing color inside the loop.
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/logic.h",
-        "client/logic.cpp",
-        "client/tests/logic_test.cpp",
+        "client/game.cpp",
         "client/piece.h"
     ]
 }    # Run Simulation
