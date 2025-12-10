@@ -396,6 +396,18 @@ def file_writer(state: AgentState):
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
+            
+        # --- Cleanup Drafts & Diffs ---
+        draft_path = f"{TARGET_DIR}/{filename}.draft{os.path.splitext(filename)[1]}"
+        diff_path = f"{TARGET_DIR}/{filename}.diff.html"
+        
+        if os.path.exists(draft_path):
+            os.remove(draft_path)
+            print(f"   🧹 Removed draft: {draft_path}")
+            
+        if os.path.exists(diff_path):
+            os.remove(diff_path)
+            print(f"   🧹 Removed diff report: {diff_path}")
         
     return {}
 
