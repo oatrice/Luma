@@ -442,22 +442,33 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Fix Preview Background Contrast
+    Feature: Implement DAS (Delayed Auto Shift) for Movement
     
-    The user reported that the background is white, causing low contrast with the white border/text using GOLD pieces.
+    The user wants to be able to hold the LEFT/RIGHT arrow keys to move the piece continuously (not just one click per press).
     
-    1. Update `client/game.cpp`:
-       - In `Game::DrawNextPiece()`:
-         - Before drawing the border and the piece, Draw a filled rectangle (`DrawRectangle`) to serve as the background for the preview box.
-         - Use `BLACK` or `DARKGRAY` for this background to make the `GOLD` piece and `WHITE` border/text pop out.
-         - Ensure the background rectangle covers the area inside the border (same `previewX`, `previewY`, `previewSize`).
+    1. Update `client/game.h`:
+       - Add private members to `Game` class:
+         - `float dasTimer = 0.0f;` (Timer for auto shift)
+         - `float dasDelay = 0.2f;` (Initial delay before repeating, e.g. 0.2s)
+         - `float dasRate = 0.05f;` (Speed of repeating, e.g. 0.05s)
+         - `int lastMoveDir = 0;` (-1 for left, 1 for right)
+         
+    2. Update `client/game.cpp`:
+       - In `HandleInput()` function:
+         - Implement logic for KEY_LEFT and KEY_RIGHT holding:
+           - If Key Pressed (Just Pressed): Move immediately, set `dasTimer = 0`, set `lastMoveDir`.
+           - If Key Down (Held): Increase `dasTimer`. If `dasTimer > dasDelay`:
+             - Move again.
+             - `dasTimer` should essentially reset to `dasDelay - dasRate` (or logic to keep firing every `dasRate`).
+             - BE CAREFUL: Only move if `IsKeyDown`.
+         - Ensure Raylib's `GetFrameTime()` is used for the timer.
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/game.cpp",
-        "client/piece.h"
+        "client/game.h",
+        "client/game.cpp"
     ]
 }    # Run Simulation
     final_state = app.invoke(initial_state)
