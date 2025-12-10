@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     test_errors: str    # (New) Error Log จากการรัน Test
     iterations: int     # (New) จำนวนรอบที่วน Loop แก้ไปแล้ว
     approved: bool      # (New) สถานะการอนุมัติจาก User
+    disable_log_truncation: bool # (New) Flag to disable log truncation
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
 
@@ -130,6 +131,11 @@ def tester_agent(state: AgentState):
         # Helper function to truncate logs
         def get_log(res):
             log = res.stderr + "\n" + res.stdout
+            
+            # Check flag (New)
+            if state.get("disable_log_truncation"):
+                return log
+                
             if len(log) > 2000: # Limit token usage
                 return log[:2000] + "\n...(Truncated)..."
             return log
