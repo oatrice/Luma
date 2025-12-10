@@ -11,7 +11,7 @@ load_dotenv()
 # --- Config ---
 
 # --- 0. Configuration ---
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-2.5-flash"
 TARGET_DIR = "../Tetris-Battle" # Directory เป้าหมายที่ Agent จะเข้าไปเขียนโค้ด
 
 # --- 1. Define State (หน่วยความจำของ Agent) ---
@@ -41,62 +41,70 @@ def coder_agent(state: AgentState):
     # Error Handling Logic
     if state.get('test_errors'):
         print(f"🔧 Fixing bugs (Attempt {state.get('iterations', 1)})...")
-        prompt_content = f"""
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0.7) # เพิ่ม Temp นิดนึงให้ Creative
+    
+    system_prompt = """You are a Senior Polyglot Developer (Python, Go, C++).
+    Your goal is to write high-quality, production-ready code based on the user's task.
+    You must follow TDD (Test Driven Development) practices if requested.
+    
+    IMPORTANT OUTPUT FORMAT:
+    You must output the code for each file wrapped in XML tags.
+    Example:
+    <file path="client/logic.cpp">
+    #include "logic.h"
+    ...
+    </file>
+    
+    <file path="client/logic.h">
+    ...
+    </file>
+    
+    Do NOT output JSON. Do NOT output markdown code blocks around the XML tags.
+    """
+    
+    # Error Handling Logic
+    if state.get('test_errors') and state.get('iterations', 0) > 0:
+        task_content = f"""
         Original Task: {state['task']}
         
-        The previous code you wrote failed the tests.
-        
-        FAILED CODE (See previously gen files):
-        {json.dumps(state.get('changes', {}), indent=2)}
+        The previous code failed the tests.
         
         ERROR LOGS:
         {state['test_errors']}
         
-        Please rewrite the code to fix these errors.
+        Please rewrite the code using the XML file format to fix these errors.
         """
-    
-    system_prompt = """You are a Senior Polyglot Developer (Go, C++, Python).
-    Your goal is to write clean, production-ready code.
-    
-    IMPORTANT OUTPUT FORMAT:
-    You must output a VALID JSON object containing the file paths and their contents.
-    Example:
-    {
-      "changes": {
-        "main.go": "package main\\nfunc main() { ... }",
-        "main_test.go": "package main\\nfunc TestMain(t *testing.T) { ... }"
-      }
-    }
-    
-    - Keys must be relative file paths (e.g., "client/main.cpp").
-    - Do NOT output markdown blocks (```json).
-    - ensure strict JSON syntax.
-    """
+    else:
+        task_content = state['task']
     
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=prompt_content)
+        HumanMessage(content=task_content)
     ]
     
     try:
         response = llm.invoke(messages)
         content = response.content.strip()
-        # Remove markdown if LLM accidentally adds it
-        if content.startswith("```json"): content = content[7:]
-        if content.startswith("```"): content = content[3:]
-        if content.endswith("```"): content = content[:-3]
         
-        data = json.loads(content.strip())
-        return {"changes": data.get("changes", {}), "code_content": "See changes"}
+        # Parse XML-like tags
+        import re
+        pattern = r'<file path="([^"]+)">\s*(.*?)\s*</file>'
+        matches = re.finditer(pattern, content, re.DOTALL)
         
-    except json.JSONDecodeError:
-        print("⚠️ Error parsing Coder JSON output. Fallback to single file raw string.")
-        # Fallback for Backward Compatibility (if inputs were single file)
-        # But for 'Initialize Client', we really need JSON.
-        return {"code_content": response.content, "changes": {}}
+        changes = {}
+        for match in matches:
+            path = match.group(1)
+            code = match.group(2)
+            changes[path] = code
+            
+        if not changes:
+             print(f"⚠️ No code blocks found! Raw Output:\n{content[:500]}...")
+             
+        return {"changes": changes, "code_content": content} # Return raw content for Reviewer context
+        
     except Exception as e:
         print(f"⚠️ Coder Error: {e}")
-        return {"changes": {}}
+        return {"changes": {}, "code_content": str(e)}
 
 import subprocess
 
@@ -372,42 +380,27 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # โจทย์ 5: Basic Gameplay Implementation
-    mission = {
+    # Mission: Implement Collision Detection & Locking (TDD)
+    initial_state = {
         "task": """
-        Implement basic Tetris Gameplay in C++.
-        
-        1. Create 'client/game.h':
-           - Class 'Game'
-           - Method 'Update()' (handle input later).
-           - Method 'Draw()' (render grid and pieces).
-           - Member 'int grid[20][10]' (initialize to 0).
-           - Define cellSize = 30;
-           
-        2. Create 'client/game.cpp':
-           - Implement 'Draw()': 
-             - Draw a background rectangle for the board (DarkGray).
-             - Loop 20x10. If grid[row][col] is 0, draw empty cell (Line). If >0, draw filled rectangle (Color).
-             - Align board to center of screen.
-           
-        3. Update 'client/main.cpp':
-           - Include "game.h".
-           - Create 'Game game;' before loop.
-           - Inside loop: game.Update(); game.Draw();
-           
-        4. Update 'client/CMakeLists.txt':
-           - Add 'game.cpp' to add_executable sources.
-           - Keep the Policy Fix we added earlier! (Or Luma might revert it if not careful. 
-             Actually Luma reads files? No, Coder overwrites if not careful. 
-             Tell Coder to KEEP existing policy lines).
-             
-        Output JSON: { "changes": { "client/game.h": "...", "client/game.cpp": "...", "client/main.cpp": "...", "client/CMakeLists.txt": "..." } }
+        Implement Collision Detection and Piece Locking in 'client/logic.cpp' using TDD.
+
+        1. Update 'client/tests/logic_test.cpp':
+           - Add a test 'CollisionFloor': Spawn piece, move it to bottom (y=19), try Tick() -> Should NOT move down further.
+           - Add a test 'LockPiece': When piece hits bottom and Tick() is called, it should Lock into the Board (Board::GetCell > 0) and Spawn a new piece.
+
+        2. Modify 'client/logic.h' & 'client/logic.cpp':
+           - Implement 'bool IsValidPosition(Piece p)' to check bounds and existing grid blocks.
+           - Update 'Tick()' to check IsValidPosition before moving.
+           - If move invalid (hit bottom), call 'LockPiece()' to copy piece to board and 'SpawnPiece()' next.
+
+        Constraint:
+        - Output JSON with keys: "client/tests/logic_test.cpp", "client/logic.h", "client/logic.cpp".
+        - KEEP existing logic! Only ADD/MODIFY relevant parts.
         """,
-        "filename": "client/main.cpp", # Hint
-        "changes": {},
-        "test_errors": "",
         "iterations": 0
     }
     
-    app.invoke(mission)
+    # Run Simulation
+    final_state = app.invoke(initial_state)
     print("✅ Simulation Complete.")
