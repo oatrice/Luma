@@ -441,15 +441,15 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: High Contrast Preview Color
+    Feature: Fix Preview Background Contrast
     
-    The user wants the Next Piece Preview to be more visible (High Contrast).
+    The user reported that the background is white, causing low contrast with the white border/text using GOLD pieces.
     
     1. Update `client/game.cpp`:
-       - In `Game::DrawNextPiece()` function:
-         - Change the color of the drawn blocks from `YELLOW` to `GOLD` (or a similar high-contrast color constant like `ORANGE` or `MAGENTA` if GOLD is not available).
-         - Ensure the text "NEXT" and the border remain WHITE.
-         - Do NOT change the logic, only the drawing color inside the loop.
+       - In `Game::DrawNextPiece()`:
+         - Before drawing the border and the piece, Draw a filled rectangle (`DrawRectangle`) to serve as the background for the preview box.
+         - Use `BLACK` or `DARKGRAY` for this background to make the `GOLD` piece and `WHITE` border/text pop out.
+         - Ensure the background rectangle covers the area inside the border (same `previewX`, `previewY`, `previewSize`).
     """,
     "iterations": 0,
     "changes": {},
