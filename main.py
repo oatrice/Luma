@@ -460,41 +460,21 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Soft Drop Safety (Reset on Spawn)
+    Feature: Darker Board Background
     
-    The user wants to prevent the DOWN key (Soft Drop) from affecting such the NEW piece if it was held down during the previous piece's lock/spawn.
-    The user must release the DOWN key and press it again to soft drop the new piece.
+    The user feels the current board background (DARKGRAY) is too light/white-ish.
+    They want a darker background for better contrast.
     
-    1. Update `client/logic.h`:
-       - Add a public member `int spawnCounter = 0;` to `Logic` class.
-       
-    2. Update `client/logic.cpp`:
-       - In `Logic::SpawnPiece()`: Increment `spawnCounter++`.
-       
-    3. Update `client/game.h`:
-       - Add private members to `Game` class:
-         - `int lastSpawnCounter = 0;`
-         - `bool waitForDownRelease = false;`
-         
-    4. Update `client/game.cpp`:
-       - Initialize `lastSpawnCounter` in Constructor (sync with `logic.spawnCounter`).
-       - In `HandleInput()`:
-         - Check for Spawn Event:
-           If `logic.spawnCounter != lastSpawnCounter`:
-             - Update `lastSpawnCounter = logic.spawnCounter`.
-             - If `IsKeyDown(KEY_DOWN)` is true, Set `waitForDownRelease = true`.
-         - Check for Release:
-           If `!IsKeyDown(KEY_DOWN)` (key is up), Set `waitForDownRelease = false`.
-         - Modify Soft Drop Logic:
-           Only call `logic.Move(0, 1)` if `IsKeyDown(KEY_DOWN)` AND `!waitForDownRelease`.
+    1. Update `client/game.cpp`:
+       - In `Game::Draw()`:
+         - Change the `DrawRectangle` color for the Board Background (Section 1).
+         - Current: `DARKGRAY`.
+         - Target: `BLACK` or a custom very dark color e.g. `Color{20, 20, 20, 255}`.
     """,
     "iterations": 0,
-    'changes': {},
+    "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/logic.h",
-        "client/logic.cpp",
-        "client/game.h",
         "client/game.cpp"
     ]
 }    # Run Simulation
