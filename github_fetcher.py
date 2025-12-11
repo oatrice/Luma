@@ -12,7 +12,42 @@ def get_github_headers():
         "Accept": "application/vnd.github.v3+json"
     }
 
+def fetch_issues_rest(repo_name):
+    """Fallback: ดึง Issue ทั้งหมดผ่าน REST API (กรณี GraphQL ใช้ไม่ได้)"""
+    url = f"https://api.github.com/repos/{repo_name}/issues?state=open"
+    headers = get_github_headers()
+    
+    print(f"🌍 Connecting to GitHub REST API: {repo_name}...")
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        issues = response.json()
+        
+        # Filter out Pull Requests
+        real_issues = [i for i in issues if "pull_request" not in i]
+        return real_issues
+    except Exception as e:
+        print(f"❌ REST API Error: {e}")
+        return []
+
 def fetch_issues(repo_name):
+    """
+    Main Entry: Try GraphQL (Ready Lane) -> Fallback to REST (All Open)
+    """
+    # 1. Try GraphQL first
+    try:
+        issues = fetch_issues_graphql(repo_name)
+        if issues:
+            return issues
+    except Exception:
+        pass
+        
+    # 2. If GraphQL failed or empty, confirm with user or just do it? 
+    # For smooth UX, let's just fallback with a warning.
+    print("⚠️ Fallback: Fetching ALL open issues (could not access Project Board).")
+    return fetch_issues_rest(repo_name)
+
+def fetch_issues_graphql(repo_name):
     """
     ดึง Issue ทั้งหมดจาก Repository และ Filter เฉพาะที่อยู่ใน Kanban Lane 'Ready'
     โดยใช้ GitHub GraphQL API (รองรับ Projects V2)
@@ -27,7 +62,7 @@ def fetch_issues(repo_name):
     url = "https://api.github.com/graphql"
     headers = get_github_headers()
     
-    # GraphQL Query to fetch issues and their Project Status
+    # GraphQL Query
     query = """
     query($owner: String!, $name: String!) {
       repository(owner: $owner, name: $name) {
@@ -69,13 +104,16 @@ def fetch_issues(repo_name):
             print("❌ Unauthorized. Please check your GITHUB_TOKEN.")
             return []
             
-        response.raise_for_status()
+        if response.status_code != 200:
+             # Let main fetcher handle fallback
+             return []
+
         data = response.json()
         
         if "errors" in data:
             print(f"❌ GraphQL Error: {data['errors'][0]['message']}")
             print("   (Hint: Ensure your Token has 'project' scope)")
-            return []
+            return [] # This will trigger fallback
             
         raw_issues = data.get("data", {}).get("repository", {}).get("issues", {}).get("nodes", [])
         
@@ -88,15 +126,12 @@ def fetch_issues(repo_name):
             for item in project_items:
                 field_values = item.get("fieldValues", {}).get("nodes", [])
                 for fv in field_values:
-                    # Check if any field value is explicitly "Ready"
-                    # This covers "Status", "Pipeline", etc.
                     if fv.get("name") == "Ready":
                         is_ready = True
                         break
                 if is_ready: break
             
             if is_ready:
-                # Normalize keys to match REST API format used in other functions
                 issue['html_url'] = issue['url'] 
                 ready_issues.append(issue)
         
@@ -106,7 +141,7 @@ def fetch_issues(repo_name):
         return ready_issues
 
     except Exception as e:
-        print(f"❌ Error fetching issues: {e}")
+        print(f"❌ Error fetching graphql: {e}")
         return []
 
 def select_issue(issues, ai_advisor=None):
