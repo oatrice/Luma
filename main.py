@@ -458,9 +458,23 @@ app = workflow.compile()
 
 # --- 4. Execution (สั่งงาน!) ---
 if __name__ == "__main__":
-    # Mission: High Contrast Preview Color
-    initial_state = {
-    "task": """
+    import argparse
+    import sys
+    
+    # Try to import GitHub Fetcher
+    try:
+        from github_fetcher import fetch_issues, select_issue, convert_to_task
+    except ImportError:
+        fetch_issues = None
+        print("⚠️ github_fetcher.py not found. GitHub features disabled.")
+
+    parser = argparse.ArgumentParser(description="Luma AI Architect")
+    parser.add_argument("--github", action="store_true", help="Fetch task from GitHub Issues")
+    parser.add_argument("--repo", type=str, default="oatrice/Tetris-Battle", help="GitHub Repository (user/repo)")
+    args = parser.parse_args()
+
+    # Default Mission: High Contrast Preview Color (Fallback)
+    default_task = """
     Feature: Add Pause and Persistent Restart Buttons
 
     1. Update `client/game.h`:
@@ -490,14 +504,31 @@ if __name__ == "__main__":
          - If `isPaused` is true:
            - Draw a semi-transparent overlay over the board.
            - Draw "PAUSED" text in the center.
-    """,
-    "iterations": 0,
-    "changes": {},
-    "test_errors": "",
-    "source_files": [
-        "client/game.h",
-        "client/game.cpp"
-    ]
-}    # Run Simulation
+    """
+    
+    initial_state = {
+        "task": default_task,
+        "iterations": 0,
+        "changes": {},
+        "test_errors": "",
+        "source_files": [
+            "client/game.h",
+            "client/game.cpp"
+        ]
+    }
+
+    if args.github and fetch_issues:
+        print(f"📡 Fetching issues from {args.repo}...")
+        issues = fetch_issues(args.repo)
+        selected_issue = select_issue(issues)
+        
+        if selected_issue:
+            print(f"🚀 Starting Task: {selected_issue['title']}")
+            initial_state["task"] = convert_to_task(selected_issue)
+            # Todo: dynamic source file detection could go here
+        else:
+            print("❌ No issue selected. Using default task.")
+
+    # Run Simulation
     final_state = app.invoke(initial_state)
     print("✅ Simulation Complete.")
