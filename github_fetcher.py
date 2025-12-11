@@ -13,20 +13,98 @@ def get_github_headers():
     }
 
 def fetch_issues(repo_name):
-    """ดึง Issue ทั้งหมดที่ Open จาก Repository"""
-    url = f"https://api.github.com/repos/{repo_name}/issues?state=open"
+    """
+    ดึง Issue ทั้งหมดจาก Repository และ Filter เฉพาะที่อยู่ใน Kanban Lane 'Ready'
+    โดยใช้ GitHub GraphQL API (รองรับ Projects V2)
+    """
+    # Split owner/repo
+    try:
+        owner, name = repo_name.split("/")
+    except ValueError:
+        print("❌ Invalid repo format. Use 'owner/repo'.")
+        return []
+
+    url = "https://api.github.com/graphql"
     headers = get_github_headers()
     
-    print(f"🌍 Connecting to GitHub: {repo_name}...")
+    # GraphQL Query to fetch issues and their Project Status
+    query = """
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) {
+        issues(first: 50, states: OPEN) {
+          nodes {
+            number
+            title
+            body
+            url
+            projectItems(first: 5) {
+              nodes {
+                fieldValues(first: 10) {
+                  nodes {
+                    ... on ProjectV2ItemFieldSingleSelectValue {
+                      name
+                      field {
+                        ... on ProjectV2FieldCommon {
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+    
+    variables = {"owner": owner, "name": name}
+    
+    print(f"🌍 Connecting to GitHub GraphQL: {repo_name} (Filter: Status='Ready')...")
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.post(url, headers=headers, json={"query": query, "variables": variables}, timeout=10)
+        
+        if response.status_code == 401:
+            print("❌ Unauthorized. Please check your GITHUB_TOKEN.")
+            return []
+            
         response.raise_for_status()
-        issues = response.json()
+        data = response.json()
         
-        # Filter out Pull Requests (GitHub API returns PRs as issues)
-        real_issues = [i for i in issues if "pull_request" not in i]
-        return real_issues
+        if "errors" in data:
+            print(f"❌ GraphQL Error: {data['errors'][0]['message']}")
+            print("   (Hint: Ensure your Token has 'project' scope)")
+            return []
+            
+        raw_issues = data.get("data", {}).get("repository", {}).get("issues", {}).get("nodes", [])
         
+        ready_issues = []
+        for issue in raw_issues:
+            # Check Project Status
+            is_ready = False
+            project_items = issue.get("projectItems", {}).get("nodes", [])
+            
+            for item in project_items:
+                field_values = item.get("fieldValues", {}).get("nodes", [])
+                for fv in field_values:
+                    # Check if any field value is explicitly "Ready"
+                    # This covers "Status", "Pipeline", etc.
+                    if fv.get("name") == "Ready":
+                        is_ready = True
+                        break
+                if is_ready: break
+            
+            if is_ready:
+                # Normalize keys to match REST API format used in other functions
+                issue['html_url'] = issue['url'] 
+                ready_issues.append(issue)
+        
+        if not ready_issues:
+            print("⚠️ No issues found in 'Ready' lane.")
+            
+        return ready_issues
+
     except Exception as e:
         print(f"❌ Error fetching issues: {e}")
         return []
