@@ -164,56 +164,101 @@ def fetch_issues_graphql(repo_name):
 def update_issue_status(issue, status_name="In Progress"):
     """
     Update the status of an issue in GitHub Project V2.
-    Requires: issue object with 'project_item_id' and 'project_id'.
     """
-    # Note: To fully automate this, we need 'project_node_id' and 'field_node_id' and 'option_node_id'.
-    # This is quite complex with just one API call.
-    # For MVP, we will try to find the Project Item ID from the issue we fetched earlier.
-    
     item_id = issue.get("project_item_id")
-    if not item_id:
-        print("⚠️ Issue does not have project_item_id. Cannot update status.")
+    project_id = issue.get("project_id")
+    
+    if not item_id or not project_id:
+        print("⚠️ Issue data missing Project IDs. Cannot update status.")
         return
 
-    # We need to fetch project structure to find Field ID and Option ID for the target status
-    # But that's 2-3 calls. 
-    # Let's simplify: We print the intent clearly. 
-    # If the user REALLY needs this automation, we need to implement a full Project V2 lookup.
+    print(f"🔄 Moving Issue '{issue['title']}' to '{status_name}'...")
     
-    # Let's try to do it properly with a robust function if we have time, 
-    # but for now, let's just log it if we lack data, or implement a basic lookup.
-    
-    print(f"🔄 (Mock) Moving Issue '{issue['title']}' to '{status_name}'...")
-    
-    # Real implementation needs:
-    # 1. Get Project ID (already have from fetch?) -> No, we need to fetch it.
-    # 2. Get Field ID for "Status"
-    # 3. Get Option ID for "In Progress" / "In Review"
-    # 4. Mutation: updateProjectV2ItemFieldValue
-    
-    query = """
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-      updateProjectV2ItemFieldValue(
-        input: {
-          projectId: $projectId
-          itemId: $itemId
-          fieldId: $fieldId
-          value: { singleSelectOptionId: $optionId }
-        }
-      ) {
-        projectV2Item {
-          id
+    headers = get_github_headers()
+    url = "https://api.github.com/graphql"
+
+    # Step 1: Find Field ID and Option ID
+    schema_query = """
+    query($projectId: ID!) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          fields(first: 20) {
+            nodes {
+              ... on ProjectV2FieldSingleSelect {
+                id
+                name
+                options {
+                  id
+                  name
+                }
+              }
+            }
+          }
         }
       }
     }
     """
-    # Since we don't have these IDs cached, we'll skip the actual mutation for safety 
-    # unless we fetch them dynamically. 
-    # Given the complexity, I will leave this as a placeholder for the user to know it's "Ready" to be implemented
-    # or implement a helper to fetch these IDs now.
     
-    # Let's try to fetch the IDs dynamicall first (Lazy loading)
-    pass 
+    try:
+        resp = requests.post(url, headers=headers, json={"query": schema_query, "variables": {"projectId": project_id}}, timeout=10)
+        if resp.status_code != 200:
+            print(f"❌ Failed to fetch project schema: {resp.text}")
+            return
+            
+        data = resp.json()
+        fields = data.get("data", {}).get("node", {}).get("fields", {}).get("nodes", [])
+        
+        status_field = None
+        target_option = None
+        
+        for field in fields:
+            if field.get("name") == "Status":
+                status_field = field
+                # Find Option
+                for opt in field.get("options", []):
+                    if opt.get("name").lower() == status_name.lower():
+                        target_option = opt
+                        break
+                break
+        
+        if not status_field or not target_option:
+            print(f"❌ Could not find Status field or Option '{status_name}' in project.")
+            return
+            
+        # Step 2: Mutate
+        mutation = """
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+          updateProjectV2ItemFieldValue(
+            input: {
+              projectId: $projectId
+              itemId: $itemId
+              fieldId: $fieldId
+              value: { singleSelectOptionId: $optionId }
+            }
+          ) {
+            projectV2Item {
+              id
+            }
+          }
+        }
+        """
+        
+        vars = {
+            "projectId": project_id,
+            "itemId": item_id,
+            "fieldId": status_field["id"],
+            "optionId": target_option["id"]
+        }
+        
+        resp_mut = requests.post(url, headers=headers, json={"query": mutation, "variables": vars}, timeout=10)
+        
+        if resp_mut.status_code == 200 and "errors" not in resp_mut.json():
+            print(f"✅ Status updated to '{status_name}'")
+        else:
+            print(f"❌ Failed to update status: {resp_mut.text}")
+
+    except Exception as e:
+        print(f"❌ Error updating status: {e}") 
 
 def select_issue(issues, ai_advisor=None):
     """
