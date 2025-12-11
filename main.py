@@ -461,19 +461,31 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Rename Rotate Button
+    Feature: Client-Side Score System
     
-    The user feels the 'R' or 'Rot' label on the Rotate button is confusing.
-    They want to use a symbol instead.
+    1. Update `client/logic.h`:
+       - Add `int score;` to the public section of the Logic class.
     
-    1. Update `client/game.cpp`:
-       - In `Game::Game()` (Constructor):
-         - Change the text for `btnRotate` to `"^"`.
+    2. Update `client/logic.cpp`:
+       - Initialize `score` to 0 in the Constructor (`Logic::Logic()`) and inside `Logic::Reset()`.
+       - In `Logic::CheckLines()`:
+         - Calculate lines cleared.
+         - Award points: 1 line = 100, 2 lines = 300, 3 lines = 500, 4 lines = 800.
+         - Update `score` variable.
+
+    3. Update `client/game.cpp`:
+       - In `Game::Draw()`:
+         - Use `DrawText()` (from Raylib) to display the score.
+         - Position: X = 50 (Left side), Y = 50.
+         - Text format: "SCORE: %d".
+         - Size: 20, Color: WHITE.
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
+        "client/logic.h",
+        "client/logic.cpp",
         "client/game.cpp"
     ]
 }    # Run Simulation
