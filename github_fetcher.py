@@ -193,3 +193,33 @@ def convert_to_task(issue):
     Description:
     {issue['body']}
     """
+
+def create_pull_request(repo_name, title, body, head_branch, base_branch="main"):
+    """
+    สร้าง Pull Request ผ่าน GitHub API
+    """
+    owner, name = repo_name.split("/")
+    url = f"https://api.github.com/repos/{owner}/{name}/pulls"
+    headers = get_github_headers()
+    
+    payload = {
+        "title": title,
+        "body": body,
+        "head": head_branch,
+        "base": base_branch
+    }
+    
+    print(f"🌍 Creating PR on {repo_name} ({head_branch} -> {base_branch})...")
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        
+        if response.status_code == 201:
+            pr_data = response.json()
+            print(f"✅ PR Created Successfully: {pr_data['html_url']}")
+            return pr_data['html_url']
+        else:
+            print(f"❌ Failed to create PR: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Error creating PR: {e}")
+        return None
