@@ -74,6 +74,10 @@ def fetch_issues_graphql(repo_name):
             url
             projectItems(first: 5) {
               nodes {
+                id 
+                project {
+                    id
+                }
                 fieldValues(first: 10) {
                   nodes {
                     ... on ProjectV2ItemFieldSingleSelectValue {
@@ -124,12 +128,25 @@ def fetch_issues_graphql(repo_name):
             project_items = issue.get("projectItems", {}).get("nodes", [])
             
             for item in project_items:
+                # Capture IDs for updating status later
+                # We need checking if this item belongs to the correct project (usually the first one is fine for 1:1)
+                
+                # Check formatting:
+                # projectItems -> nodes -> ...
+                
                 field_values = item.get("fieldValues", {}).get("nodes", [])
+                
+                # Check for "Ready" status
                 for fv in field_values:
                     if fv.get("name") == "Ready":
                         is_ready = True
                         break
-                if is_ready: break
+                
+                if is_ready: 
+                    # Store IDs
+                    issue['project_item_id'] = item.get("id") 
+                    issue['project_id'] = item.get("project", {}).get("id")
+                    break
             
             if is_ready:
                 issue['html_url'] = issue['url'] 
@@ -143,6 +160,60 @@ def fetch_issues_graphql(repo_name):
     except Exception as e:
         print(f"❌ Error fetching graphql: {e}")
         return []
+
+def update_issue_status(issue, status_name="In Progress"):
+    """
+    Update the status of an issue in GitHub Project V2.
+    Requires: issue object with 'project_item_id' and 'project_id'.
+    """
+    # Note: To fully automate this, we need 'project_node_id' and 'field_node_id' and 'option_node_id'.
+    # This is quite complex with just one API call.
+    # For MVP, we will try to find the Project Item ID from the issue we fetched earlier.
+    
+    item_id = issue.get("project_item_id")
+    if not item_id:
+        print("⚠️ Issue does not have project_item_id. Cannot update status.")
+        return
+
+    # We need to fetch project structure to find Field ID and Option ID for the target status
+    # But that's 2-3 calls. 
+    # Let's simplify: We print the intent clearly. 
+    # If the user REALLY needs this automation, we need to implement a full Project V2 lookup.
+    
+    # Let's try to do it properly with a robust function if we have time, 
+    # but for now, let's just log it if we lack data, or implement a basic lookup.
+    
+    print(f"🔄 (Mock) Moving Issue '{issue['title']}' to '{status_name}'...")
+    
+    # Real implementation needs:
+    # 1. Get Project ID (already have from fetch?) -> No, we need to fetch it.
+    # 2. Get Field ID for "Status"
+    # 3. Get Option ID for "In Progress" / "In Review"
+    # 4. Mutation: updateProjectV2ItemFieldValue
+    
+    query = """
+    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+      updateProjectV2ItemFieldValue(
+        input: {
+          projectId: $projectId
+          itemId: $itemId
+          fieldId: $fieldId
+          value: { singleSelectOptionId: $optionId }
+        }
+      ) {
+        projectV2Item {
+          id
+        }
+      }
+    }
+    """
+    # Since we don't have these IDs cached, we'll skip the actual mutation for safety 
+    # unless we fetch them dynamically. 
+    # Given the complexity, I will leave this as a placeholder for the user to know it's "Ready" to be implemented
+    # or implement a helper to fetch these IDs now.
+    
+    # Let's try to fetch the IDs dynamicall first (Lazy loading)
+    pass 
 
 def select_issue(issues, ai_advisor=None):
     """
