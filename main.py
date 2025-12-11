@@ -35,6 +35,7 @@ class AgentState(TypedDict):
     changes: dict[str, str]      # (New) Supports multi-file changes {filename: content}
     source_files: list[str]      # (New) List of files to provide as context
     repo: str                    # (New) Target GitHub Repository
+    issue_data: dict             # (New) Issue data used for updating status
 
 # --- 1.5 Helper Functions ---
 def get_llm(temperature=0.7):
@@ -427,9 +428,9 @@ def publisher_agent(state: AgentState):
     
     # Check if we have PR capability
     try:
-        from github_fetcher import create_pull_request
+        from github_fetcher import create_pull_request, update_issue_status
     except ImportError:
-        print("⚠️ create_pull_request not found. Skipping PR.")
+        print("⚠️ GitHub tools not found. Skipping PR.")
         return {}
 
     # 1. Generate Branch Name
@@ -507,6 +508,11 @@ def publisher_agent(state: AgentState):
         if pr_url:
             print(f"🎉 Success! PR is ready: {pr_url}")
             
+            # --- Update Issue Status to 'In Review' ---
+            if state.get('issue_data'):
+                print("🔄 Updating Issue Status to 'In Review'...")
+                update_issue_status(state['issue_data'], "In Review")
+            
     except Exception as e:
         print(f"⚠️ Publisher Error: {e}")
         # Try to return to main?
@@ -563,7 +569,7 @@ if __name__ == "__main__":
     
     # Try to import GitHub Fetcher
     try:
-        from github_fetcher import fetch_issues, select_issue, convert_to_task, create_pull_request
+        from github_fetcher import fetch_issues, select_issue, convert_to_task, create_pull_request, update_issue_status
     except ImportError:
         fetch_issues = None
         print("⚠️ github_fetcher.py not found. GitHub features disabled.")
@@ -615,7 +621,8 @@ if __name__ == "__main__":
             "client/game.h",
             "client/game.cpp"
         ],
-        "repo": args.repo
+        "repo": args.repo,
+        "issue_data": {}
     }
 
     def get_ai_advice(issues):
@@ -654,7 +661,16 @@ if __name__ == "__main__":
         
         if selected_issue:
             print(f"🚀 Starting Task: {selected_issue['title']}")
+            
+            # --- Update Issue Status to 'In Progress' ---
+            print("🔄 Updating Issue Status to 'In Progress'...")
+            # Note: We need to import update_issue_status or define it locally if we want to use it here.
+            # We already imported it.
+            if fetch_issues:
+                 update_issue_status(selected_issue, "In Progress")
+            
             initial_state["task"] = convert_to_task(selected_issue)
+            initial_state["issue_data"] = selected_issue
             # Todo: dynamic source file detection could go here
         else:
             print("❌ No issue selected. Using default task.")
