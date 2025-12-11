@@ -517,10 +517,39 @@ if __name__ == "__main__":
         ]
     }
 
+    def get_ai_advice(issues):
+        if not issues:
+            return
+            
+        summary = "\n".join([f"- Issue #{i['number']}: {i['title']}\n  Body: {i['body'][:200]}..." for i in issues])
+        
+        prompt = f"""
+        You are a Technical Project Manager. 
+        Analyze the following GitHub Issues (Priority Tasks) and suggest the execution order.
+        
+        Criteria:
+        1. Dependency (Is there a task that blocks others?)
+        2. Difficulty (Easy tasks to get momentum vs Hard tasks)
+        3. Impact
+        
+        Tasks:
+        {summary}
+        
+        Output:
+        Provide a short recommendation (2-3 sentences per task) on why it should be done now or later.
+        Be concise. Use bullet points.
+        """
+        
+        llm = get_llm(temperature=0.5)
+        response = llm.invoke([HumanMessage(content=prompt)])
+        print("\n🔎 AI Recommendation:\n" + response.content)
+
     if args.github and fetch_issues:
         print(f"📡 Fetching issues from {args.repo}...")
         issues = fetch_issues(args.repo)
-        selected_issue = select_issue(issues)
+        
+        # Pass the advisor function
+        selected_issue = select_issue(issues, ai_advisor=get_ai_advice)
         
         if selected_issue:
             print(f"🚀 Starting Task: {selected_issue['title']}")
@@ -528,7 +557,7 @@ if __name__ == "__main__":
             # Todo: dynamic source file detection could go here
         else:
             print("❌ No issue selected. Using default task.")
-
+            
     # Run Simulation
     final_state = app.invoke(initial_state)
     print("✅ Simulation Complete.")

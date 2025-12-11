@@ -109,29 +109,45 @@ def fetch_issues(repo_name):
         print(f"❌ Error fetching issues: {e}")
         return []
 
-def select_issue(issues):
-    """ให้ User เลือก Issue จากรายการ"""
+def select_issue(issues, ai_advisor=None):
+    """
+    ให้ User เลือก Issue จากรายการ
+    ai_advisor: ฟังก์ชัน (callback) สำหรับขอความเห็นจาก AI (รับ parameter เป็น list ของ issues)
+    """
     if not issues:
         print("📭 No open issues found.")
         return None
         
-    print("\n--- 🐙 Open GitHub Issues ---")
-    for idx, issue in enumerate(issues):
-        print(f"[{idx+1}] #{issue['number']}: {issue['title']}")
-    
     while True:
-        try:
-            selection = input("\nSelect Issue Number (or 0 to cancel): ").strip()
-            if selection == '0':
-                return None
+        print("\n--- 🐙 Open GitHub Issues (Ready Lane) ---")
+        for idx, issue in enumerate(issues):
+            print(f"[{idx+1}] #{issue['number']}: {issue['title']}")
+        
+        print("-" * 30)
+        options_text = "Select Issue Number"
+        if ai_advisor:
+            print("[A] 🤖 Ask AI for Prioritization Advice")
+        print("[0] Cancel")
+        
+        selection = input(f"\n{options_text}: ").strip().lower()
+        
+        if selection == '0':
+            return None
+        
+        if selection == 'a' and ai_advisor:
+            print("\n🤖 Luma is analyzing tasks...")
+            ai_advisor(issues)
+            input("\nPress Enter to continue...")
+            continue
             
+        try:
             idx = int(selection) - 1
             if 0 <= idx < len(issues):
                 return issues[idx]
             else:
                 print("❌ Invalid selection.")
         except ValueError:
-            print("❌ Please enter a number.")
+            print("❌ Invalid input.")
 
 def convert_to_task(issue):
     """แปลง Issue เป็น format prompt สำหรับ Luma"""
