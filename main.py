@@ -461,31 +461,41 @@ if __name__ == "__main__":
     # Mission: High Contrast Preview Color
     initial_state = {
     "task": """
-    Feature: Client-Side Score System
-    
-    1. Update `client/logic.h`:
-       - Add `int score;` to the public section of the Logic class.
-    
-    2. Update `client/logic.cpp`:
-       - Initialize `score` to 0 in the Constructor (`Logic::Logic()`) and inside `Logic::Reset()`.
-       - In `Logic::CheckLines()`:
-         - Calculate lines cleared.
-         - Award points: 1 line = 100, 2 lines = 300, 3 lines = 500, 4 lines = 800.
-         - Update `score` variable.
+    Feature: Add Pause and Persistent Restart Buttons
 
-    3. Update `client/game.cpp`:
+    1. Update `client/game.h`:
+       - Add `bool isPaused` member variable to `Game` class (initialize to false).
+       - Add `Button btnPause` to `Game` class.
+
+    2. Update `client/game.cpp`:
+       - In `Game::Game()` (Constructor):
+         - Initialize `isPaused` to false.
+         - Update `btnRestart` position to be on the right side of the board (UI Area), e.g., below Next Piece preview. Size: 100x40.
+         - Initialize `btnPause` position to be below `btnRestart`. Size: 100x40. Text: "Pause". Color: GOLD.
+       
+       - In `Game::ResetGame()`:
+         - Set `isPaused` to false.
+         - Set `logic.isGameOver` to false (already done in logic.Reset, but ensure Game state is clean).
+
+       - In `Game::HandleInput()`:
+         - Add logic for `btnPause`: If clicked, toggle `isPaused` state.
+         - Add logic for `btnRestart`: If clicked, call `ResetGame()`.
+         - IMPORTANT: If `isPaused` is true, ignore other game inputs (movement, rotation), BUT allow `btnPause` and `btnRestart` to work.
+
+       - In `Game::Update()`:
+         - If `isPaused` is true, do NOT update `gravityTimer` or call `logic.Tick()`. Return early.
+
        - In `Game::Draw()`:
-         - Use `DrawText()` (from Raylib) to display the score.
-         - Position: X = 50 (Left side), Y = 50.
-         - Text format: "SCORE: %d".
-         - Size: 20, Color: WHITE.
+         - Draw `btnRestart` and `btnPause` always (not just on Game Over).
+         - If `isPaused` is true:
+           - Draw a semi-transparent overlay over the board.
+           - Draw "PAUSED" text in the center.
     """,
     "iterations": 0,
     "changes": {},
     "test_errors": "",
     "source_files": [
-        "client/logic.h",
-        "client/logic.cpp",
+        "client/game.h",
         "client/game.cpp"
     ]
 }    # Run Simulation
