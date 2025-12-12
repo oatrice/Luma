@@ -434,12 +434,53 @@ def publisher_agent(state: AgentState):
         return {}
 
     # 1. Generate Branch Name
+    # 1. Generate Branch Name
     import time
+    import re
     timestamp = int(time.time())
-    branch_name = f"luma-fix-{timestamp}"
     
+    # Extract Title
+    task_header = state['task'].split('\n')[0].strip()
     repo_name = state.get("repo", "oatrice/Tetris-Battle") # Fallback
-    task_title = state['task'].split('\n')[0][:50].strip()
+    task_title = task_header[:50] # For commit message
+
+    # Determine Branch Type
+    lower_header = task_header.lower()
+    if any(x in lower_header for x in ["bug", "fix"]):
+        branch_type = "fix"
+    elif any(x in lower_header for x in ["feat", "feature", "add"]):
+        branch_type = "feat"
+    elif "refactor" in lower_header:
+        branch_type = "refactor"
+    elif "docs" in lower_header:
+        branch_type = "docs"
+    elif "test" in lower_header:
+        branch_type = "test"
+    else:
+        branch_type = "chore" # Default
+
+    # Generate Short Slug using LLM
+    try:
+        print("🤖 Generating short branch name...")
+        llm_slug = get_llm(temperature=0.5)
+        slug_prompt = f"Convert this specific task title into a very short filename-friendly slug (2-3 words, lowercase, kebab-case) for a git branch. Do not include prefixes like 'feat' or 'fix'. Title: '{task_header}'. Return ONLY the slug."
+        response = llm_slug.invoke([HumanMessage(content=slug_prompt)])
+        slug = response.content.strip().replace(" ", "-").lower()
+        # Clean up any potential extra output or newlines
+        slug = re.sub(r'[^a-z0-9\-]', '', slug)
+    except Exception as e:
+        print(f"⚠️ Slug generation failed: {e}. Using fallback.")
+        slug = re.sub(r'[^a-z0-9]+', '-', lower_header).strip('-')
+        # Remove common prefixes
+        clean_prefixes = ["bug-", "fix-", "feat-", "feature-", "refactor-", "docs-", "test-", "chore-"]
+        for prefix in clean_prefixes:
+            if slug.startswith(prefix):
+                slug = slug[len(prefix):]
+                break
+        # Fallback limit to 3 words
+        slug = "-".join(slug.split("-")[:3])
+
+    branch_name = f"{branch_type}/{slug}-{timestamp}"
     
     try:
         # 2. Git Operations
