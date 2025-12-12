@@ -482,6 +482,33 @@ def publisher_agent(state: AgentState):
         slug = "-".join(slug.split("-")[:3])
 
     branch_name = f"{branch_type}/{slug}-{timestamp}"
+
+    # Construct Commit Message
+    type_emoji_map = {
+        "fix": "🐛 fix",
+        "feat": "✨ feat",
+        "refactor": "♻️ refactor",
+        "docs": "📚 docs",
+        "test": "✅ test",
+        "chore": "🔧 chore"
+    }
+    commit_prefix = type_emoji_map.get(branch_type, "🔧 chore")
+    
+    scope = ""
+    affected_files = list(state.get('changes', {}).keys())
+    if any(f.startswith("client") or f.endswith(".cpp") or f.endswith(".h") for f in affected_files):
+        scope = "(client)"
+    elif any(f.startswith("internal") or f.startswith("cmd") or f.endswith(".go") for f in affected_files):
+        scope = "(server)"
+    elif any("Luma" in f or f.endswith(".py") for f in affected_files):
+        scope = "(luma)"
+        
+    if not scope:
+        if "client" in lower_header: scope = "(client)"
+        elif "server" in lower_header: scope = "(server)"
+        elif "luma" in lower_header: scope = "(luma)"
+
+    commit_message = f"{commit_prefix}{scope}: {task_title}"
     
     try:
         # 2. Git Operations
@@ -492,7 +519,7 @@ def publisher_agent(state: AgentState):
         
         print("📦 Committing changes...")
         subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
-        subprocess.run(["git", "commit", "-m", f"Luma Auto-Fix: {task_title}"], cwd=TARGET_DIR, check=True)
+        subprocess.run(["git", "commit", "-m", commit_message], cwd=TARGET_DIR, check=True)
         
         print(f"⬆️ Pushing to origin/{branch_name}...")
         subprocess.run(["git", "push", "origin", branch_name], cwd=TARGET_DIR, check=True)
@@ -542,7 +569,7 @@ def publisher_agent(state: AgentState):
         
         pr_url = create_pull_request(
             repo_name=repo_name,
-            title=f"Luma Fix: {task_title}",
+            title=commit_message,
             body=body,
             head_branch=branch_name,
             base_branch="main" 
