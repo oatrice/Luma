@@ -122,7 +122,7 @@ def fetch_issues_graphql(repo_name):
         raw_issues = data.get("data", {}).get("repository", {}).get("issues", {}).get("nodes", [])
         
         # Define allowed start statuses (Case-insensitive matching logic below handles variations if needed)
-        ACCEPTED_START_STATUSES = ["Ready", "Todo", "To Do", "Backlog", "Open"]
+        ACCEPTED_START_STATUSES = ["Ready"]
         
         ready_issues = []
         for issue in raw_issues:
