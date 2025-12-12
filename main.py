@@ -699,7 +699,7 @@ if __name__ == "__main__":
         if not issues:
             return
             
-        summary = "\n".join([f"- Issue #{i['number']}: {i['title']}\n  Body: {i['body'][:200]}..." for i in issues])
+        summary = "\n".join([f"- Issue #{i['number']}: {i['title']}\n  Body: {(i.get('body') or '')[:200]}..." for i in issues])
         
         prompt = f"""
         You are a Technical Project Manager. 
