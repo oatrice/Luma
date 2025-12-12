@@ -118,8 +118,11 @@ def fetch_issues_graphql(repo_name):
             print(f"❌ GraphQL Error: {data['errors'][0]['message']}")
             print("   (Hint: Ensure your Token has 'project' scope)")
             return [] # This will trigger fallback
-            
+    
         raw_issues = data.get("data", {}).get("repository", {}).get("issues", {}).get("nodes", [])
+        
+        # Define allowed start statuses (Case-insensitive matching logic below handles variations if needed)
+        ACCEPTED_START_STATUSES = ["Ready", "Todo", "To Do", "Backlog", "Open"]
         
         ready_issues = []
         for issue in raw_issues:
@@ -136,9 +139,9 @@ def fetch_issues_graphql(repo_name):
                 
                 field_values = item.get("fieldValues", {}).get("nodes", [])
                 
-                # Check for "Ready" status
+                # Check for "Ready" or equivalent status
                 for fv in field_values:
-                    if fv.get("name") == "Ready":
+                    if fv.get("name") in ACCEPTED_START_STATUSES:
                         is_ready = True
                         break
                 
@@ -153,7 +156,7 @@ def fetch_issues_graphql(repo_name):
                 ready_issues.append(issue)
         
         if not ready_issues:
-            print("⚠️ No issues found in 'Ready' lane.")
+            print(f"⚠️ No issues found in columns: {ACCEPTED_START_STATUSES}")
             
         return ready_issues
 
