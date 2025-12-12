@@ -443,6 +443,7 @@ def publisher_agent(state: AgentState):
     task_header = state['task'].split('\n')[0].strip()
     repo_name = state.get("repo", "oatrice/Tetris-Battle") # Fallback
     task_title = task_header[:50] # For commit message
+    print(f"🔍 Debug Task Header: '{task_header}'")
 
     # Determine Branch Type
     lower_header = task_header.lower()
@@ -514,7 +515,8 @@ def publisher_agent(state: AgentState):
                 body = template.replace("<!-- Brief description of changes -->", summary)
                 
                 # 2. Fill Changes
-                description = state['task']
+                import textwrap
+                description = textwrap.dedent(state['task']).strip()
                 body = body.replace("<!-- Describe what changed -->", description)
                 
                 # 3. Detect Type
