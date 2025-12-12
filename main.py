@@ -440,7 +440,7 @@ def publisher_agent(state: AgentState):
     timestamp = int(time.time())
     
     # Extract Title
-    task_header = state['task'].split('\n')[0].strip()
+    task_header = state['task'].strip().split('\n')[0].strip()
     repo_name = state.get("repo", "oatrice/Tetris-Battle") # Fallback
     task_title = task_header[:50] # For commit message
     print(f"🔍 Debug Task Header: '{task_header}'")
