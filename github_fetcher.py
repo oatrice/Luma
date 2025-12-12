@@ -8,7 +8,7 @@ def get_github_headers():
         print("⚠️ Warning: GITHUB_TOKEN not found. Public rate limits apply.")
         return {}
     return {
-        "Authorization": f"token {token}",
+        "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3+json"
     }
 
@@ -115,8 +115,20 @@ def fetch_issues_graphql(repo_name):
         data = response.json()
         
         if "errors" in data:
-            print(f"❌ GraphQL Error: {data['errors'][0]['message']}")
-            print("   (Hint: Ensure your Token has 'project' scope)")
+            msg = data['errors'][0]['message']
+            print(f"❌ GraphQL Error: {msg}")
+            
+            if "Resource not accessible by personal access token" in msg:
+                 print("\n   💡 DIAGNOSIS: Missing Permissions")
+                 print("   The token works for the Repo, but cannot access 'Project Board' data.")
+                 print("   👉 Fix for Fine-grained Token:")
+                 print("      1. Go to GitHub > Settings > Developer Settings > Fine-grained tokens")
+                 print("      2. Select this token")
+                 print("      3. Permissions > Repository permissions")
+                 print("      4. Ensure 'Projects' is set to 'Read and Write' (or Read-only)")
+                 print("      5. Ensure 'Issues' is 'Read and Write'")
+            
+            print("   (Switching to REST API fallback...)\n")
             return [] # This will trigger fallback
     
         raw_issues = data.get("data", {}).get("repository", {}).get("issues", {}).get("nodes", [])

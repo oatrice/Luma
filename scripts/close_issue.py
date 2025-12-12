@@ -15,7 +15,7 @@ def close_issue(repo, issue_number):
 
     url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"
     headers = {
-        "Authorization": f"token {token}",
+        "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3+json"
     }
     
