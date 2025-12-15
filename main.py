@@ -785,52 +785,77 @@ if __name__ == "__main__":
                     # Let's build a quick prompt description
                     
                     llm = get_llm()
-                    cmd = ["git", "diff", "--name-status", "main...HEAD"] # adjust base if needed
-                    diff_res = subprocess.run(cmd, cwd=TARGET_DIR, capture_output=True, text=True)
                     
-                    # Check for Template in Target Dir
+                    # 2.1 Get Commit Logs (Detailed Context)
+                    # Get commits unique to this branch compared to main
+                    log_cmd = ["git", "log", "main..HEAD", "--pretty=format:%s%n%b"]
+                    log_res = subprocess.run(log_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+                    commit_logs = log_res.stdout.strip()
+                    
+                    # 2.2 Get Diff Summary (Change Scope)
+                    diff_cmd = ["git", "diff", "--name-status", "main...HEAD"] 
+                    diff_res = subprocess.run(diff_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+                    
+                    # 2.3 Check for Template
                     template_path = os.path.join(TARGET_DIR, ".github", "pull_request_template.md")
                     template_content = ""
                     if os.path.exists(template_path):
                         with open(template_path, "r", encoding="utf-8") as f:
                             template_content = f.read()
                             
-                    # 3. Generate Content
+                    # 3. Generate Content with Enhanced Context
                     if template_content:
                         gen_prompt = f"""
-                        You are an expert developer. Fill in the following Pull Request Template based on the code changes.
+                        You are an expert developer creating a Pull Request.
                         
-                        CODE CHANGES (Summary):
-                        {diff_res.stdout[:4000]}
+                        FOCUS: The user wants a PR Title and Description that strictly reflects the *new changes* in this branch.
+                        Do NOT describe the entire project if the diff implies a whole new project but the commits focus on a specific feature.
+                        
+                        CONTEXT:
+                        Target Branch: {current_branch} -> main
+                        
+                        COMMITS (User Intent):
+                        {commit_logs}
+                        
+                        FILES CHANGED:
+                        {diff_res.stdout[:2000]}
                         
                         TEMPLATE:
                         {template_content}
                         
                         INSTRUCTIONS:
-                        1. Keep the original structure of the template.
-                        2. Check [x] for relevant boxes.
-                        3. Fill in the "Summary", "Changes", "Testing" sections based on the diff.
-                        4. Return ONLY the filled markdown.
-                        5. Also suggest a concise PR Title at the very top relative to the changes (Format: TITLE: <title>).
+                        1. **Title**: Must be specific (e.g., "feat: Add Score System" NOT "feat: Update Project"). Use the commit messages as a strong hint.
+                        2. **Body**: Fill the template with details from the commits and file changes.
+                        3. Return ONLY the filled markdown.
+                        4. Start output with "TITLE: <Suggested Title>".
                         """
                     else:
-                        gen_prompt = f"Generate a PR Title and Markdown Body for these changes:\n{diff_res.stdout[:2000]}"
+                        gen_prompt = f"""
+                        Generate a PR Title and Body.
+                        Commits: {commit_logs}
+                        Files: {diff_res.stdout[:500]}
+                        Rules: Specific Title, Concise Body.
+                        """
                         
                     ai_res = llm.invoke([HumanMessage(content=gen_prompt)])
                     
                     print(f"\n📝 AI Proposal:\n{ai_res.content}\n")
                     
-                    # Parse Title (if AI provided it as instructed)
+                    # Parse Title
                     content = ai_res.content.strip()
                     title = f"feat: {current_branch}" # fallback
                     body = content
                     
-                    if "TITLE:" in content:
-                        parts = content.split("\n", 1)
-                        if parts[0].startswith("TITLE:"):
-                            title = parts[0].replace("TITLE:", "").strip()
-                            body = parts[1].strip()
-                    
+                    lines = content.split('\n')
+                    first_line = lines[0].strip()
+                    if first_line.startswith("TITLE:"):
+                         title = first_line.replace("TITLE:", "").strip()
+                         # Remove title from body
+                         body = "\n".join(lines[1:]).strip()
+                    elif "**Title**" in content: # heuristic
+                         # ... optional parsing logic
+                         pass
+
                     # 4. Create PR
                     if input("Proceed to Open PR? (y/N): ").lower() == 'y':
                          url = create_pull_request(args.repo, title, body, current_branch, "main")
