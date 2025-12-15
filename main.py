@@ -378,7 +378,7 @@ def human_approval_agent(state: AgentState):
 
         draft_files.append(draft_filename)
 
-    user_input = input("Approve changes? (y/n): ").strip().lower()
+    user_input = input("Approve changes? (y/N): ").strip().lower()
     
     if user_input == 'y':
         return {"approved": True, "filename": str(draft_files)}
@@ -775,7 +775,7 @@ if __name__ == "__main__":
                     print(f"🌿 Current Branch: {current_branch}")
                     
                     # Confirm
-                    confirm = input(f"Create PR for '{current_branch}' -> 'main'? (y/n): ").lower()
+                    confirm = input(f"Create PR for '{current_branch}' -> 'main'? (y/N): ").lower()
                     if confirm != 'y':
                         continue
                         
@@ -788,18 +788,51 @@ if __name__ == "__main__":
                     cmd = ["git", "diff", "--name-status", "main...HEAD"] # adjust base if needed
                     diff_res = subprocess.run(cmd, cwd=TARGET_DIR, capture_output=True, text=True)
                     
+                    # Check for Template in Target Dir
+                    template_path = os.path.join(TARGET_DIR, ".github", "pull_request_template.md")
+                    template_content = ""
+                    if os.path.exists(template_path):
+                        with open(template_path, "r", encoding="utf-8") as f:
+                            template_content = f.read()
+                            
                     # 3. Generate Content
-                    gen_prompt = f"Generate a PR Title and Markdown Body for these changes:\n{diff_res.stdout[:2000]}"
+                    if template_content:
+                        gen_prompt = f"""
+                        You are an expert developer. Fill in the following Pull Request Template based on the code changes.
+                        
+                        CODE CHANGES (Summary):
+                        {diff_res.stdout[:4000]}
+                        
+                        TEMPLATE:
+                        {template_content}
+                        
+                        INSTRUCTIONS:
+                        1. Keep the original structure of the template.
+                        2. Check [x] for relevant boxes.
+                        3. Fill in the "Summary", "Changes", "Testing" sections based on the diff.
+                        4. Return ONLY the filled markdown.
+                        5. Also suggest a concise PR Title at the very top relative to the changes (Format: TITLE: <title>).
+                        """
+                    else:
+                        gen_prompt = f"Generate a PR Title and Markdown Body for these changes:\n{diff_res.stdout[:2000]}"
+                        
                     ai_res = llm.invoke([HumanMessage(content=gen_prompt)])
                     
                     print(f"\n📝 AI Proposal:\n{ai_res.content}\n")
                     
-                    # Simple parsing fallback
-                    title = f"feat: {current_branch}"
-                    body = ai_res.content
+                    # Parse Title (if AI provided it as instructed)
+                    content = ai_res.content.strip()
+                    title = f"feat: {current_branch}" # fallback
+                    body = content
+                    
+                    if "TITLE:" in content:
+                        parts = content.split("\n", 1)
+                        if parts[0].startswith("TITLE:"):
+                            title = parts[0].replace("TITLE:", "").strip()
+                            body = parts[1].strip()
                     
                     # 4. Create PR
-                    if input("Proceed to Open PR? (y/n): ").lower() == 'y':
+                    if input("Proceed to Open PR? (y/N): ").lower() == 'y':
                          url = create_pull_request(args.repo, title, body, current_branch, "main")
                          if url: print(f"✅ PR Created: {url}")
                          
