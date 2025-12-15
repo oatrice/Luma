@@ -899,7 +899,8 @@ if __name__ == "__main__":
                         log_res = subprocess.run(log_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
                         commit_logs = log_res.stdout.strip()
                         
-                        diff_cmd = ["git", "diff", "--name-status", "main...HEAD"] 
+                        # Use full diff to get content changes, not just names
+                        diff_cmd = ["git", "diff", "main...HEAD"] 
                         diff_res = subprocess.run(diff_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
 
                         if template_content:
@@ -919,8 +920,8 @@ if __name__ == "__main__":
                             COMMITS (User Intent):
                             {commit_logs}
                             
-                            FILES CHANGED:
-                            {diff_res.stdout[:2000]}
+                            **CODE DIFF (First 6000 chars)**:
+                            {diff_res.stdout[:6000]}
                             
                             TEMPLATE:
                             {template_content}
