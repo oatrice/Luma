@@ -734,8 +734,12 @@ if __name__ == "__main__":
             print("\n==============================")
             print("🤖 Luma AI Architect - Main Menu")
             print("==============================")
+            # Check draft existence for UI hint
+            draft_path = os.path.join(TARGET_DIR, ".pr_draft.json")
+            draft_hint = " 📄 (Resume Draft)" if os.path.exists(draft_path) else ""
+
             print("1. 📥 Select Next Issue (Start Coding)")
-            print("2. 🚀 Create Pull Request (Deploy)")
+            print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
             print("0. ❌ Exit")
             
             choice = input("\nSelect Option: ").strip()
@@ -902,8 +906,12 @@ if __name__ == "__main__":
                             gen_prompt = f"""
                             You are an expert developer creating a Pull Request.
                             
-                            FOCUS: The user wants a PR Title and Description that strictly reflects the *new changes* in this branch.
-                            Do NOT describe the entire project if the diff implies a whole new project but the commits focus on a specific feature.
+                            **CRITICAL INSTRUCTION**: 
+                            The PR Title MUST derive directly from the branch name: '{current_branch}'.
+                            Example: if branch is 'feat/add-login', Title should be 'feat: Add Login Functionality'.
+                            
+                            FOCUS: Describe ONLY the changes related to '{current_branch}'. 
+                            Ignore unrelated history or large file additions if they are not central to this specific feature/fix.
                             
                             CONTEXT:
                             Target Branch: {current_branch} -> main
@@ -918,17 +926,19 @@ if __name__ == "__main__":
                             {template_content}
                             
                             INSTRUCTIONS:
-                            1. **Title**: Must be specific (e.g., "feat: Add Score System" NOT "feat: Update Project"). Use the commit messages as a strong hint.
-                            2. **Body**: Fill the template with details from the commits and file changes.
+                            1. **Title**: Generate a conventional commit title based on '{current_branch}'.
+                            2. **Body**: Fill the template with details from the commits and file changes. Focus on WHAT changed and WHY.
                             3. Return ONLY the filled markdown.
                             4. Start output with "TITLE: <Suggested Title>".
                             """
                         else:
                             gen_prompt = f"""
-                            Generate a PR Title and Body.
+                            Generate a PR Title and Body for branch '{current_branch}'.
+                            **Title**: Must be based on the branch name.
+                            **Body**: concise summary of changes.
+                            
                             Commits: {commit_logs}
                             Files: {diff_res.stdout[:500]}
-                            Rules: Specific Title, Concise Body.
                             """
                             
                         ai_res = llm.invoke([HumanMessage(content=gen_prompt)])
@@ -954,6 +964,13 @@ if __name__ == "__main__":
 
                     # 4. Create PR
                     if input("Proceed to Open PR? (y/N): ").lower() == 'y':
+                         try:
+                             print(f"⬆️ Pushing branch '{current_branch}' to origin...")
+                             subprocess.run(["git", "push", "origin", current_branch], cwd=TARGET_DIR, check=True)
+                         except subprocess.CalledProcessError as e:
+                             print(f"❌ Failed to push branch: {e}")
+                             continue
+
                          url = create_pull_request(args.repo, title, body, current_branch, "main")
                          if url: 
                              print(f"✅ PR Created: {url}")
