@@ -463,12 +463,41 @@ def publisher_agent(state: AgentState):
     # Generate Short Slug using LLM
     try:
         print("🤖 Generating short branch name...")
+        
+        # Gather changes file summary for context
+        changes_keys = list(state.get('changes', {}).keys())
+        changes_summary = "\n".join(changes_keys[:10]) # Top 10 files
+        if len(changes_keys) > 10:
+            changes_summary += "\n(and more...)"
+            
         llm_slug = get_llm(temperature=0.5)
-        slug_prompt = f"Convert this specific task title into a very short filename-friendly slug (2-3 words, lowercase, kebab-case) for a git branch. Do not include prefixes like 'feat' or 'fix'. Title: '{task_header}'. Return ONLY the slug."
+        slug_prompt = f"""
+        Task: {task_header}
+        
+        Modified Files:
+        {changes_summary}
+        
+        Instruction:
+        Generate a concise, consistent git branch slug based on the Task and Modified Files.
+        Format: lowercase, kebab-case, 2-4 words max.
+        Do NOT include prefixes like 'feat/', 'fix/', 'chore/'. ONLY the slug logic.
+        
+        Examples:
+        - Task: "Add Ghost Piece" -> ghost-piece-toggle
+        - Task: "Fix null pointer in Renderer" -> renderer-npe-fix
+        - Task: "Refactor Game Loop" -> game-loop-refactor
+        
+        Return ONLY the slug string.
+        """
         response = llm_slug.invoke([HumanMessage(content=slug_prompt)])
         slug = response.content.strip().replace(" ", "-").lower()
-        # Clean up any potential extra output or newlines
+        # Clean up
         slug = re.sub(r'[^a-z0-9\-]', '', slug)
+        # Remove common type prefixes if LLM put them
+        for prefix in ["feat-", "fix-", "chore-", "refactor-", "docs-", "test-"]:
+            if slug.startswith(prefix):
+                slug = slug[len(prefix):]
+                
     except Exception as e:
         print(f"⚠️ Slug generation failed: {e}. Using fallback.")
         slug = re.sub(r'[^a-z0-9]+', '-', lower_header).strip('-')
@@ -788,22 +817,44 @@ if __name__ == "__main__":
                         status_cmd = ["git", "status", "--short"] 
                         status_res = subprocess.run(status_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
                         
+                        # Get diff stat (more context than just status)
+                        diff_cmd = ["git", "diff", "--stat"]
+                        diff_res = subprocess.run(diff_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+                        
+                        diff_cached_cmd = ["git", "diff", "--cached", "--stat"]
+                        diff_cached_res = subprocess.run(diff_cached_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+
                         # Get recent log (last 5 commits)
                         log_cmd_quick = ["git", "log", "-n", "5", "--pretty=format:%s"]
                         log_res_quick = subprocess.run(log_cmd_quick, cwd=TARGET_DIR, capture_output=True, text=True)
                         
-                        changes_context = f"Git Status:\n{status_res.stdout}\n\nRecent Logs:\n{log_res_quick.stdout}"
+                        changes_context = f"""
+                        Git Status:
+                        {status_res.stdout}
+                        
+                        Modified Files (Diff Stat):
+                        {diff_res.stdout}
+                        {diff_cached_res.stdout}
+
+                        Recent Logs:
+                        {log_res_quick.stdout}
+                        """
                         
                         try:
                             llm_suggest = get_llm(temperature=0.7)
                             suggest_prompt = f"""
                             Based on these git changes/context, suggest 3 suitable git branch names (kebab-case).
-                            Format: <type>/<short-description>
+                            Format: <type>/<concise-slug>
                             Types: feat, fix, refactor, chore, docs.
                             
                             Context:
                             {changes_context}
                             
+                            Instructions:
+                            - Analyze the 'Modified Files' to understand the scope (e.g., if 'renderer.cpp' changed, mention renderer).
+                            - Keep the slug short (2-4 words).
+                            - Make it descriptive but concise.
+
                             Return ONLY the 3 names, one per line. No numbering.
                             """
                             resp = llm_suggest.invoke([HumanMessage(content=suggest_prompt)])
