@@ -483,6 +483,12 @@ def publisher_agent(state: AgentState):
 
     branch_name = f"{branch_type}/{slug}-{timestamp}"
 
+    # Allow user override
+    print(f"🤖 Proposed Branch Name: {branch_name}")
+    custom_branch = input("👉 Press Enter to confirm, or type a custom branch name: ").strip()
+    if custom_branch:
+        branch_name = custom_branch
+
     # Construct Commit Message
     type_emoji_map = {
         "fix": "🐛 fix",
@@ -772,7 +778,82 @@ if __name__ == "__main__":
                         print("❌ Error: Not in a git repository or detached head.")
                         continue
                         
+                    def generate_suggestions():
+                        print("📊 Analyzing local changes for suggestions...")
+                        # Get diff summary (staged + unstaged)
+                        status_cmd = ["git", "status", "--short"] 
+                        status_res = subprocess.run(status_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+                        
+                        # Get recent log (last 5 commits)
+                        log_cmd_quick = ["git", "log", "-n", "5", "--pretty=format:%s"]
+                        log_res_quick = subprocess.run(log_cmd_quick, cwd=TARGET_DIR, capture_output=True, text=True)
+                        
+                        changes_context = f"Git Status:\n{status_res.stdout}\n\nRecent Logs:\n{log_res_quick.stdout}"
+                        
+                        try:
+                            llm_suggest = get_llm(temperature=0.7)
+                            suggest_prompt = f"""
+                            Based on these git changes/context, suggest 3 suitable git branch names (kebab-case).
+                            Format: <type>/<short-description>
+                            Types: feat, fix, refactor, chore, docs.
+                            
+                            Context:
+                            {changes_context}
+                            
+                            Return ONLY the 3 names, one per line. No numbering.
+                            """
+                            resp = llm_suggest.invoke([HumanMessage(content=suggest_prompt)])
+                            return [s.strip() for s in resp.content.strip().split('\n') if s.strip()]
+                        except Exception as e:
+                            print(f"⚠️ Failed to generate suggestions: {e}")
+                            return []
+
+                    def get_user_branch_choice():
+                        # Call LLM only here
+                        suggestions = generate_suggestions()
+                        
+                        if suggestions:
+                            print("\n💡 AI Suggestions:")
+                            for idx, s in enumerate(suggestions):
+                                print(f"   [{idx+1}] {s}")
+                            print("   [0] Custom Name")
+                            
+                            sel = input("👉 Select [1-3] or Enter custom name: ").strip()
+                            if sel in ["1", "2", "3"] and int(sel) <= len(suggestions):
+                                return suggestions[int(sel)-1]
+                            return sel
+                        else:
+                            return input("👉 Enter new branch name: ").strip()
+
+                    # If on main, offer to create feature branch
+                    if current_branch in ['main', 'master']:
+                        print(f"⚠️ You are currently on '{current_branch}'.")
+                        create_new = input("🌿 Do you want to create a new branch? (y/N): ").lower()
+                        if create_new == 'y':
+                            new_branch = get_user_branch_choice()
+                            if new_branch:
+                                try:
+                                    subprocess.run(["git", "checkout", "-b", new_branch], cwd=TARGET_DIR, check=True)
+                                    current_branch = new_branch
+                                    print(f"✅ Switched to new branch: {current_branch}")
+                                except subprocess.CalledProcessError as e:
+                                    print(f"❌ Failed to create branch: {e}")
+                                    continue
+                        
                     print(f"🌿 Current Branch: {current_branch}")
+
+                    # If NOT on main, offer to rename (e.g. to match changes)
+                    if current_branch not in ['main', 'master']:
+                        rename_opt = input(f"✏️  Do you want to rename '{current_branch}'? (y/N): ").lower()
+                        if rename_opt == 'y':
+                             new_name = get_user_branch_choice()
+                             if new_name:
+                                 try:
+                                     subprocess.run(["git", "branch", "-m", new_name], cwd=TARGET_DIR, check=True)
+                                     current_branch = new_name
+                                     print(f"✅ Renamed to: {current_branch}")
+                                 except subprocess.CalledProcessError as e:
+                                     print(f"❌ Failed to rename: {e}")
                     
                     # Confirm
                     confirm = input(f"Create PR for '{current_branch}' -> 'main'? (y/N): ").lower()
