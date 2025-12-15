@@ -817,12 +817,24 @@ if __name__ == "__main__":
                         status_cmd = ["git", "status", "--short"] 
                         status_res = subprocess.run(status_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
                         
-                        # Get diff stat (more context than just status)
-                        diff_cmd = ["git", "diff", "--stat"]
-                        diff_res = subprocess.run(diff_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
-                        
-                        diff_cached_cmd = ["git", "diff", "--cached", "--stat"]
-                        diff_cached_res = subprocess.run(diff_cached_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+                        # Get diff stat
+                        try:
+                            diff_stat = subprocess.check_output(["git", "diff", "--stat"], cwd=TARGET_DIR, text=True).strip()
+                            diff_cached_stat = subprocess.check_output(["git", "diff", "--cached", "--stat"], cwd=TARGET_DIR, text=True).strip()
+                        except:
+                            diff_stat = ""
+                            diff_cached_stat = ""
+
+                        # Get actual diff content (Truncated)
+                        try:
+                            diff_content = subprocess.check_output(["git", "diff"], cwd=TARGET_DIR, text=True).strip()
+                            diff_cached_content = subprocess.check_output(["git", "diff", "--cached"], cwd=TARGET_DIR, text=True).strip()
+                        except:
+                            diff_content = ""
+                            diff_cached_content = ""
+
+                        # Combine and truncate
+                        full_diff = (diff_content + "\n" + diff_cached_content)[:3000]
 
                         # Get recent log (last 5 commits)
                         log_cmd_quick = ["git", "log", "-n", "5", "--pretty=format:%s"]
@@ -832,9 +844,12 @@ if __name__ == "__main__":
                         Git Status:
                         {status_res.stdout}
                         
-                        Modified Files (Diff Stat):
-                        {diff_res.stdout}
-                        {diff_cached_res.stdout}
+                        Modified Files (Stat):
+                        {diff_stat}
+                        {diff_cached_stat}
+
+                        Code Changes (Diff - Truncated):
+                        {full_diff}
 
                         Recent Logs:
                         {log_res_quick.stdout}
@@ -843,18 +858,21 @@ if __name__ == "__main__":
                         try:
                             llm_suggest = get_llm(temperature=0.7)
                             suggest_prompt = f"""
-                            Based on these git changes/context, suggest 3 suitable git branch names (kebab-case).
-                            Format: <type>/<concise-slug>
-                            Types: feat, fix, refactor, chore, docs.
+                            Based on the Code Changes above, suggest 3 suitable git branch names.
                             
                             Context:
                             {changes_context}
                             
                             Instructions:
-                            - Analyze the 'Modified Files' to understand the scope (e.g., if 'renderer.cpp' changed, mention renderer).
-                            - Keep the slug short (2-4 words).
-                            - Make it descriptive but concise.
-
+                            1. Analyze the *Code Changes* to identify the specific feature or fix (e.g., 'renderer-fix', 'ghost-piece-logic').
+                            2. Format: <type>/<concise-slug>
+                            3. Types: feat, fix, refactor, chore, docs, test.
+                            4. Slug: kebab-case, 2-4 words. Avoid generic names like 'update-file'.
+                            
+                            Examples:
+                            - Diff shows added tests -> test/offline-mode-cases
+                            - Diff shows UI color change -> feat/ui-dark-theme-colors
+                            
                             Return ONLY the 3 names, one per line. No numbering.
                             """
                             resp = llm_suggest.invoke([HumanMessage(content=suggest_prompt)])
