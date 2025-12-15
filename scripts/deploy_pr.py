@@ -1,8 +1,7 @@
-
 import sys
 import os
+import argparse
 import subprocess
-import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,53 +15,63 @@ except ImportError:
     print("❌ Error: Could not import github_fetcher. Make sure you are running this from 'scripts' directory.")
     sys.exit(1)
 
-TARGET_DIR = "/Users/oatrice/Software-projects/Tetris-Battle"
-REPO_NAME = "oatrice/Tetris-Battle"
-
-def run_git(args, cwd):
-    print(f"🔹 Executing: {' '.join(args)}")
-    subprocess.run(args, cwd=cwd, check=True)
-
 def main():
-    print(f"🚀 Starting Manual PR Deployment for {REPO_NAME}...")
+    parser = argparse.ArgumentParser(description="Deploy PR for Luma/Tetris Projects")
+    parser.add_argument("--repo", default="oatrice/Tetris-Battle", help="GitHub Repository")
+    parser.add_argument("--branch", required=True, help="Head Branch (Source)")
+    parser.add_argument("--base", default="main", help="Base Branch (Target)")
+    parser.add_argument("--title", required=True, help="PR Title")
+    parser.add_argument("--desc", help="PR Description")
+    parser.add_argument("--template", help="Path to PR template")
     
-    # Check for changes
-    status = subprocess.run(["git", "status", "--porcelain"], cwd=TARGET_DIR, capture_output=True, text=True)
-    if not status.stdout.strip():
-        print("⚠️ No changes to commit. Exiting.")
-        return
+    args = parser.parse_args()
 
-    # 1. Generate Branch
-    timestamp = int(time.time())
-    branch_name = f"luma-fix-manual-{timestamp}"
+    print(f"🚀 Deploying PR for {args.repo} ({args.branch} -> {args.base})...")
+
+    # Body Logic
+    body = args.desc or "Auto-generated PR"
     
-    try:
-        # 2. Git Operations
-        # run_git(["git", "checkout", "main"], cwd=TARGET_DIR) # Assuming main exists
-        # run_git(["git", "pull"], cwd=TARGET_DIR)
-        
-        run_git(["git", "checkout", "-b", branch_name], cwd=TARGET_DIR)
-        run_git(["git", "add", "."], cwd=TARGET_DIR)
-        run_git(["git", "commit", "-m", "Luma Fix: Restart button overlapping refactor"], cwd=TARGET_DIR)
-        run_git(["git", "push", "origin", branch_name], cwd=TARGET_DIR)
-        
-        # 3. Open PR
-        print("📝 Opening PR...")
-        pr_url = create_pull_request(
-            repo_name=REPO_NAME,
-            title="Fix: Restart button position and dynamic sizing",
-            body="This PR fixes the issue where the Restart button overlaps with the frame.\nIt implements dynamic button sizing based on text width.\n\nAutomated by Luma Pipeline.",
-            head_branch=branch_name,
-            base_branch="main"
-        )
-        
-        if pr_url:
-            print(f"✅ Pipeline Complete! PR: {pr_url}")
-            # Switch back to main?
-            run_git(["git", "checkout", "main"], cwd=TARGET_DIR)
-            
-    except Exception as e:
-        print(f"❌ Error: {e}")
+    if args.template and os.path.exists(args.template):
+         with open(args.template, "r") as f:
+            template = f.read()
+            # Simple replacements
+            if args.desc:
+                template = template.replace("<!-- Brief description of changes -->", args.title) # Use title as summary fallback
+                template = template.replace("<!-- Describe what changed -->", args.desc)
+                
+                # Auto-check boxes based on title keywords
+                lower_title = args.title.lower()
+                if "feat" in lower_title:
+                     template = template.replace("- [ ] ✨ New feature", "- [x] ✨ New feature")
+                if "fix" in lower_title:
+                     template = template.replace("- [ ] 🐛 Bug fix", "- [x] 🐛 Bug fix")
+                if "refactor" in lower_title:
+                     template = template.replace("- [ ] 🔧 Refactoring", "- [x] 🔧 Refactoring")
+                     
+            body = template
+            print(f"📄 Loaded Template from {args.template}")
+
+    # No Git Operations needed if branch is already pushed.
+    # We assume the user has pushed the branch. 
+    # If not, create_pull_request might fail or we should push here?
+    # Let's add a safety push?
+    # Actually, let's keep it simple: assume branch is pushed or local exists.
+    # If only local exists, we need to push.
+    
+    # We can try to push safely
+    # This requires knowing the local path, which might vary. 
+    # For now, let's assume 'create_pull_request' just calls API. The code must be on remote.
+    
+    # Executing Push just in case (optional, might fail if not in git dir)
+    # subprocess.run(["git", "push", "origin", args.branch], cwd=os.getcwd(), check=False)
+
+    url = create_pull_request(args.repo, args.title, body, args.branch, args.base)
+    
+    if url:
+        print(f"✅ Pipeline Complete! PR: {url}")
+    else:
+        print("❌ Pipeline Failed")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
