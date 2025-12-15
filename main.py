@@ -722,29 +722,97 @@ if __name__ == "__main__":
         response = llm.invoke([HumanMessage(content=prompt)])
         print("\n🔎 AI Recommendation:\n" + response.content)
 
+    # --- Interactive Menu System ---
     if args.github and fetch_issues:
-        print(f"📡 Fetching issues from {args.repo}...")
-        issues = fetch_issues(args.repo)
-        
-        # Pass the advisor function
-        selected_issue = select_issue(issues, ai_advisor=get_ai_advice)
-        
-        if selected_issue:
-            print(f"🚀 Starting Task: {selected_issue['title']}")
+        while True:
+            print("\n==============================")
+            print("🤖 Luma AI Architect - Main Menu")
+            print("==============================")
+            print("1. 📥 Select Next Issue (Start Coding)")
+            print("2. 🚀 Create Pull Request (Deploy)")
+            print("0. ❌ Exit")
             
-            # --- Update Issue Status to 'In Progress' ---
-            print("🔄 Updating Issue Status to 'In Progress'...")
-            # Note: We need to import update_issue_status or define it locally if we want to use it here.
-            # We already imported it.
-            if fetch_issues:
-                 update_issue_status(selected_issue, "In Progress")
+            choice = input("\nSelect Option: ").strip()
             
-            initial_state["task"] = convert_to_task(selected_issue)
-            initial_state["issue_data"] = selected_issue
-            # Todo: dynamic source file detection could go here
-        else:
-            print("❌ No issue selected. Using default task.")
-            
-    # Run Simulation
-    final_state = app.invoke(initial_state)
-    print("✅ Simulation Complete.")
+            if choice == "1":
+                # --- Flow 1: Issue Selection ---
+                print(f"📡 Fetching issues from {args.repo}...")
+                issues = fetch_issues(args.repo)
+                
+                selected_issue = select_issue(issues, ai_advisor=get_ai_advice)
+                
+                if selected_issue:
+                    print(f"🚀 Starting Task: {selected_issue['title']}")
+                    
+                    print("🔄 Updating Issue Status to 'In Progress'...")
+                    update_issue_status(selected_issue, "In Progress")
+                    
+                    initial_state["task"] = convert_to_task(selected_issue)
+                    initial_state["issue_data"] = selected_issue
+                    
+                    # Run Workflow
+                    final_state = app.invoke(initial_state)
+                    print("✅ Simulation Complete.")
+                    
+                    # Ask to loop back?
+                    # break # for now break to return to menu or exit? 
+                    # Let's loop back to menu
+                else:
+                    print("❌ No issue selected.")
+
+            elif choice == "2":
+                # --- Flow 2: Create PR ---
+                print(f"\n🚀 Preparing to Create PR for {TARGET_DIR}...")
+                
+                # 1. Get Current Branch
+                try:
+                    res = subprocess.run(["git", "branch", "--show-current"], cwd=TARGET_DIR, capture_output=True, text=True)
+                    current_branch = res.stdout.strip()
+                    if not current_branch:
+                        print("❌ Error: Not in a git repository or detached head.")
+                        continue
+                        
+                    print(f"🌿 Current Branch: {current_branch}")
+                    
+                    # Confirm
+                    confirm = input(f"Create PR for '{current_branch}' -> 'main'? (y/n): ").lower()
+                    if confirm != 'y':
+                        continue
+                        
+                    # 2. Get Diff for Description
+                    print("📊 Analyzing changes for description...")
+                    # We can use our 'deploy_pr_auto' logic here inline or call it
+                    # Let's build a quick prompt description
+                    
+                    llm = get_llm()
+                    cmd = ["git", "diff", "--name-status", "main...HEAD"] # adjust base if needed
+                    diff_res = subprocess.run(cmd, cwd=TARGET_DIR, capture_output=True, text=True)
+                    
+                    # 3. Generate Content
+                    gen_prompt = f"Generate a PR Title and Markdown Body for these changes:\n{diff_res.stdout[:2000]}"
+                    ai_res = llm.invoke([HumanMessage(content=gen_prompt)])
+                    
+                    print(f"\n📝 AI Proposal:\n{ai_res.content}\n")
+                    
+                    # Simple parsing fallback
+                    title = f"feat: {current_branch}"
+                    body = ai_res.content
+                    
+                    # 4. Create PR
+                    if input("Proceed to Open PR? (y/n): ").lower() == 'y':
+                         url = create_pull_request(args.repo, title, body, current_branch, "main")
+                         if url: print(f"✅ PR Created: {url}")
+                         
+                except Exception as e:
+                    print(f"❌ Error in PR Flow: {e}")
+
+            elif choice == "0":
+                print("👋 Exiting.")
+                break
+            else:
+                print("❌ Invalid option.")
+    else:
+        # Fallback for non-github mode (CLI args only)
+        # Run Simulation
+        final_state = app.invoke(initial_state)
+        print("✅ Simulation Complete.")
