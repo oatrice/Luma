@@ -19,7 +19,7 @@ OPENROUTER_MODEL = "qwen/qwen3-coder:free"
 
 # Gemini Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 TARGET_DIR = "../Tetris-Battle"
 
