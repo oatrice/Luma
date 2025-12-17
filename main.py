@@ -21,7 +21,7 @@ OPENROUTER_MODEL = "qwen/qwen3-coder:free"
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash-lite"
 
-TARGET_DIR = "../Tetris-Battle"
+TARGET_DIR = "../Tetris-Battle/client-ts"
 
 # --- 1. Define State (หน่วยความจำของ Agent) ---
 class AgentState(TypedDict):
@@ -684,37 +684,12 @@ if __name__ == "__main__":
     parser.add_argument("--repo", type=str, default="oatrice/Tetris-Battle", help="GitHub Repository (user/repo)")
     args = parser.parse_args()
 
-    # Default Mission: High Contrast Preview Color (Fallback)
+    # Default Mission: Check Project Status (Fallback)
     default_task = """
-    Feature: Add Pause and Persistent Restart Buttons
-
-    1. Update `client/game.h`:
-       - Add `bool isPaused` member variable to `Game` class (initialize to false).
-       - Add `Button btnPause` to `Game` class.
-
-    2. Update `client/game.cpp`:
-       - In `Game::Game()` (Constructor):
-         - Initialize `isPaused` to false.
-         - Update `btnRestart` position to be on the right side of the board (UI Area), e.g., below Next Piece preview. Size: 100x40.
-         - Initialize `btnPause` position to be below `btnRestart`. Size: 100x40. Text: "Pause". Color: GOLD.
-       
-       - In `Game::ResetGame()`:
-         - Set `isPaused` to false.
-         - Set `logic.isGameOver` to false (already done in logic.Reset, but ensure Game state is clean).
-
-       - In `Game::HandleInput()`:
-         - Add logic for `btnPause`: If clicked, toggle `isPaused` state.
-         - Add logic for `btnRestart`: If clicked, call `ResetGame()`.
-         - IMPORTANT: If `isPaused` is true, ignore other game inputs (movement, rotation), BUT allow `btnPause` and `btnRestart` to work.
-
-       - In `Game::Update()`:
-         - If `isPaused` is true, do NOT update `gravityTimer` or call `logic.Tick()`. Return early.
-
-       - In `Game::Draw()`:
-         - Draw `btnRestart` and `btnPause` always (not just on Game Over).
-         - If `isPaused` is true:
-           - Draw a semi-transparent overlay over the board.
-           - Draw "PAUSED" text in the center.
+    Task: Check Project Configuration
+    
+    1. Read `package.json` to understand the current project dependencies.
+    2. Read `vite.config.ts` to check build configuration.
     """
     
     initial_state = {
@@ -723,8 +698,8 @@ if __name__ == "__main__":
         "changes": {},
         "test_errors": "",
         "source_files": [
-            "client/game.h",
-            "client/game.cpp"
+            "package.json",
+            "vite.config.ts"
         ],
         "repo": args.repo,
         "issue_data": {}
