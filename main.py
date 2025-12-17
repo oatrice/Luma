@@ -674,7 +674,7 @@ if __name__ == "__main__":
     
     # Try to import GitHub Fetcher
     try:
-        from github_fetcher import fetch_issues, select_issue, convert_to_task, create_pull_request, update_issue_status
+        from github_fetcher import fetch_issues, select_issue, convert_to_task, create_pull_request, update_issue_status, get_open_pr, update_pull_request
     except ImportError:
         fetch_issues = None
         print("⚠️ github_fetcher.py not found. GitHub features disabled.")
@@ -1058,7 +1058,20 @@ if __name__ == "__main__":
                              print(f"❌ Failed to push branch: {e}")
                              continue
 
-                         url = create_pull_request(args.repo, title, body, current_branch, "main")
+                         # Check for existing PR
+                         existing_pr = get_open_pr(args.repo, current_branch)
+                         url = None
+                         
+                         if existing_pr:
+                             print(f"⚠️ Found existing PR #{existing_pr['number']}: {existing_pr['html_url']}")
+                             if input("🔄 Update existing PR description? (y/N): ").lower() == 'y':
+                                 url = update_pull_request(args.repo, existing_pr['number'], title, body)
+                             else:
+                                 print("⏩ Skipping PR update.")
+                                 continue
+                         else:
+                             url = create_pull_request(args.repo, title, body, current_branch, "main")
+                             
                          if url: 
                              print(f"✅ PR Created: {url}")
                              # CLEANUP
