@@ -964,12 +964,12 @@ if __name__ == "__main__":
                         llm = get_llm()
                         
                         # Get Commit Logs & Diff
-                        log_cmd = ["git", "log", "main..HEAD", "--pretty=format:%s%n%b"]
+                        log_cmd = ["git", "log", "origin/main..HEAD", "--pretty=format:%s%n%b"]
                         log_res = subprocess.run(log_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
                         commit_logs = log_res.stdout.strip()
                         
                         # Use full diff to get content changes, not just names
-                        diff_cmd = ["git", "diff", "main...HEAD"] 
+                        diff_cmd = ["git", "diff", "origin/main...HEAD"] 
                         diff_res = subprocess.run(diff_cmd, cwd=TARGET_DIR, capture_output=True, text=True)
 
                         if template_content:
