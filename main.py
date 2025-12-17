@@ -1001,6 +1001,23 @@ if __name__ == "__main__":
                             3. Return ONLY the filled markdown.
                             4. Start output with "TITLE: <Suggested Title>".
                             """
+                            print("\n[DEBUG] Sending to LLM:")
+                            print(f"[DEBUG] Commits:\n{commit_logs}\n")
+                            print(f"[DEBUG] Diff (First 500 chars):\n{diff_res.stdout[:500]}\n...")
+                            
+                            # Save Full Context to Log File
+                            log_path = os.path.join(TARGET_DIR, "luma_pr_context.log")
+                            try:
+                                with open(log_path, "w", encoding="utf-8") as f:
+                                    f.write("=== Luma PR Generation Context ===\n")
+                                    f.write(f"Updated: {os.getcwd()}\n\n")
+                                    f.write("--- COMMITS ---\n")
+                                    f.write(commit_logs)
+                                    f.write("\n\n--- GIT DIFF ---\n")
+                                    f.write(diff_res.stdout)
+                                print(f"💾 Full PR Context log saved to: {log_path}")
+                            except Exception as e:
+                                print(f"⚠️ Failed to save log file: {e}")
                         else:
                             gen_prompt = f"""
                             Generate a PR Title and Body for branch '{current_branch}'.
