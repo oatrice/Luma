@@ -22,7 +22,7 @@ OPENROUTER_GENERAL_MODEL = "mistralai/mistral-7b-instruct:free"
 # Gemini Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_CODE_MODEL = "gemini-1.5-pro-latest"
-GEMINI_GENERAL_MODEL = "gemini-1.5-flash-latest"
+GEMINI_GENERAL_MODEL = "gemini-2.5-flash-lite"
 
 TARGET_DIR = "../Tetris-Battle/client-ts"
 
@@ -481,7 +481,7 @@ def publisher_agent(state: AgentState):
         if len(changes_keys) > 10:
             changes_summary += "\n(and more...)"
             
-        llm_slug = get_llm(temperature=0.5)
+        llm_slug = get_llm(temperature=0.5, purpose="code")
         slug_prompt = f"""
         Task: {task_header}
         
@@ -842,7 +842,7 @@ if __name__ == "__main__":
                         """
                         
                         try:
-                            llm_suggest = get_llm(temperature=0.7)
+                            llm_suggest = get_llm(temperature=0.7, purpose="code")
                             suggest_prompt = f"""
                             Based on the Code Changes above, suggest 3 suitable git branch names.
                             
@@ -947,7 +947,7 @@ if __name__ == "__main__":
                         # 3. Generate Content with Enhanced Context
                         print("📊 Analyzing changes for description...")
                         
-                        llm = get_llm()
+                        llm = get_llm(purpose="code")
                         
                         # Get Commit Logs & Diff
                         log_cmd = ["git", "log", "origin/main..HEAD", "--pretty=format:%s%n%b"]
