@@ -794,6 +794,7 @@ if __name__ == "__main__":
 
             print("1. 📥 Select Next Issue (Start Coding)")
             print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
+            print("3. 🧐 Code Review (Local)")
             print("0. ❌ Exit")
             
             choice = input("\nSelect Option: ").strip()
@@ -1133,6 +1134,102 @@ if __name__ == "__main__":
                          
                 except Exception as e:
                     print(f"❌ Error in PR Flow: {e}")
+
+            elif choice == "3":
+                 print("\n🧐 Local Code Reviewer")
+                 
+                 # 1. Select Files
+                 changes = {}
+                 
+                 print("1. Review Changes (origin/main -> HEAD + Dirty)")
+                 print("2. Review Specific File")
+                 review_mode = input("Select Mode [1]: ").strip() or "1"
+                 
+                 if review_mode == "1":
+                     # Get modified files from git
+                     try:
+                         files = set()
+                         
+                         # 1. Commits vs origin/main
+                         print("   📡 Configuring git scope (origin/main...HEAD)...")
+                         cmd_commits = ["git", "diff", "--name-only", "origin/main...HEAD"]
+                         res_commits = subprocess.run(cmd_commits, cwd=TARGET_DIR, capture_output=True, text=True)
+                         if res_commits.returncode == 0:
+                             files.update([f.strip() for f in res_commits.stdout.split('\n') if f.strip()])
+                         else:
+                             print(f"   ⚠️ Could not diff against origin/main (using local only).")
+
+                         # 2. Local Dirty (Staged + Unstaged)
+                         cmd_dirty = ["git", "diff", "--name-only", "HEAD"]
+                         res_dirty = subprocess.run(cmd_dirty, cwd=TARGET_DIR, capture_output=True, text=True)
+                         files.update([f.strip() for f in res_dirty.stdout.split('\n') if f.strip()])
+                         
+                         # 3. Untracked
+                         cmd_untracked = ["git", "ls-files", "--others", "--exclude-standard"]
+                         res_untracked = subprocess.run(cmd_untracked, cwd=TARGET_DIR, capture_output=True, text=True)
+                         files.update([f.strip() for f in res_untracked.stdout.split('\n') if f.strip()])
+                         
+                         file_list = list(files)
+                         if not file_list:
+                             print("✅ No changes found (Clean vs origin/main).")
+                             continue
+                             
+                         print(f"   🔎 Found {len(file_list)} changed files.")
+                         
+                         # Limit files (Review limit)
+                         if len(file_list) > 10:
+                              print(f"⚠️ Too many files ({len(file_list)}). Reviewing top 10.")
+                              file_list = file_list[:10]
+                              
+                         for rel_path in file_list:
+                             full_path = os.path.join(TARGET_DIR, rel_path)
+                             # Only review text files that exist
+                             if os.path.exists(full_path) and os.path.isfile(full_path):
+                                 # Basic binary check extension
+                                 if rel_path.endswith(('.png', '.bg', '.jpg', '.ico', '.pdf')):
+                                     continue
+                                     
+                                 with open(full_path, 'r', encoding='utf-8') as f:
+                                     changes[rel_path] = f.read()
+                                     
+                     except Exception as e:
+                         print(f"❌ Error reading git status: {e}")
+                         continue
+                         
+                 elif review_mode == "2":
+                     target_file = input("Enter relative file path: ").strip()
+                     full_path = os.path.join(TARGET_DIR, target_file)
+                     if os.path.exists(full_path):
+                         with open(full_path, 'r', encoding='utf-8') as f:
+                             changes[target_file] = f.read()
+                     else:
+                         print(f"❌ File not found: {target_file}")
+                         continue
+                 
+                 if not changes:
+                     print("❌ No content to review.")
+                     continue
+                     
+                 # 2. Run Reviewer Agent
+                 print(f"🚀 Running Reviewer on {list(changes.keys())}...")
+                 
+                 # Mock a state
+                 review_state = {
+                     "task": "Review local code changes for bugs, security issues, and best practices.",
+                     "changes": changes,
+                     "iterations": 0,
+                     "test_errors": ""
+                 }
+                 
+                 result = reviewer_agent(review_state)
+                 
+                 if result.get("code_content"):
+                     print("\n📝 Reviewer Feedback:")
+                     print("--------------------------------------------------")
+                     print(result["code_content"])
+                     print("--------------------------------------------------")
+                 
+                 print("\n✅ Review Complete.")
 
             elif choice == "0":
                 print("👋 Exiting.")
