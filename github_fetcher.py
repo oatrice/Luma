@@ -354,3 +354,55 @@ def create_pull_request(repo_name, title, body, head_branch, base_branch="main")
     except Exception as e:
         print(f"❌ Error creating PR: {e}")
         return None
+
+def get_open_pr(repo_name, head_branch):
+    """
+    Check if there is an open PR for the given head branch.
+    Returns the PR object (dict) or None.
+    """
+    owner, name = repo_name.split("/")
+    # GitHub API expects head as 'user:branch'
+    # Assuming the repo owner is the user for now, or just try to match branch name in list
+    url = f"https://api.github.com/repos/{owner}/{name}/pulls?head={owner}:{head_branch}&state=open"
+    headers = get_github_headers()
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            prs = response.json()
+            if prs:
+                return prs[0] # Return the first matching open PR
+        return None
+    except Exception as e:
+        print(f"⚠️ Error checking for open PR: {e}")
+        return None
+
+def update_pull_request(repo_name, pr_number, title=None, body=None):
+    """
+    Update an existing Pull Request.
+    """
+    owner, name = repo_name.split("/")
+    url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+    headers = get_github_headers()
+    
+    payload = {}
+    if title: payload["title"] = title
+    if body: payload["body"] = body
+    
+    if not payload:
+        return None
+        
+    print(f"🌍 Updating PR #{pr_number} on {repo_name}...")
+    try:
+        response = requests.patch(url, headers=headers, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            pr_data = response.json()
+            print(f"✅ PR Updated Successfully: {pr_data['html_url']}")
+            return pr_data['html_url']
+        else:
+            print(f"❌ Failed to update PR: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Error updating PR: {e}")
+        return None
