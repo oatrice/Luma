@@ -15,11 +15,14 @@ LLM_PROVIDER = "gemini"
 
 # OpenRouter Configuration
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = "qwen/qwen3-coder:free"
+OPENROUTER_CODE_MODEL = "qwen/qwen3-coder:free"
+OPENROUTER_GENERAL_MODEL = "mistralai/mistral-7b-instruct:free"
+
 
 # Gemini Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_CODE_MODEL = "gemini-1.5-pro-latest"
+GEMINI_GENERAL_MODEL = "gemini-1.5-flash-latest"
 
 TARGET_DIR = "../Tetris-Battle/client-ts"
 
@@ -38,21 +41,29 @@ class AgentState(TypedDict):
     issue_data: dict             # (New) Issue data used for updating status
 
 # --- 1.5 Helper Functions ---
-def get_llm(temperature=0.7):
+def get_llm(temperature=0.7, purpose="general"):
     """Factory function to get the configured LLM instance"""
     if LLM_PROVIDER == "openrouter":
-        print(f"🔌 Using OpenRouter ({OPENROUTER_MODEL})...")
+        model_name = OPENROUTER_GENERAL_MODEL
+        if purpose == "code":
+            model_name = OPENROUTER_CODE_MODEL
+        
+        print(f"🔌 Using OpenRouter ({model_name})...")
         return ChatOpenAI(
-            model=OPENROUTER_MODEL,
+            model=model_name,
             openai_api_key=OPENROUTER_API_KEY,
             openai_api_base="https://openrouter.ai/api/v1",
             temperature=temperature,
             max_tokens=4000
         )
     elif LLM_PROVIDER == "gemini":
-        print(f"🔌 Using Gemini ({GEMINI_MODEL})...")
+        model_name = GEMINI_GENERAL_MODEL
+        if purpose == "code":
+            model_name = GEMINI_CODE_MODEL
+
+        print(f"🔌 Using Gemini ({model_name})...")
         return ChatGoogleGenerativeAI(
-            model=GEMINI_MODEL, 
+            model=model_name, 
             google_api_key=GOOGLE_API_KEY,
             temperature=temperature,
             request_timeout=120
@@ -87,7 +98,7 @@ def coder_agent(state: AgentState):
                 source_context += f"\nFile: {rel_path} (NOT FOUND)\n"
 
     # Initialize LLM based on Provider
-    llm = get_llm(temperature=0.7)
+    llm = get_llm(temperature=0.7, purpose="code")
     
     system_prompt = """You are a Senior Polyglot Developer (Python, Go, C++).
     Your goal is to write high-quality, production-ready code based on the user's task.
