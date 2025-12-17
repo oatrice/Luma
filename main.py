@@ -229,6 +229,23 @@ def reviewer_agent(state: AgentState):
             print(f"⚠️ Auto-Fixing: Added 'package main' to {primary_file}")
             content = "package main\n\n" + content
             
+    # --- 4. Test Advice (New) ---
+    try:
+        print("🧪 Reviewer: Analyzing for missing tests...")
+        advice_prompt = f"""
+        Analyze the code changes below and list 3 critical test cases that should be added/verified.
+        Focus on edge cases.
+        
+        Code:
+        {json.dumps(changes, indent=2)[:3000]}
+        
+        Output: Bullet points only.
+        """
+        advice = llm.invoke([HumanMessage(content=advice_prompt)]).content
+        print(f"\n⚠️ Recommended Test Cases:\n{advice}\n")
+    except Exception as e:
+        print(f"⚠️ Reviewer Advice failed: {e}")
+
     return {"code_content": content}
 
 import shutil
@@ -1034,6 +1051,27 @@ if __name__ == "__main__":
                         print(f"💾 Draft saved to {draft_file}")
                     
                     print(f"\n📝 Proposed PR:\nTitle: {title}\nBody:\n{body[:200]}...\n")
+
+                    # --- Luma Reviewer: Test Suggestions ---
+                    print("\n🧪 Luma Reviewer: Analyzing for missing tests...")
+                    try:
+                        test_prompt = f"""
+                        Analyze the following code changes and suggest 3-5 critical test cases that are missing or should be added.
+                        Focus on edge cases, potential bugs, and TDD coverage.
+                        
+                        Context:
+                        {diff_res.stdout[:5000]}
+                        
+                        Output format:
+                        - [ ] Test Case Name: Description
+                        """
+                        llm_reviewer = get_llm(purpose="code")
+                        test_suggestions = llm_reviewer.invoke([HumanMessage(content=test_prompt)]).content
+                        print("\n⚠️ Suggested Test Cases (Before you publish):")
+                        print(test_suggestions)
+                        print("-" * 30)
+                    except Exception as e:
+                        print(f"⚠️ Could not generate test suggestions: {e}")
 
                     # 4. Create PR
                     if input("Proceed to Open PR? (y/N): ").lower() == 'y':
