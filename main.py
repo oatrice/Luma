@@ -190,7 +190,7 @@ def reviewer_agent(state: AgentState):
         print(f"🧐 Reviewing code for: New Generated Code...")
     
     # Initialize LLM based on Provider
-    llm = get_llm(temperature=0)
+    llm = get_llm(temperature=0, purpose="code")
     
     # Determine primary language from first file
     primary_file = target_files[0] if target_files else "unknown.py"
@@ -1152,7 +1152,7 @@ if __name__ == "__main__":
                          
                          # 1. Commits vs origin/main
                          print("   📡 Configuring git scope (origin/main...HEAD)...")
-                         cmd_commits = ["git", "diff", "--name-only", "origin/main...HEAD"]
+                         cmd_commits = ["git", "diff", "--name-only", "--relative", "origin/main...HEAD"]
                          res_commits = subprocess.run(cmd_commits, cwd=TARGET_DIR, capture_output=True, text=True)
                          if res_commits.returncode == 0:
                              files.update([f.strip() for f in res_commits.stdout.split('\n') if f.strip()])
@@ -1160,7 +1160,7 @@ if __name__ == "__main__":
                              print(f"   ⚠️ Could not diff against origin/main (using local only).")
 
                          # 2. Local Dirty (Staged + Unstaged)
-                         cmd_dirty = ["git", "diff", "--name-only", "HEAD"]
+                         cmd_dirty = ["git", "diff", "--name-only", "--relative", "HEAD"]
                          res_dirty = subprocess.run(cmd_dirty, cwd=TARGET_DIR, capture_output=True, text=True)
                          files.update([f.strip() for f in res_dirty.stdout.split('\n') if f.strip()])
                          
@@ -1177,7 +1177,7 @@ if __name__ == "__main__":
                          print(f"   🔎 Found {len(file_list)} changed files.")
                          
                          # Limit files (Review limit)
-                         if len(file_list) > 10:
+                         if len(file_list) > 30:
                               print(f"⚠️ Too many files ({len(file_list)}). Reviewing top 10.")
                               file_list = file_list[:10]
                               
