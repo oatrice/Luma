@@ -650,7 +650,7 @@ def publisher_agent(state: AgentState):
     
     # Check if we have PR capability
     try:
-        from github_fetcher import create_pull_request, update_issue_status
+        from github_fetcher import create_pull_request, update_issue_status, get_open_pr, update_pull_request
     except ImportError:
         print("⚠️ GitHub tools not found. Skipping PR.")
         return {}
@@ -769,10 +769,17 @@ def publisher_agent(state: AgentState):
     
     try:
         # 2. Git Operations
-        print(f"🌿 Creating branch: {branch_name}")
-        # Note: We assume we are on main/master and clean. 
-        # In prod, we should git checkout main && git pull first.
-        subprocess.run(["git", "checkout", "-b", branch_name], cwd=TARGET_DIR, check=True)
+        print(f"🌿 Creating/Switching branch: {branch_name}")
+        # Check if branch exists locally
+        try:
+             subprocess.run(["git", "rev-parse", "--verify", branch_name], cwd=TARGET_DIR, check=True, capture_output=True)
+             # Branch exists, checkout it
+             print(f"   Branch '{branch_name}' exists. Switching...")
+             subprocess.run(["git", "checkout", branch_name], cwd=TARGET_DIR, check=True)
+        except subprocess.CalledProcessError:
+             # Branch does not exist, create it
+             print(f"   Branch '{branch_name}' does not exist. Creating...")
+             subprocess.run(["git", "checkout", "-b", branch_name], cwd=TARGET_DIR, check=True)
         
         print("📦 Committing changes...")
         subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
@@ -837,13 +844,23 @@ def publisher_agent(state: AgentState):
             except Exception as e:
                 print(f"   ⚠️ Error reading template: {e}")
         
-        pr_url = create_pull_request(
-            repo_name=repo_name,
-            title=commit_message,
-            body=body,
-            head_branch=branch_name,
-            base_branch="main" 
-        )
+        # Check for existing PR
+        print(f"🔍 Checking for existing PR for {branch_name}...")
+        existing_pr = get_open_pr(repo_name, branch_name)
+        
+        pr_url = None
+        if existing_pr:
+             print(f"⚠️ Found existing PR #{existing_pr['number']}: {existing_pr['html_url']}")
+             print("🔄 Updating existing PR...")
+             pr_url = update_pull_request(repo_name, existing_pr['number'], title=commit_message, body=body)
+        else:
+             pr_url = create_pull_request(
+                repo_name=repo_name,
+                title=commit_message,
+                body=body,
+                head_branch=branch_name,
+                base_branch="main" 
+             )
         
         if pr_url:
             print(f"🎉 Success! PR is ready: {pr_url}")
