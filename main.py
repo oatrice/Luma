@@ -1148,6 +1148,37 @@ if __name__ == "__main__":
                     if confirm != 'y':
                         continue
                         
+                    
+                    # --- NEW: Run Docs Agent before PR ---
+                    print("\n📚 Running Docs Agent (Pre-PR Check)...")
+                    try:
+                         # 1. Reuse existing docs_agent logic via a focused state
+                         doc_state = initial_state.copy()
+                         doc_state["task"] = f"Update documentation for PR: {current_branch}"
+                         doc_state["skip_coder"] = True # We only want docs
+                         
+                         # Run Docs Node
+                         doc_result = docs_agent(doc_state)
+                         
+                         if doc_result and doc_result.get('changes'):
+                             changes = doc_result['changes']
+                             print(f"   📝 Docs Agent proposes updates to: {list(changes.keys())}")
+                             
+                             # Auto-commit these changes if user agrees
+                             if input("   💾 Commit documentation updates now? (Y/n): ").lower() not in ['n', 'no']:
+                                 for filename, content in changes.items():
+                                     full_path = os.path.join(TARGET_DIR, filename)
+                                     with open(full_path, "w", encoding="utf-8") as f:
+                                         f.write(content)
+                                 
+                                 subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
+                                 subprocess.run(["git", "commit", "-m", "docs: update CHANGELOG and version from Luma"], cwd=TARGET_DIR, check=True)
+                                 print("   ✅ Docs committed.")
+                             else:
+                                 print("   ⏩ Skipping docs commit.")
+                    except Exception as e:
+                        print(f"   ⚠️ Docs Agent failed in PR flow: {e}")
+
                     # 2. Get Diff for Description
                     # 2.3 Check for existing DRAFT
                     draft_file = os.path.join(TARGET_DIR, ".pr_draft.json")
@@ -1428,7 +1459,7 @@ if __name__ == "__main__":
                 confirm = input("   Continue? (Y/n): ").strip().lower()
                 if confirm not in ['n', 'no']:
                     doc_state = initial_state.copy()
-                    doc_state["task"] = "Update documentation based on local file changes."
+                    doc_state["task"] = "Update all documentation based on local file changes. Especially .md or markdown files"
                     doc_state["skip_coder"] = True
                     
                     final_state = app.invoke(doc_state)
