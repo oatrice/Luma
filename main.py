@@ -80,6 +80,11 @@ def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go/C++ Expert เขียนโค้ดตามคำสั่ง (Multi-file Support)"""
     print(f"🤖 Luma is thinking about: {state['task'][:100]}...")
     
+    # Check for skip flag
+    if state.get("skip_coder"):
+        print("⏩ Skipping Coder (Docs Only Mode)...")
+        return {"changes": {}}
+    
     # 1. Read Source Files for Context
     source_context = ""
     if state.get("source_files"):
@@ -182,6 +187,12 @@ def reviewer_agent(state: AgentState):
     # For simplicity, Reviewer currently reviews the main 'code_content'. 
     # Multi-file review logic would iterate 'changes'.
     changes = state.get('changes', {})
+    
+    # Check for skip flag
+    if not changes and state.get("skip_coder"):
+        print("⏩ Skipping Reviewer (Docs Only Mode)...")
+        return {"test_suggestions": ""}
+
     target_files = [] 
     if changes:
         target_files = list(changes.keys())
@@ -367,8 +378,155 @@ def should_continue(state: AgentState):
     if errors and iterations < 3:
         return "retry"
     
-    # ถ้าไม่มี Error หรือครบโควต้าแล้ว -> ไปต่อ Approver (Pass)
+    # ถ้าไม่มี Error หรือครบโควต้าแล้ว -> ไปต่อ Docs Agent (Pass)
     return "pass"
+
+# --- 2.5 Docs Agent (Update Version & Changelog) ---
+import datetime
+
+def docs_agent(state: AgentState):
+    """(New Node) Docs Agent: อัปเดตเอกสารและ Versioning"""
+    print("📚 Docs Agent: Checking for documentation updates...")
+    
+    changes = state.get('changes', {})
+    task = state.get('task', "")
+    
+    # Support for "Docs Only" mode (Manual Git Changes)
+    if not changes and state.get("skip_coder"):
+        print("   🔍 No internal changes. Checking for local Git changes...")
+        try:
+             # Get list of changed files (Unstaged + Staged)
+             cmd_unstaged = ["git", "diff", "--name-only"]
+             cmd_staged = ["git", "diff", "--name-only", "--cached"]
+             
+             files_unstaged = subprocess.run(cmd_unstaged, cwd=TARGET_DIR, capture_output=True, text=True).stdout.splitlines()
+             files_staged = subprocess.run(cmd_staged, cwd=TARGET_DIR, capture_output=True, text=True).stdout.splitlines()
+             
+             git_files = list(set(files_unstaged + files_staged))
+             
+             # Filter out docs themselves to avoid infinite loop confusion
+             git_files = [f for f in git_files if f not in ["CHANGELOG.md", "package.json"]]
+             
+             if git_files:
+                 print(f"   📂 Detected local changes in: {git_files}")
+                 # We don't read content to 'changes' dict (to avoid overwriting user files),
+                 # but we list them for the Prompt.
+                 # Let's read them for Context only.
+                 changes_context = git_files
+             else:
+                 print("   ⚠️ No local changes found via Git.")
+                 return {}
+        except Exception as e:
+            print(f"   ⚠️ Git check failed: {e}")
+            return {}
+    else:
+        # Normal mode
+        if not changes:
+            print("   No changes detected. Skipping Docs.")
+            return {}
+        changes_context = list(changes.keys())
+
+    # 1. Read package.json & CHANGELOG.md from Target Dir
+    pkg_path = os.path.join(TARGET_DIR, "package.json")
+    changelog_path = os.path.join(TARGET_DIR, "CHANGELOG.md")
+    
+    current_version = "0.0.0"
+    pkg_content = "{}"
+    changelog_content = ""
+    
+    # Read package.json
+    if os.path.exists(pkg_path):
+        with open(pkg_path, "r", encoding="utf-8") as f:
+            pkg_content = f.read()
+            try:
+                pkg_json = json.loads(pkg_content)
+                current_version = pkg_json.get("version", "0.0.0")
+            except:
+                pass
+    
+    # Read CHANGELOG.md
+    if os.path.exists(changelog_path):
+        with open(changelog_path, "r", encoding="utf-8") as f:
+            changelog_content = f.read()
+            
+    # 2. Determine Version Bump (SemVer)
+    # Heuristic: feat -> minor, fix/refactor -> patch
+    lower_task = task.lower()
+    bump_type = "patch"
+    if "feat" in lower_task or "new" in lower_task or "add" in lower_task:
+        bump_type = "minor"
+    
+    # Parse Version
+    try:
+        major, minor, patch = map(int, current_version.split("."))
+        if bump_type == "minor":
+            minor += 1
+            patch = 0
+        else:
+            patch += 1
+        new_version = f"{major}.{minor}.{patch}"
+    except:
+        new_version = current_version # Fallback if parse fails
+        
+    print(f"   🆙 Bump Version: {current_version} -> {new_version} ({bump_type})")
+    
+    # 3. Generate Changelog Entry via LLM
+    llm = get_llm(temperature=0.7, purpose="general")
+    prompt = f"""
+    Task: {task}
+    
+    Files Changed:
+    {changes_context}
+    
+    Existing Changelog (Top 20 lines):
+    {changelog_content[:1000]}
+    
+    Instruction:
+    Generate a changelog entry for this update in "Keep a Changelog" format.
+    - Version: [{new_version}]
+    - Date: {datetime.date.today().isoformat()}
+    - Section: Added, Changed, Fixed, or Removed
+    - Bullet points summarizing the change.
+    
+    Output ONLY the new markdown section. Do not output the whole file.
+    """
+    
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        new_entry = response.content.strip()
+        
+        # Clean up markdown code blocks if present
+        new_entry = new_entry.replace("```markdown", "").replace("```", "").strip()
+        
+        # 4. Integrate into Files
+        
+        # Update package.json
+        if pkg_path not in changes: # Update only if Coder didn't already touch it
+            pkg_json = json.loads(pkg_content)
+            pkg_json["version"] = new_version
+            changes["package.json"] = json.dumps(pkg_json, indent=2)
+            print("   📝 Queueing package.json update...")
+
+        # Update CHANGELOG.md
+        if changelog_path not in changes:
+            # Insert after the first header (usually # Changelog)
+            lines = changelog_content.splitlines()
+            insert_idx = 0
+            for i, line in enumerate(lines):
+                if line.startswith("## ["):
+                    insert_idx = i
+                    break
+            if insert_idx == 0 and len(lines) > 2: # Fallback if no version header found yet
+                 insert_idx = 2
+                 
+            lines.insert(insert_idx, new_entry + "\n")
+            changes["CHANGELOG.md"] = "\n".join(lines)
+            print("   📝 Queueing CHANGELOG.md update...")
+            
+    except Exception as e:
+        print(f"⚠️ Docs Agent Error: {e}")
+        
+    return {"changes": changes}
 
 # --- 3. Define Human Approval (การตรวจสอบจาก User) ---
 import difflib
@@ -682,6 +840,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("Coder", coder_agent)
 workflow.add_node("Reviewer", reviewer_agent)
 workflow.add_node("Tester", tester_agent)
+workflow.add_node("Docs", docs_agent)
 workflow.add_node("Approver", human_approval_agent)
 workflow.add_node("Writer", file_writer)
 workflow.add_node("Publisher", publisher_agent)
@@ -697,9 +856,11 @@ workflow.add_conditional_edges(
     should_continue,
     {
         "retry": "Coder",
-        "pass": "Approver"
+        "pass": "Docs"
     }
 )
+
+workflow.add_edge("Docs", "Approver")
 
 # Conditional Edge 2: Approval Logic
 workflow.add_conditional_edges(
@@ -793,8 +954,9 @@ if __name__ == "__main__":
             draft_hint = " 📄 (Resume Draft)" if os.path.exists(draft_path) else ""
 
             print("1. 📥 Select Next Issue (Start Coding)")
-            print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
+            print("2. 🚀 Create Pull Request (Deploy)")
             print("3. 🧐 Code Review (Local)")
+            print("4. 📝 Update Docs (Standalone)")
             print("0. ❌ Exit")
             
             choice = input("\nSelect Option: ").strip()
@@ -1230,6 +1392,20 @@ if __name__ == "__main__":
                      print("--------------------------------------------------")
                  
                  print("\n✅ Review Complete.")
+
+            elif choice == "4":
+                # --- Flow 4: Update Docs Only ---
+                print("📝 Starting Documentation Update...")
+                print("   This will check for local Git changes and update CHANGELOG.md + package.json")
+                
+                confirm = input("   Continue? (Y/n): ").strip().lower()
+                if confirm not in ['n', 'no']:
+                    doc_state = initial_state.copy()
+                    doc_state["task"] = "Update documentation based on local file changes."
+                    doc_state["skip_coder"] = True
+                    
+                    final_state = app.invoke(doc_state)
+                    print("✅ Documentation Update Complete.")
 
             elif choice == "0":
                 print("👋 Exiting.")
