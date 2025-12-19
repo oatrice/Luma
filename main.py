@@ -40,6 +40,7 @@ class AgentState(TypedDict):
     repo: str                    # (New) Target GitHub Repository
     issue_data: dict             # (New) Issue data used for updating status
     test_suggestions: str        # (New) Recommended test cases from Reviewer
+    skip_coder: bool             # (New) Flag to skip Coder Agent (Docs Only Mode)
 
 # --- 1.5 Helper Functions ---
 def get_llm(temperature=0.7, purpose="general"):
@@ -414,8 +415,34 @@ def docs_agent(state: AgentState):
                  # Let's read them for Context only.
                  changes_context = git_files
              else:
-                 print("   ⚠️ No local changes found via Git.")
-                 return {}
+                 print("   🔍 No local dirty changes. Checking diff against origin/main...")
+                 try:
+                     # Check for committed changes (HEAD vs origin/main) - mimicking Reviewer Agent scope
+                     # Use triple-dot to find changes on this branch since divergence
+                     cmd_diff = ["git", "diff", "--name-only", "origin/main...HEAD"]
+                     
+                     # Ensure we have the latest remote info? (Optional, skipping fetch for speed/safety)
+                     res = subprocess.run(cmd_diff, cwd=TARGET_DIR, capture_output=True, text=True)
+                     
+                     if res.returncode != 0:
+                         print(f"   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
+                         res = subprocess.run(["git", "diff", "--name-only", "main...HEAD"], cwd=TARGET_DIR, capture_output=True, text=True)
+                     
+                     diff_files = res.stdout.splitlines()
+                     
+                     # Filter docs
+                     diff_files = [f for f in diff_files if f not in ["CHANGELOG.md", "package.json"]]
+                     
+                     if diff_files:
+                         print(f"   📂 Detected committed changes: {diff_files}")
+                         changes_context = diff_files
+                     else:
+                         print("   ⚠️ No changes found (Local or Committed via Git).")
+                         return {}
+                         
+                 except Exception as e:
+                     print(f"   ⚠️ Git check failed: {e}")
+                     return {}
         except Exception as e:
             print(f"   ⚠️ Git check failed: {e}")
             return {}
