@@ -1166,35 +1166,39 @@ if __name__ == "__main__":
                         continue
                         
                     
-                    # --- NEW: Run Docs Agent before PR ---
-                    print("\n📚 Running Docs Agent (Pre-PR Check)...")
-                    try:
-                         # 1. Reuse existing docs_agent logic via a focused state
-                         doc_state = initial_state.copy()
-                         doc_state["task"] = f"Update documentation for PR: {current_branch}"
-                         doc_state["skip_coder"] = True # We only want docs
-                         
-                         # Run Docs Node
-                         doc_result = docs_agent(doc_state)
-                         
-                         if doc_result and doc_result.get('changes'):
-                             changes = doc_result['changes']
-                             print(f"   📝 Docs Agent proposes updates to: {list(changes.keys())}")
+                    # --- OPTIONAL: Run Docs Agent before PR ---
+                    run_docs = input("\n📚 Do you want to update docs & versioning before PR? (y/N): ").lower()
+                    if run_docs == 'y':
+                        print("📚 Running Docs Agent (Pre-PR Check)...")
+                        try:
+                             # 1. Reuse existing docs_agent logic via a focused state
+                             doc_state = initial_state.copy()
+                             doc_state["task"] = f"Update documentation for PR: {current_branch}"
+                             doc_state["skip_coder"] = True # We only want docs
                              
-                             # Auto-commit these changes if user agrees
-                             if input("   💾 Commit documentation updates now? (Y/n): ").lower() not in ['n', 'no']:
-                                 for filename, content in changes.items():
-                                     full_path = os.path.join(TARGET_DIR, filename)
-                                     with open(full_path, "w", encoding="utf-8") as f:
-                                         f.write(content)
+                             # Run Docs Node
+                             doc_result = docs_agent(doc_state)
+                             
+                             if doc_result and doc_result.get('changes'):
+                                 changes = doc_result['changes']
+                                 print(f"   📝 Docs Agent proposes updates to: {list(changes.keys())}")
                                  
-                                 subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
-                                 subprocess.run(["git", "commit", "-m", "docs: update CHANGELOG and version from Luma"], cwd=TARGET_DIR, check=True)
-                                 print("   ✅ Docs committed.")
-                             else:
-                                 print("   ⏩ Skipping docs commit.")
-                    except Exception as e:
-                        print(f"   ⚠️ Docs Agent failed in PR flow: {e}")
+                                 # Auto-commit these changes if user agrees
+                                 if input("   💾 Commit documentation updates now? (Y/n): ").lower() not in ['n', 'no']:
+                                     for filename, content in changes.items():
+                                         full_path = os.path.join(TARGET_DIR, filename)
+                                         with open(full_path, "w", encoding="utf-8") as f:
+                                             f.write(content)
+                                     
+                                     subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
+                                     subprocess.run(["git", "commit", "-m", "docs: update CHANGELOG and version from Luma"], cwd=TARGET_DIR, check=True)
+                                     print("   ✅ Docs committed.")
+                                 else:
+                                     print("   ⏩ Skipping docs commit.")
+                        except Exception as e:
+                            print(f"   ⚠️ Docs Agent failed in PR flow: {e}")
+                    else:
+                        print("   ⏩ Skipping Docs Agent.")
 
                     # 2. Get Diff for Description
                     # 2.3 Check for existing DRAFT
