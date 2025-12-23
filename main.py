@@ -24,7 +24,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_CODE_MODEL = "gemini-flash-latest"
 GEMINI_GENERAL_MODEL = "gemini-2.5-flash-lite"
 
-TARGET_DIR = "../Tetris-Battle/client-ts"
+TARGET_DIR = "../Tetris-Battle/client-nuxt"
 
 # --- 1. Define State (หน่วยความจำของ Agent) ---
 class AgentState(TypedDict):
