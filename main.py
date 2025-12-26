@@ -1001,6 +1001,7 @@ if __name__ == "__main__":
             print("2. 🚀 Create Pull Request (Deploy)")
             print("3. 🧐 Code Review (Local)")
             print("4. 📝 Update Docs (Standalone)")
+            print("5. 🤖 Update Android Server Version")
             print("0. ❌ Exit")
             
             choice = input("\nSelect Option: ").strip()
@@ -1485,6 +1486,152 @@ if __name__ == "__main__":
                     
                     final_state = app.invoke(doc_state)
                     print("✅ Documentation Update Complete.")
+
+            elif choice == "5":
+                # --- Flow 5: Update Android Version ---
+                print("🤖 Update Android Server Version")
+                version = input("Target Version (e.g. 1.1.7): ").strip()
+                if not version:
+                    print("❌ Version required.")
+                    continue
+                
+                script_path = os.path.join(os.path.dirname(os.path.dirname(TARGET_DIR)), "scripts/bump_version.sh")
+                # Adjust path because PROJECT_ROOT might be parent of TARGET_DIR
+                # Actually, bump_version.sh expects to be run from Project Root (Tetris-Battle)
+                # Luma is likely running from Luma dir.
+                # Tetris-Battle/scripts/bump_version.sh
+                
+                # Check path logic: TARGET_DIR = "../Tetris-Battle/client-nuxt"
+                # PROJECT_ROOT = "../Tetris-Battle"
+                project_root = os.path.dirname(TARGET_DIR) 
+                
+                cmd = ["./scripts/bump_version.sh", version]
+                
+                try:
+                    print(f"🚀 Running: {' '.join(cmd)} in {project_root}")
+                    subprocess.run(cmd, cwd=project_root, check=True)
+                    print("✅ Version Update Complete.")
+                    
+                    # --- Auto-Fill Changelog Logic ---
+                    print("📝 Generating Auto-Changelog from Git History...")
+                    
+                    # 1. Get Git Log since last tag or recent 20 commits
+                    # We'll use recent 20 for simplicity in MVP
+                    log_cmd = ["git", "log", "-n", "20", "--pretty=format:%s"]
+                    log_res = subprocess.run(log_cmd, cwd=project_root, capture_output=True, text=True)
+                    commit_logs = log_res.stdout
+                    
+                    # 2. LLM Summary
+                    llm = get_llm(temperature=0.5)
+                    changelog_prompt = f"""
+                    Task: Summarize these git commits for a Changelog.
+                    Target Audience: Android Server Users.
+                    
+                    Commits:
+                    {commit_logs}
+                    
+                    Instructions:
+                    1. Group into 'Fixed' (bug fixes) and 'Added' (new features).
+                    2. Return ONLY the bullet points (markdown format). 
+                    3. Do not include headers like '### Fixed', just the bullet points.
+                    4. If a category has no items, output nothing for it.
+                    
+                    Format Example:
+                    - Fixed crash on startup
+                    - Added new icon
+                    """
+                    
+                    ai_summary = llm.invoke([HumanMessage(content=changelog_prompt)]).content.strip()
+                    
+                    # 3. Read & Replace in CHANGELOG.md
+                    changelog_path = os.path.join(project_root, "android-server/CHANGELOG.md")
+                    if os.path.exists(changelog_path):
+                        with open(changelog_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                            
+                        # The bump script adds placeholders:
+                        # ### Fixed
+                        # *
+                        #
+                        # ### Added
+                        # *
+                        
+                        # Simple replacement strategy:
+                        # We will replace the whole block if possible, or just append.
+                        # Ideally, we should ask LLM to format the WHOLE new section string and replace the placeholder block.
+                        
+                        # Let's try a smarter replacement:
+                        # 1. Construct the new content block
+                        # 2. Replace the first occurrence of the placeholder block
+                        
+                        # Clean up placeholders
+                        new_content = content.replace("### Fixed\n*", f"### Changes\n{ai_summary}").replace("### Added\n*", "")
+                        
+                        # Enhance: Let's just use LLM to rewrite the top section? 
+                        # Easier: Just replace the '*' with the AI summary
+                        
+                        # Updated Plan:
+                        # The script puts:
+                        # ### Fixed
+                        # *
+                        # ### Added
+                        # *
+                        
+                        # We can simply replace `*` with the content, but we don't know which is fixed/added from AI unless we ask AI to split it.
+                        
+                        # Better approach: Pass the raw AI result (bullet points) into the "Added" section for now, 
+                        # or ask AI to output the Full Markdown Block for the version.
+                        
+                        full_block_prompt = f"""
+                        Task: Generate the full markdown body for version {version}.
+                        
+                        Commits:
+                        {commit_logs}
+                        
+                        Output Format:
+                        ### Added
+                        - ...
+                        
+                        ### Fixed
+                        - ...
+                        
+                        (Only output applicable sections)
+                        """
+                        full_block = llm.invoke([HumanMessage(content=full_block_prompt)]).content.strip()
+                        
+                        # Find the range to replace. 
+                        # The script inserted:
+                        # ## [1.1.7] - 2025-12-27
+                        # ... placeholders ...
+                        # ## [1.1.6] ...
+                        
+                        # We look for the text betwen `## [{version}]` and the next `## [`
+                        
+                        # Actually, relying on the script's placeholder is tricky if we want to overwrite it nicely.
+                        # Let's just Regex replace the specific placeholder structure the script uses.
+                        # Script uses:
+                        # ### Fixed
+                        # *
+                        # 
+                        # ### Added
+                        # *
+                        
+                        # We replace that entire chunk with `full_block`
+                        
+                        placeholder_pattern = "### Fixed\n*\n\n### Added\n*\n"
+                        if placeholder_pattern in content:
+                            new_content = content.replace(placeholder_pattern, full_block + "\n")
+                            
+                            with open(changelog_path, "w", encoding="utf-8") as f:
+                                f.write(new_content)
+                            print(f"✅ Auto-filled {changelog_path}")
+                        else:
+                            print("⚠️ Could not match placeholder pattern. Detailed logs preserved.")
+
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Failed to run bump script: {e}")
+                except Exception as e:
+                    print(f"❌ Error: {e}")
 
             elif choice == "0":
                 print("👋 Exiting.")
