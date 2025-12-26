@@ -174,6 +174,11 @@ def main():
                         
                         doc_result = docs_agent(doc_state)
                         
+                        # Debug log
+                        print(f"   [DEBUG] doc_result type: {type(doc_result)}")
+                        print(f"   [DEBUG] doc_result: {doc_result}")
+                        print(f"   [DEBUG] doc_result.get('changes'): {doc_result.get('changes') if doc_result else 'N/A'}")
+                        
                         if doc_result and doc_result.get('changes'):
                             changes = doc_result['changes']
                             print(f"   📝 Docs Agent proposes updates to: {list(changes.keys())}")
