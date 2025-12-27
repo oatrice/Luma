@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from luma_core.state import AgentState
 from luma_core.agents.reviewer import reviewer_agent
 from luma_core.agents.publisher import publisher_agent
-from luma_core.tools import update_android_version_logic
+from luma_core.tools import update_android_version_logic, suggest_version_from_git
 # Import main for Option 1 test
 import main as luma_main
 
@@ -160,3 +160,65 @@ def test_option5_android_update(mock_get_llm, mock_subprocess):
             break
             
     assert bump_called, "bump_version.sh should be called with version 1.2.3"
+
+
+# --- Option 5: Suggest Version from Git (AI Default) ---
+@patch("luma_core.tools.subprocess.run")
+@patch("luma_core.tools.get_llm")
+def test_suggest_version_patch(mock_get_llm, mock_subprocess):
+    """Test suggest_version_from_git recommends PATCH bump for fixes"""
+    # Setup Mock LLM
+    mock_llm_instance = MagicMock()
+    mock_get_llm.return_value = mock_llm_instance
+    mock_llm_instance.invoke.return_value.content = "PATCH"
+    
+    # Mock current version
+    mock_subprocess.return_value.stdout = "1.0.5"
+    mock_subprocess.return_value.returncode = 0
+    
+    result = suggest_version_from_git()
+    
+    assert result == "1.0.6", f"Expected 1.0.6, got {result}"
+    
+
+@patch("luma_core.tools.subprocess.run")
+@patch("luma_core.tools.get_llm")
+def test_suggest_version_minor(mock_get_llm, mock_subprocess):
+    """Test suggest_version_from_git recommends MINOR bump for new features"""
+    mock_llm_instance = MagicMock()
+    mock_get_llm.return_value = mock_llm_instance
+    mock_llm_instance.invoke.return_value.content = "MINOR"
+    
+    mock_subprocess.return_value.stdout = "2.3.1"
+    mock_subprocess.return_value.returncode = 0
+    
+    result = suggest_version_from_git()
+    
+    assert result == "2.4.0", f"Expected 2.4.0, got {result}"
+
+
+@patch("luma_core.tools.subprocess.run")
+@patch("luma_core.tools.get_llm")  
+def test_suggest_version_major(mock_get_llm, mock_subprocess):
+    """Test suggest_version_from_git recommends MAJOR bump for breaking changes"""
+    mock_llm_instance = MagicMock()
+    mock_get_llm.return_value = mock_llm_instance
+    mock_llm_instance.invoke.return_value.content = "MAJOR"
+    
+    mock_subprocess.return_value.stdout = "1.2.5"
+    mock_subprocess.return_value.returncode = 0
+    
+    result = suggest_version_from_git()
+    
+    assert result == "2.0.0", f"Expected 2.0.0, got {result}"
+
+
+@patch("luma_core.tools.subprocess.run")
+def test_suggest_version_fallback(mock_subprocess):
+    """Test fallback when no current version found"""
+    mock_subprocess.return_value.stdout = ""
+    mock_subprocess.return_value.returncode = 1
+    
+    result = suggest_version_from_git()
+    
+    assert result is None, "Should return None when no version found"

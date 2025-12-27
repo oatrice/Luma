@@ -13,7 +13,8 @@ from luma_core.tools import (
     get_user_branch_choice,
     load_or_generate_pr_content,
     generate_test_suggestions,
-    get_git_changed_files
+    get_git_changed_files,
+    suggest_version_from_git
 )
 from luma_core.agents.reviewer import reviewer_agent
 from luma_core.agents.docs import docs_agent
@@ -332,7 +333,15 @@ def main():
         elif choice == "5":
             # --- Flow 5: Update Android Version ---
             print("🤖 Update Android Server Version")
-            version = input("Target Version (e.g. 1.1.7): ").strip()
+            
+            # AI-powered version suggestion
+            suggested = suggest_version_from_git()
+            if suggested:
+                version_input = input(f"Target Version [{suggested}]: ").strip()
+                version = version_input if version_input else suggested
+            else:
+                version = input("Target Version (e.g. 1.1.7): ").strip()
+            
             if version:
                 update_android_version_logic(version)
             else:
