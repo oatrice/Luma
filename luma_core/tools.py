@@ -31,15 +31,27 @@ def update_android_version_logic(version: str):
         Commits:
         {commit_logs}
         
+        **CRITICAL FILTER**: 
+        Only include changes related to:
+        - Go Server (server.go, *.go files, Makefile, go.mod)
+        - Android Server (android-server/, gomobile, .aar)
+        - Server Tests (*_test.go, TestServerParity, server test files)
+        - Server Workflows (bump_version.sh, scripts/)
+        
+        **EXCLUDE completely**:
+        - Client changes (client-nuxt/, Vue components, TypeScript, package.json)
+        - UI/Frontend changes (CSS, Canvas, mobile layout, touch controls)
+        - Game logic in TypeScript (Game.ts, OnlineGame.ts, etc.)
+        
         Instructions:
         1. Group into 'Fixed' (bug fixes) and 'Added' (new features).
         2. Return ONLY the bullet points (markdown format). 
         3. Do not include headers like '### Fixed', just the bullet points.
-        4. If a category has no items, output nothing for it.
+        4. If NO server-related items exist, return "No server changes in this release."
         
         Format Example:
-        - Fixed crash on startup
-        - Added new icon
+        - Fixed asset bundling for embedded frontend
+        - Added POST /debug/log endpoint
         """
         
         ai_summary = llm.invoke([HumanMessage(content=changelog_prompt)]).content.strip()
@@ -56,14 +68,28 @@ def update_android_version_logic(version: str):
             Commits:
             {commit_logs}
             
-            Output Format:
+            **CRITICAL FILTER**: 
+            Only include changes related to:
+            - Go Server (server.go, *.go files)
+            - Android Server (android-server/, gomobile, .aar builds)
+            - Server Tests (*_test.go)
+            - Server Scripts/Workflows
+            
+            **EXCLUDE completely**:
+            - client-nuxt/ changes
+            - Vue/TypeScript/CSS changes
+            - Frontend UI changes
+            
+            Output Format (only include sections that have items):
             ### Added
             - ...
             
             ### Fixed
             - ...
             
-            (Only output applicable sections)
+            If NO server-related changes exist, output:
+            ### Note
+            - No server-side changes in this release.
             """
             full_block = llm.invoke([HumanMessage(content=full_block_prompt)]).content.strip()
             
