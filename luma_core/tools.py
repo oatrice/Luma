@@ -17,37 +17,41 @@ def update_android_version_logic(version: str):
         print("✅ Version Update Complete.")
         
         # --- Auto-Fill Changelog Logic ---
-        print("📝 Generating Auto-Changelog from Git History...")
+        print("📝 Generating Auto-Changelog from Git History (Server Files Only)...")
         
-        log_cmd = ["git", "log", "-n", "20", "--pretty=format:%s"]
-        log_res = subprocess.run(log_cmd, cwd=project_root, capture_output=True, text=True)
-        commit_logs = log_res.stdout
+        server_paths = [
+            "server.go", "server_test.go", "server_parity_test.go", "tools.go",
+            "android-server", "cmd", "scripts", "go.mod", "Makefile"
+        ]
+        
+        # git log -p (patch) with path formatting to filter ONLY server files
+        # We limit to 15 commits to avoid token overflow with diffs
+        log_cmd = ["git", "log", "-n", "15", "--pretty=format:---%nCommit: %s%nDate: %cd%n", "-p", "--"] + server_paths
+        
+        try:
+            log_res = subprocess.run(log_cmd, cwd=project_root, capture_output=True, text=True)
+            commit_logs = log_res.stdout[:20000] # Safety truncation
+        except Exception as e:
+            print(f"⚠️ Failed to fetch git logs: {e}")
+            commit_logs = ""
         
         llm = get_llm(temperature=0.5)
         changelog_prompt = f"""
-        Task: Summarize these git commits for a Changelog.
+        Task: Summarize these git changes for a Changelog.
         Target Audience: Android Server Users.
         
-        Commits:
+        Input Data (Commit Messages & Diffs):
         {commit_logs}
         
-        **CRITICAL FILTER**: 
-        Only include changes related to:
-        - Go Server (server.go, *.go files, Makefile, go.mod)
-        - Android Server (android-server/, gomobile, .aar)
-        - Server Tests (*_test.go, TestServerParity, server test files)
-        - Server Workflows (bump_version.sh, scripts/)
-        
-        **EXCLUDE completely**:
-        - Client changes (client-nuxt/, Vue components, TypeScript, package.json)
-        - UI/Frontend changes (CSS, Canvas, mobile layout, touch controls)
-        - Game logic in TypeScript (Game.ts, OnlineGame.ts, etc.)
+        Note: The input is ALREADY filtered to server-related files (Go, Scripts, Android Config).
         
         Instructions:
-        1. Group into 'Fixed' (bug fixes) and 'Added' (new features).
-        2. Return ONLY the bullet points (markdown format). 
-        3. Do not include headers like '### Fixed', just the bullet points.
-        4. If NO server-related items exist, return "No server changes in this release."
+        1. Analyze the 'diffs' to understand the specific implementation details.
+        2. Group into 'Fixed' (bug fixes) and 'Added' (new features).
+        3. Return ONLY the bullet points (markdown format). 
+        4. Do not include headers like '### Fixed', just the bullet points.
+        5. Use technical but concise language (e.g., "Fixed nil pointer in join_game" instead of "Fixed a crash").
+        6. If NO relevant changes found, return "No server changes in this release."
         
         Format Example:
         - Fixed asset bundling for embedded frontend
