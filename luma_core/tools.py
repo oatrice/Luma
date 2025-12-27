@@ -2,9 +2,113 @@ import os
 import subprocess
 import json
 import re
+from typing import Optional
 from langchain_core.messages import HumanMessage
 from .llm import get_llm
 from .config import TARGET_DIR
+
+
+def suggest_version_from_git() -> Optional[str]:
+    """
+    Analyzes git commit messages and diff to suggest the next version.
+    Uses AI to determine if it should be a PATCH, MINOR, or MAJOR bump.
+    Returns the suggested version string or None if unable to determine.
+    """
+    project_root = os.path.dirname(TARGET_DIR)
+    
+    # 1. Get current version from android-server/build.gradle or CHANGELOG.md
+    current_version = None
+    
+    # Try to get version from bump_version.sh output or CHANGELOG
+    try:
+        changelog_path = os.path.join(project_root, "android-server/CHANGELOG.md")
+        version_cmd = ["grep", "-oE", r"[0-9]+\.[0-9]+\.[0-9]+", changelog_path]
+        version_res = subprocess.run(version_cmd, cwd=project_root, capture_output=True, text=True)
+        if version_res.returncode == 0 and version_res.stdout.strip():
+            current_version = version_res.stdout.strip().split("\n")[0]
+    except Exception:
+        pass
+    
+    if not current_version:
+        print("⚠️ Could not determine current version.")
+        return None
+    
+    print(f"📊 Current Version: {current_version}")
+    
+    # 2. Get recent git commits and diff for server-related files
+    server_paths = [
+        "server.go", "server_test.go", "server_parity_test.go", "tools.go",
+        "android-server", "cmd", "scripts", "go.mod", "Makefile"
+    ]
+    
+    # Get commit messages
+    log_cmd = ["git", "log", "-n", "10", "--pretty=format:%s", "--"] + server_paths
+    try:
+        log_res = subprocess.run(log_cmd, cwd=project_root, capture_output=True, text=True)
+        commit_messages = log_res.stdout[:3000]
+    except Exception:
+        commit_messages = ""
+    
+    # Get diff summary
+    diff_cmd = ["git", "diff", "--stat", "origin/main...HEAD", "--"] + server_paths
+    try:
+        diff_res = subprocess.run(diff_cmd, cwd=project_root, capture_output=True, text=True)
+        diff_stat = diff_res.stdout[:2000]
+    except Exception:
+        diff_stat = ""
+    
+    # 3. Ask AI to determine bump type
+    llm = get_llm(temperature=0.3)
+    
+    prompt = f"""
+    Analyze the following git history and determine the appropriate version bump.
+    
+    Current Version: {current_version}
+    
+    Recent Commit Messages:
+    {commit_messages}
+    
+    Changed Files Summary:
+    {diff_stat}
+    
+    Instructions:
+    - Output ONLY one of: PATCH, MINOR, or MAJOR
+    - PATCH: Bug fixes, small improvements, documentation updates
+    - MINOR: New features, significant improvements (backwards compatible)
+    - MAJOR: Breaking changes, major architectural changes
+    
+    If commits include "fix:" or small changes → PATCH
+    If commits include "feat:" or new functionality → MINOR
+    If commits include "BREAKING:" or major rewrites → MAJOR
+    
+    Output (only one word):
+    """
+    
+    try:
+        ai_response = llm.invoke([HumanMessage(content=prompt)]).content.strip().upper()
+        
+        # Parse current version
+        version_parts = current_version.split(".")
+        if len(version_parts) != 3:
+            return None
+            
+        major, minor, patch = map(int, version_parts)
+        
+        # Calculate new version based on AI recommendation
+        if "MAJOR" in ai_response:
+            new_version = f"{major + 1}.0.0"
+        elif "MINOR" in ai_response:
+            new_version = f"{major}.{minor + 1}.0"
+        else:  # Default to PATCH
+            new_version = f"{major}.{minor}.{patch + 1}"
+        
+        print(f"🤖 AI Recommendation: {ai_response} → {new_version}")
+        return new_version
+        
+    except Exception as e:
+        print(f"⚠️ AI version suggestion failed: {e}")
+        return None
+
 
 def update_android_version_logic(version: str):
     """Orchestrates the Android Version Bump and Changelog Generation"""
