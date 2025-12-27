@@ -35,51 +35,71 @@ def suggest_version_from_git() -> Optional[str]:
     
     print(f"📊 Current Version: {current_version}")
     
-    # 2. Get recent git commits and diff for server-related files
-    server_paths = [
+    # 2. Get recent git commits and diff for ANDROID SERVER related files ONLY
+    # Exclude client-nuxt, frontend, CSS, TypeScript, Vue files
+    android_server_paths = [
         "server.go", "server_test.go", "server_parity_test.go", "tools.go",
-        "android-server", "cmd", "scripts", "go.mod", "Makefile"
+        "android-server/",  # Core Android server code
+        "cmd/",             # CLI entry points
+        "go.mod", "go.sum", # Go dependencies
+        "scripts/bump_version.sh",  # Version script
     ]
     
-    # Get commit messages
-    log_cmd = ["git", "log", "-n", "10", "--pretty=format:%s", "--"] + server_paths
+    # Get commit messages (filtered to android-server related)
+    log_cmd = ["git", "log", "-n", "15", "--pretty=format:%s", "--"] + android_server_paths
     try:
         log_res = subprocess.run(log_cmd, cwd=project_root, capture_output=True, text=True)
         commit_messages = log_res.stdout[:3000]
     except Exception:
         commit_messages = ""
     
-    # Get diff summary
-    diff_cmd = ["git", "diff", "--stat", "origin/main...HEAD", "--"] + server_paths
+    # Get diff summary (android-server only)
+    diff_cmd = ["git", "diff", "--stat", "origin/main...HEAD", "--"] + android_server_paths
     try:
         diff_res = subprocess.run(diff_cmd, cwd=project_root, capture_output=True, text=True)
         diff_stat = diff_res.stdout[:2000]
     except Exception:
         diff_stat = ""
     
+    # Check if there are any android-server related changes
+    if not commit_messages.strip() and not diff_stat.strip():
+        print("ℹ️ No android-server related changes detected.")
+        return None
+    
     # 3. Ask AI to determine bump type
     llm = get_llm(temperature=0.3)
     
     prompt = f"""
-    Analyze the following git history and determine the appropriate version bump.
+    Analyze the following git history for ANDROID SERVER and determine the appropriate version bump.
+    
+    **IMPORTANT**: This is for Android Server versioning ONLY.
     
     Current Version: {current_version}
     
-    Recent Commit Messages:
+    Recent Commit Messages (Android Server Related):
     {commit_messages}
     
-    Changed Files Summary:
+    Changed Files Summary (Android Server Related):
     {diff_stat}
     
-    Instructions:
-    - Output ONLY one of: PATCH, MINOR, or MAJOR
-    - PATCH: Bug fixes, small improvements, documentation updates
-    - MINOR: New features, significant improvements (backwards compatible)
-    - MAJOR: Breaking changes, major architectural changes
+    **CRITICAL FILTER - ONLY consider changes to:**
+    - Go files (*.go) - server.go, *_test.go, tools.go
+    - android-server/ directory (gomobile, .aar builds)
+    - Go dependencies (go.mod, go.sum)
+    - Version scripts
     
-    If commits include "fix:" or small changes → PATCH
-    If commits include "feat:" or new functionality → MINOR
-    If commits include "BREAKING:" or major rewrites → MAJOR
+    **COMPLETELY IGNORE (do NOT factor into version bump):**
+    - client-nuxt/ changes
+    - Vue/TypeScript/CSS/JavaScript changes
+    - Frontend UI changes
+    - package.json, nuxt.config.ts, etc.
+    
+    Instructions:
+    - Output ONLY one of: PATCH, MINOR, MAJOR, or NONE
+    - PATCH: Bug fixes, small improvements, dependency updates
+    - MINOR: New server features, new API endpoints, significant improvements
+    - MAJOR: Breaking API changes, major architectural changes
+    - NONE: If no server-related changes exist
     
     Output (only one word):
     """
@@ -95,7 +115,10 @@ def suggest_version_from_git() -> Optional[str]:
         major, minor, patch = map(int, version_parts)
         
         # Calculate new version based on AI recommendation
-        if "MAJOR" in ai_response:
+        if "NONE" in ai_response:
+            print("ℹ️ AI detected no server-related changes requiring version bump.")
+            return None
+        elif "MAJOR" in ai_response:
             new_version = f"{major + 1}.0.0"
         elif "MINOR" in ai_response:
             new_version = f"{major}.{minor + 1}.0"

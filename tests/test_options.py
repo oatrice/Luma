@@ -222,3 +222,19 @@ def test_suggest_version_fallback(mock_subprocess):
     result = suggest_version_from_git()
     
     assert result is None, "Should return None when no version found"
+
+
+@patch("luma_core.tools.subprocess.run")
+@patch("luma_core.tools.get_llm")
+def test_suggest_version_none_server_changes(mock_get_llm, mock_subprocess):
+    """Test suggest_version_from_git returns None when AI detects no server changes"""
+    mock_llm_instance = MagicMock()
+    mock_get_llm.return_value = mock_llm_instance
+    mock_llm_instance.invoke.return_value.content = "NONE"
+    
+    mock_subprocess.return_value.stdout = "1.0.5"
+    mock_subprocess.return_value.returncode = 0
+    
+    result = suggest_version_from_git()
+    
+    assert result is None, "Should return None when AI detects no server changes"
