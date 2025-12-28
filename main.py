@@ -355,7 +355,7 @@ def main():
                 update_android_version_logic(version)
                 
                 # Check and Review CHANGELOG
-                import os
+
                 changelog_path = os.path.join(TARGET_DIR, "../android-server/CHANGELOG.md")
                 if os.path.exists(changelog_path):
                     with open(changelog_path, 'r', encoding='utf-8') as f:
