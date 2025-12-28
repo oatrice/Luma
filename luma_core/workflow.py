@@ -3,7 +3,7 @@ from .state import AgentState
 
 # Import Agents
 from .agents.coder import coder_agent
-from .agents.reviewer import reviewer_agent
+from .agents.reviewer import reviewer_agent, docs_reviewer_agent
 from .agents.tester import tester_agent, should_continue
 from .agents.docs import docs_agent
 from .agents.publisher import publisher_agent
@@ -21,6 +21,7 @@ def build_graph():
     workflow.add_node("Approver", human_approval_agent)
     workflow.add_node("Writer", file_writer)
     workflow.add_node("Publisher", publisher_agent)
+    workflow.add_node("DocsReviewer", docs_reviewer_agent)
     
     # Define Flow
     workflow.set_entry_point("Coder")
@@ -37,7 +38,9 @@ def build_graph():
         }
     )
     
-    workflow.add_edge("Docs", "Approver")
+    workflow.add_edge("Docs", "DocsReviewer")
+    workflow.add_edge("DocsReviewer", "Approver")
+
     
     # Approval Gate
     workflow.add_conditional_edges(

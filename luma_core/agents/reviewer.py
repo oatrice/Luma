@@ -83,3 +83,58 @@ def reviewer_agent(state: AgentState):
         print(f"⚠️ Reviewer Advice failed: {e}")
 
     return {"code_content": content, "test_suggestions": advice}
+
+def docs_reviewer_agent(state: AgentState):
+    """Reviewer Agent (Docs): Reviews Documentation Changes"""
+    print("🧐 Docs Reviewer: Validating documentation updates...")
+    
+    changes = state.get('changes', {})
+    if not changes:
+        print("   No changes to review due to empty change list.")
+        return {}
+
+    # Check for android-server/CHANGELOG.md
+    target_cl = "android-server/CHANGELOG.md"
+    
+    if target_cl in changes:
+        print(f"   🔎 Auditing {target_cl} for server-only compliance...")
+        content = changes[target_cl]
+        
+        # Verify with LLM
+        llm = get_llm(temperature=0.3, purpose="general")
+        
+        prompt = f"""
+        You are a Strict Documentation Reviewer.
+        
+        File: {target_cl}
+        Content Change:
+        {content}
+        
+        Rule: The android-server changelog must ONLY contain changes related to the 'android-server' project (Go server, Kotlin app, Server Logic, API).
+        It must NOT contain changes purely related to the 'client-nuxt' (Vue components, CSS, UI).
+        
+        Task:
+        1. Check if the added lines in the content obey the rule.
+        2. If YES, output 'PASS'.
+        3. If NO (i.e. it includes client-side changes), output the CORRECTED content for the entire file (or the snippet provided) with non-server items REMOVED.
+        
+        Do not output markdown code blocks. Just the raw content or 'PASS'.
+        """
+        
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+            result = response.content.strip()
+            
+            if "PASS" in result and len(result) < 20:
+                print("   ✅ Docs Review Passed.")
+            else:
+                print("   ⚠️ Docs Review found issues. Auto-correcting...")
+                # Update the change content with the corrected version from LLM
+                clean_content = result.replace("```markdown", "").replace("```", "").strip()
+                changes[target_cl] = clean_content
+                return {"changes": changes}
+                
+        except Exception as e:
+            print(f"   ⚠️ Docs Review failed: {e}")
+            
+    return {}
