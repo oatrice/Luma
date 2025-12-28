@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import subprocess
+import re
 from langchain_core.messages import HumanMessage
 from ..state import AgentState
 from ..llm import get_llm
@@ -163,6 +164,43 @@ def docs_agent(state: AgentState):
             lines.insert(insert_idx, new_entry + "\n")
             result_changes["CHANGELOG.md"] = "\n".join(lines)
             print("   📝 Queueing CHANGELOG.md update...")
+
+        # 5. Update Root README (Version Badges)
+        root_readme_rel = "../README.md"
+        root_readme_path = os.path.join(TARGET_DIR, root_readme_rel)
+        
+        if os.path.exists(root_readme_path) and "package.json" in result_changes:
+             try:
+                 # Determine badge label
+                 pkg_json = json.loads(result_changes["package.json"])
+                 project_name = pkg_json.get("name", "").lower()
+                 
+                 badge_label = None
+                 if "client" in project_name or "nuxt" in project_name:
+                     badge_label = "Frontend"
+                 elif "android" in project_name or "server" in project_name:
+                     badge_label = "Android_Server"
+                 
+                 if badge_label:
+                     print(f"   📝 Checking {badge_label} badge in root README...")
+                     with open(root_readme_path, "r", encoding="utf-8") as rf:
+                         readme_content = rf.read()
+                     
+                     # Pattern: ![Label](...badge/Label-vX.X.X-...)
+                     # We look for the part after "badge/Label-v" until the next dash or ending
+                     # The actual badge URL format is: https://img.shields.io/badge/Frontend-v3.13.0-00DC82
+                     # Regex: (badge/{badge_label}-v)([\d\.]+)
+                     
+                     pattern = rf"(badge/{badge_label}-v)([\d\.]+)"
+                     
+                     if re.search(pattern, readme_content):
+                         new_readme_content = re.sub(pattern, rf"\g<1>{new_version}", readme_content)
+                         
+                         if new_readme_content != readme_content:
+                             result_changes[root_readme_rel] = new_readme_content
+                             print(f"   📝 Queueing root README badge update ({new_version})...")
+             except Exception as e:
+                 print(f"   ⚠️ Root README update failed: {e}")
             
     except Exception as e:
         print(f"⚠️ Docs Agent Error: {e}")
