@@ -16,7 +16,7 @@ from luma_core.tools import (
     get_git_changed_files,
     suggest_version_from_git
 )
-from luma_core.agents.reviewer import reviewer_agent
+from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 from luma_core.agents.docs import docs_agent
 
 # Try to import GitHub Fetcher
@@ -182,6 +182,15 @@ def main():
                         
                         if doc_result and doc_result.get('changes'):
                             changes = doc_result['changes']
+                            
+                            # Run Docs Reviewer
+                            print("   🧐 Running Docs Reviewer validation...")
+                            review_state = {"changes": changes}
+                            review_result = docs_reviewer_agent(review_state)
+                            if review_result and review_result.get('changes'):
+                                changes = review_result['changes']
+                                print("   ✅ Docs Reviewer applied corrections.")
+
                             print(f"   📝 Docs Agent proposes updates to: {list(changes.keys())}")
                             
                             if input("   💾 Commit documentation updates now? (Y/n): ").lower() not in ['n', 'no']:
@@ -344,6 +353,29 @@ def main():
             
             if version:
                 update_android_version_logic(version)
+                
+                # Check and Review CHANGELOG
+                import os
+                changelog_path = os.path.join(TARGET_DIR, "../android-server/CHANGELOG.md")
+                if os.path.exists(changelog_path):
+                    with open(changelog_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    review_state = {"changes": {"android-server/CHANGELOG.md": content}}
+                    print("   🧐 Running Docs Reviewer validation...")
+                    review_result = docs_reviewer_agent(review_state)
+                    
+                    if review_result and review_result.get('changes'):
+                        new_content = review_result['changes']["android-server/CHANGELOG.md"]
+                        if new_content != content:
+                            with open(changelog_path, 'w', encoding='utf-8') as f:
+                                f.write(new_content)
+                            print("   ✅ Docs Reviewer corrected CHANGELOG.md")
+                            
+                            # Amend commit if previous logic committed it (heuristic)
+                            subprocess.run(["git", "add", changelog_path], cwd=os.path.dirname(changelog_path), check=False)
+                            subprocess.run(["git", "commit", "--amend", "--no-edit"], cwd=os.path.dirname(changelog_path), check=False)
+                            print("   ✅ Amended previous commit with corrected docs.")
             else:
                 print("❌ Version required.")
 
