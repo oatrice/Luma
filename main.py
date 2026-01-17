@@ -5,7 +5,7 @@ import argparse
 import subprocess
 from langchain_core.messages import HumanMessage
 from luma_core.workflow import build_graph
-from luma_core.config import TARGET_DIR
+from luma_core.config import TARGET_DIR as DEFAULT_TARGET_DIR
 from luma_core.llm import get_llm
 from luma_core.tools import (
     update_android_version_logic,
@@ -29,6 +29,34 @@ try:
 except ImportError:
     fetch_issues = None
     print("⚠️ github_fetcher.py not found. GitHub features disabled.")
+
+# --- Multi-Project Configuration ---
+# Assuming Luma is in /Users/oatrice/Software-projects/Luma
+# and others are siblings in /Users/oatrice/Software-projects/
+BASE_PROJECTS_DIR = os.path.abspath(os.path.join(os.getcwd(), ".."))
+
+PROJECTS = {
+    "1": {
+        "name": "Tetris-Battle (Client)", 
+        "path": os.path.join(BASE_PROJECTS_DIR, "Tetris-Battle/client-nuxt"), 
+        "repo": "oatrice/Tetris-Battle"
+    },
+    "2": {
+        "name": "JarWise - Root", 
+        "path": os.path.join(BASE_PROJECTS_DIR, "JarWise"), 
+        "repo": "oatrice/JarWise-Root"
+    },
+    "3": {
+        "name": "JarWise - Android", 
+        "path": os.path.join(BASE_PROJECTS_DIR, "JarWise/Android"), 
+        "repo": "oatrice/JarWise-Android"
+    },
+    "4": {
+        "name": "JarWise - Web", 
+        "path": os.path.join(BASE_PROJECTS_DIR, "JarWise/Web"), 
+        "repo": "oatrice/JarWise-Web"
+    }
+}
 
 def get_ai_advice(issues):
     """AI Advisor for Issue Selection"""
@@ -66,6 +94,17 @@ def main():
     print("🤖 Luma AI Architect")
     print("==============================")
 
+    # Initial Context Setup
+    current_project_key = "1" # Default to Tetris for backward compatibility or first item
+    
+    # Check if default path exists, if not maybe default to JarWise Root
+    if not os.path.exists(PROJECTS["1"]["path"]):
+         current_project_key = "2" # Fallback
+
+    active_config = PROJECTS[current_project_key]
+    current_target_dir = active_config["path"]
+    current_repo_slug = active_config["repo"]
+
     # Default initial state
     initial_state = {
         "task": "",
@@ -73,20 +112,27 @@ def main():
         "changes": {},
         "test_errors": "",
         "source_files": ["package.json", "vite.config.ts"],  # Restored
-        "repo": args.repo,
+        "repo": current_repo_slug,
         "issue_data": {}
     }
 
     while True:
         # Check draft existence for UI hint
-        draft_path = os.path.join(TARGET_DIR, ".pr_draft.json")
+        draft_path = os.path.join(current_target_dir, ".pr_draft.json")
         draft_hint = " 📄" if os.path.exists(draft_path) else ""
         
-        print(f"\n1. 📥 Select Next Issue (Start Coding)")
+        print(f"\n📂 Active Project: {active_config['name']}")
+        print(f"📍 Path: {current_target_dir}")
+        print(f"🔗 Repo: {current_repo_slug}")
+        print("-" * 30)
+        
+        print(f"1. 📥 Select Next Issue (Start Coding)")
         print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
         print("3. 🧐 Code Review (Local)")
         print("4. 📝 Update Docs (Standalone)")
-        print("5. 🤖 Update Android Server Version")
+        if current_project_key == "1":
+            print("5. 🤖 Update Android Server Version")
+        print("9. 🔄 Switch Project / Repo")
         print("0. ❌ Exit")
         
         choice = input("\nSelect Option: ").strip()
@@ -94,6 +140,23 @@ def main():
         if choice == "0":
             print("👋 Bye!")
             break
+
+        elif choice == "9":
+            print("\n🔄 Switch Project:")
+            for key, proj in PROJECTS.items():
+                print(f"   [{key}] {proj['name']}")
+            
+            p_choice = input("Select Project: ").strip()
+            if p_choice in PROJECTS:
+                current_project_key = p_choice
+                active_config = PROJECTS[current_project_key]
+                current_target_dir = active_config["path"]
+                current_repo_slug = active_config["repo"]
+                # Update initial state repo
+                initial_state["repo"] = current_repo_slug
+                print(f"✅ Switched to {active_config['name']}")
+            else:
+                print("❌ Invalid selection.")
             
         elif choice == "1":
             # --- Flow 1: Issue Selection ---
@@ -101,8 +164,8 @@ def main():
                 print("❌ GitHub fetcher unavailable.")
                 continue
                 
-            print(f"📡 Fetching issues from {args.repo}...")
-            issues = fetch_issues(args.repo)
+            print(f"📡 Fetching issues from {current_repo_slug}...")
+            issues = fetch_issues(current_repo_slug)
             selected_issue = select_issue(issues, ai_advisor=get_ai_advice)
             
             if selected_issue:
@@ -110,6 +173,7 @@ def main():
                 update_issue_status(selected_issue, "In Progress")
                 
                 initial_state["task"] = convert_to_task(selected_issue)
+                initial_state["repo"] = current_repo_slug
                 initial_state["issue_data"] = selected_issue
                 
                 app.invoke(initial_state)
@@ -119,11 +183,11 @@ def main():
 
         elif choice == "2":
             # --- Flow 2: Create PR (Full Feature) ---
-            print(f"\n🚀 Preparing to Create PR for {TARGET_DIR}...")
+            print(f"\n🚀 Preparing to Create PR for {current_target_dir}...")
             
             try:
                 # 1. Get Current Branch
-                res = subprocess.run(["git", "branch", "--show-current"], cwd=TARGET_DIR, capture_output=True, text=True)
+                res = subprocess.run(["git", "branch", "--show-current"], cwd=current_target_dir, capture_output=True, text=True)
                 current_branch = res.stdout.strip()
                 if not current_branch:
                     print("❌ Error: Not in a git repository or detached head.")
@@ -134,10 +198,10 @@ def main():
                     print(f"⚠️ You are currently on '{current_branch}'.")
                     create_new = input("🌿 Do you want to create a new branch? (y/N): ").lower()
                     if create_new == 'y':
-                        new_branch = get_user_branch_choice()
+                        new_branch = get_user_branch_choice(target_dir=current_target_dir)
                         if new_branch:
                             try:
-                                subprocess.run(["git", "checkout", "-b", new_branch], cwd=TARGET_DIR, check=True)
+                                subprocess.run(["git", "checkout", "-b", new_branch], cwd=current_target_dir, check=True)
                                 current_branch = new_branch
                                 print(f"✅ Switched to new branch: {current_branch}")
                             except subprocess.CalledProcessError as e:
@@ -150,10 +214,10 @@ def main():
                 if current_branch not in ['main', 'master']:
                     rename_opt = input(f"✏️  Do you want to rename '{current_branch}'? (y/N): ").lower()
                     if rename_opt == 'y':
-                        new_name = get_user_branch_choice()
+                        new_name = get_user_branch_choice(target_dir=current_target_dir)
                         if new_name:
                             try:
-                                subprocess.run(["git", "branch", "-m", new_name], cwd=TARGET_DIR, check=True)
+                                subprocess.run(["git", "branch", "-m", new_name], cwd=current_target_dir, check=True)
                                 current_branch = new_name
                                 print(f"✅ Renamed to: {current_branch}")
                             except subprocess.CalledProcessError as e:
@@ -175,11 +239,6 @@ def main():
                         
                         doc_result = docs_agent(doc_state)
                         
-                        # Debug log
-                        print(f"   [DEBUG] doc_result type: {type(doc_result)}")
-                        print(f"   [DEBUG] doc_result: {doc_result}")
-                        print(f"   [DEBUG] doc_result.get('changes'): {doc_result.get('changes') if doc_result else 'N/A'}")
-                        
                         if doc_result and doc_result.get('changes'):
                             changes = doc_result['changes']
                             
@@ -195,12 +254,12 @@ def main():
                             
                             if input("   💾 Commit documentation updates now? (Y/n): ").lower() not in ['n', 'no']:
                                 for filename, content in changes.items():
-                                    full_path = os.path.join(TARGET_DIR, filename)
+                                    full_path = os.path.join(current_target_dir, filename)
                                     with open(full_path, "w", encoding="utf-8") as f:
                                         f.write(content)
                                 
-                                subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
-                                subprocess.run(["git", "commit", "-m", "docs: update CHANGELOG and version from Luma"], cwd=TARGET_DIR, check=True)
+                                subprocess.run(["git", "add", "."], cwd=current_target_dir, check=True)
+                                subprocess.run(["git", "commit", "-m", "docs: update CHANGELOG and version from Luma"], cwd=current_target_dir, check=True)
                                 print("   ✅ Docs committed.")
                             else:
                                 print("   ⏩ Skipping docs commit.")
@@ -210,35 +269,35 @@ def main():
                     print("   ⏩ Skipping Docs Agent.")
 
                 # 2. Load or Generate PR Content
-                title, body, draft_file = load_or_generate_pr_content(current_branch, args.repo)
+                title, body, draft_file = load_or_generate_pr_content(current_branch, current_repo_slug, target_dir=current_target_dir)
                 
                 print(f"\n📝 Proposed PR:\nTitle: {title}\nBody:\n{body[:200]}...\n")
 
                 # --- Test Suggestions ---
-                generate_test_suggestions()
+                generate_test_suggestions(target_dir=current_target_dir)
 
                 # 3. Create PR
                 if input("Proceed to Open PR? (y/N): ").lower() == 'y':
                     try:
                         print(f"⬆️ Pushing branch '{current_branch}' to origin...")
-                        subprocess.run(["git", "push", "origin", current_branch], cwd=TARGET_DIR, check=True)
+                        subprocess.run(["git", "push", "origin", current_branch], cwd=current_target_dir, check=True)
                     except subprocess.CalledProcessError as e:
                         print(f"❌ Failed to push branch: {e}")
                         continue
 
                     # Check for existing PR
-                    existing_pr = get_open_pr(args.repo, current_branch)
+                    existing_pr = get_open_pr(current_repo_slug, current_branch)
                     url = None
                     
                     if existing_pr:
                         print(f"⚠️ Found existing PR #{existing_pr['number']}: {existing_pr['html_url']}")
                         if input("🔄 Update existing PR description? (y/N): ").lower() == 'y':
-                            url = update_pull_request(args.repo, existing_pr['number'], title, body)
+                            url = update_pull_request(current_repo_slug, existing_pr['number'], title, body)
                         else:
                             print("⏩ Skipping PR update.")
                             continue
                     else:
-                        url = create_pull_request(args.repo, title, body, current_branch, "main")
+                        url = create_pull_request(current_repo_slug, title, body, current_branch, "main")
                         
                     if url: 
                         print(f"✅ PR Created: {url}")
@@ -253,7 +312,7 @@ def main():
 
         elif choice == "3":
             # --- Flow 3: Local Code Review (Full Feature) ---
-            print("\n🧐 Local Code Reviewer")
+            print(f"\n🧐 Local Code Reviewer ({active_config['name']})")
             
             changes = {}
             
@@ -263,7 +322,7 @@ def main():
             
             if review_mode == "1":
                 try:
-                    file_list = get_git_changed_files("all")
+                    file_list = get_git_changed_files("all", target_dir=current_target_dir)
                     
                     if not file_list:
                         print("✅ No changes found (Clean vs origin/main).")
@@ -277,7 +336,7 @@ def main():
                         file_list = file_list[:10]
                         
                     for rel_path in file_list:
-                        full_path = os.path.join(TARGET_DIR, rel_path)
+                        full_path = os.path.join(current_target_dir, rel_path)
                         if os.path.exists(full_path) and os.path.isfile(full_path):
                             if rel_path.endswith(('.png', '.jpg', '.ico', '.pdf')):
                                 continue
@@ -293,7 +352,7 @@ def main():
                     
             elif review_mode == "2":
                 target_file = input("Enter relative file path: ").strip()
-                full_path = os.path.join(TARGET_DIR, target_file)
+                full_path = os.path.join(current_target_dir, target_file)
                 if os.path.exists(full_path):
                     with open(full_path, 'r', encoding='utf-8') as f:
                         changes[target_file] = f.read()
@@ -339,12 +398,12 @@ def main():
                 app.invoke(doc_state)
                 print("✅ Documentation Update Complete.")
 
-        elif choice == "5":
+        elif choice == "5" and current_project_key == "1":
             # --- Flow 5: Update Android Version ---
             print("🤖 Update Android Server Version")
             
             # AI-powered version suggestion
-            suggested = suggest_version_from_git()
+            suggested = suggest_version_from_git(target_dir=current_target_dir)
             if suggested:
                 version_input = input(f"Target Version [{suggested}]: ").strip()
                 version = version_input if version_input else suggested
@@ -352,30 +411,33 @@ def main():
                 version = input("Target Version (e.g. 1.1.7): ").strip()
             
             if version:
-                update_android_version_logic(version)
+                update_android_version_logic(version, target_dir=current_target_dir)
                 
                 # Check and Review CHANGELOG
 
-                changelog_path = os.path.join(TARGET_DIR, "../android-server/CHANGELOG.md")
+                changelog_path = os.path.join(current_target_dir, "../android-server/CHANGELOG.md")
                 if os.path.exists(changelog_path):
-                    with open(changelog_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    review_state = {"changes": {"android-server/CHANGELOG.md": content}}
-                    print("   🧐 Running Docs Reviewer validation...")
-                    review_result = docs_reviewer_agent(review_state)
-                    
-                    if review_result and review_result.get('changes'):
-                        new_content = review_result['changes']["android-server/CHANGELOG.md"]
-                        if new_content != content:
-                            with open(changelog_path, 'w', encoding='utf-8') as f:
-                                f.write(new_content)
-                            print("   ✅ Docs Reviewer corrected CHANGELOG.md")
-                            
-                            # Amend commit if previous logic committed it (heuristic)
-                            subprocess.run(["git", "add", changelog_path], cwd=os.path.dirname(changelog_path), check=False)
-                            subprocess.run(["git", "commit", "--amend", "--no-edit"], cwd=os.path.dirname(changelog_path), check=False)
-                            print("   ✅ Amended previous commit with corrected docs.")
+                    try:
+                        with open(changelog_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        review_state = {"changes": {"android-server/CHANGELOG.md": content}}
+                        print("   🧐 Running Docs Reviewer validation...")
+                        review_result = docs_reviewer_agent(review_state)
+                        
+                        if review_result and review_result.get('changes'):
+                            new_content = review_result['changes']["android-server/CHANGELOG.md"]
+                            if new_content != content:
+                                with open(changelog_path, 'w', encoding='utf-8') as f:
+                                    f.write(new_content)
+                                print("   ✅ Docs Reviewer corrected CHANGELOG.md")
+                                
+                                # Amend commit if previous logic committed it (heuristic)
+                                subprocess.run(["git", "add", changelog_path], cwd=os.path.dirname(changelog_path), check=False)
+                                subprocess.run(["git", "commit", "--amend", "--no-edit"], cwd=os.path.dirname(changelog_path), check=False)
+                                print("   ✅ Amended previous commit with corrected docs.")
+                    except Exception as e:
+                        print(f"⚠️ Changelog review failed: {e}")
             else:
                 print("❌ Version required.")
 

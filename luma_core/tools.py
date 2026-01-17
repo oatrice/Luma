@@ -5,16 +5,16 @@ import re
 from typing import Optional
 from langchain_core.messages import HumanMessage
 from .llm import get_llm
-from .config import TARGET_DIR
+from .config import TARGET_DIR as DEFAULT_TARGET_DIR
 
 
-def suggest_version_from_git() -> Optional[str]:
+def suggest_version_from_git(target_dir: str = DEFAULT_TARGET_DIR) -> Optional[str]:
     """
     Analyzes git commit messages and diff to suggest the next version.
     Uses AI to determine if it should be a PATCH, MINOR, or MAJOR bump.
     Returns the suggested version string or None if unable to determine.
     """
-    project_root = os.path.dirname(TARGET_DIR)
+    project_root = os.path.dirname(target_dir)
     
     # 1. Get current version from android-server/build.gradle or CHANGELOG.md
     current_version = None
@@ -133,9 +133,9 @@ def suggest_version_from_git() -> Optional[str]:
         return None
 
 
-def update_android_version_logic(version: str):
+def update_android_version_logic(version: str, target_dir: str = DEFAULT_TARGET_DIR):
     """Orchestrates the Android Version Bump and Changelog Generation"""
-    project_root = os.path.dirname(TARGET_DIR) 
+    project_root = os.path.dirname(target_dir) 
     cmd = ["./scripts/bump_version.sh", version]
     
     try:
@@ -241,30 +241,30 @@ def update_android_version_logic(version: str):
 
 # --- PR Helper Functions ---
 
-def generate_branch_suggestions():
+def generate_branch_suggestions(target_dir: str = DEFAULT_TARGET_DIR):
     """LLM-powered branch name suggestions based on git diff"""
-    print("📊 Analyzing local changes for suggestions...")
+    print(f"📊 Analyzing local changes for suggestions in {target_dir}...")
     
     # Get diff summary
-    status_res = subprocess.run(["git", "status", "--short"], cwd=TARGET_DIR, capture_output=True, text=True)
+    status_res = subprocess.run(["git", "status", "--short"], cwd=target_dir, capture_output=True, text=True)
     
     try:
-        diff_stat = subprocess.check_output(["git", "diff", "--stat"], cwd=TARGET_DIR, text=True).strip()
-        diff_cached_stat = subprocess.check_output(["git", "diff", "--cached", "--stat"], cwd=TARGET_DIR, text=True).strip()
+        diff_stat = subprocess.check_output(["git", "diff", "--stat"], cwd=target_dir, text=True).strip()
+        diff_cached_stat = subprocess.check_output(["git", "diff", "--cached", "--stat"], cwd=target_dir, text=True).strip()
     except:
         diff_stat = ""
         diff_cached_stat = ""
 
     try:
-        diff_content = subprocess.check_output(["git", "diff"], cwd=TARGET_DIR, text=True).strip()
-        diff_cached_content = subprocess.check_output(["git", "diff", "--cached"], cwd=TARGET_DIR, text=True).strip()
+        diff_content = subprocess.check_output(["git", "diff"], cwd=target_dir, text=True).strip()
+        diff_cached_content = subprocess.check_output(["git", "diff", "--cached"], cwd=target_dir, text=True).strip()
     except:
         diff_content = ""
         diff_cached_content = ""
 
     full_diff = (diff_content + "\n" + diff_cached_content)[:3000]
 
-    log_res = subprocess.run(["git", "log", "-n", "5", "--pretty=format:%s"], cwd=TARGET_DIR, capture_output=True, text=True)
+    log_res = subprocess.run(["git", "log", "-n", "5", "--pretty=format:%s"], cwd=target_dir, capture_output=True, text=True)
     
     changes_context = f"""
     Git Status:
@@ -304,9 +304,9 @@ def generate_branch_suggestions():
         return []
 
 
-def get_user_branch_choice():
+def get_user_branch_choice(target_dir: str = DEFAULT_TARGET_DIR):
     """Interactive branch selection with AI suggestions"""
-    suggestions = generate_branch_suggestions()
+    suggestions = generate_branch_suggestions(target_dir)
     
     if suggestions:
         print("\n💡 AI Suggestions:")
@@ -322,9 +322,9 @@ def get_user_branch_choice():
         return input("👉 Enter new branch name: ").strip()
 
 
-def load_or_generate_pr_content(current_branch: str, repo: str):
+def load_or_generate_pr_content(current_branch: str, repo: str, target_dir: str = DEFAULT_TARGET_DIR):
     """Load draft or generate PR title/body via LLM"""
-    draft_file = os.path.join(TARGET_DIR, ".pr_draft.json")
+    draft_file = os.path.join(target_dir, ".pr_draft.json")
     title = ""
     body = ""
     
@@ -343,8 +343,10 @@ def load_or_generate_pr_content(current_branch: str, repo: str):
     if not title or not body:
         # Check for Template
         possible_templates = [
-            os.path.join(TARGET_DIR, ".github", "pull_request_template.md"),
-            os.path.join(os.path.dirname(os.path.abspath(TARGET_DIR)), ".github", "pull_request_template.md")
+            os.path.join(target_dir, ".github", "pull_request_template.md"),
+            os.path.join(os.path.dirname(os.path.abspath(target_dir)), ".github", "pull_request_template.md"),
+            os.path.join(target_dir, "PR_TEMPLATE.md"),
+            os.path.join(target_dir, "docs", "pull_request_template.md") # Added for JarWise structure if needed
         ]
         template_path = next((p for p in possible_templates if os.path.exists(p)), None)
         
@@ -354,15 +356,46 @@ def load_or_generate_pr_content(current_branch: str, repo: str):
                 template_content = f.read()
                 
         # Generate Content with Enhanced Context
-        print("📊 Analyzing changes for description...")
+        print("📊 Analyzing changes by commit for detailed description...")
         
         llm = get_llm(purpose="code")
         
-        # Get Commit Logs & Diff
-        log_res = subprocess.run(["git", "log", "origin/main..HEAD", "--pretty=format:%s%n%b"], cwd=TARGET_DIR, capture_output=True, text=True)
-        commit_logs = log_res.stdout.strip()
-        
-        diff_res = subprocess.run(["git", "diff", "origin/main...HEAD"], cwd=TARGET_DIR, capture_output=True, text=True)
+        # 1. Get List of Commits in this PR
+        commits_cmd = ["git", "log", "--reverse", "--pretty=format:%H|%s", "origin/main..HEAD"]
+        try:
+            commits_res = subprocess.run(commits_cmd, cwd=target_dir, capture_output=True, text=True)
+            commit_lines = commits_res.stdout.strip().split('\n')
+        except Exception as e:
+            print(f"⚠️ Failed to get commits: {e}")
+            commit_lines = []
+            
+        # 2. Iterate and get diff stats/summary for EACH commit
+        detailed_commit_history = ""
+        if commit_lines and commit_lines[0]: # Check if not empty
+            for line in commit_lines:
+                try:
+                    parts = line.split('|', 1)
+                    if len(parts) == 2:
+                        commit_hash, commit_msg = parts
+                        # Get diff for this specific commit
+                        commit_diff_cmd = ["git", "show", "--stat", "--oneline", commit_hash]
+                        commit_diff_res = subprocess.run(commit_diff_cmd, cwd=target_dir, capture_output=True, text=True)
+                        
+                        # Get full diff context (limited)
+                        commit_full_diff_cmd = ["git", "show", commit_hash]
+                        commit_full_diff_res = subprocess.run(commit_full_diff_cmd, cwd=target_dir, capture_output=True, text=True)
+                        
+                        detailed_commit_history += f"\n--- Commit: {commit_msg} ({commit_hash[:7]}) ---\n"
+                        detailed_commit_history += commit_diff_res.stdout.strip() + "\n"
+                        detailed_commit_history += "Diff Snippet:\n" + commit_full_diff_res.stdout[:1500] + "\n" # Limit per commit
+                except Exception:
+                    continue
+        else:
+             # Fallback if no commits found (maybe just dirty changes?)
+             detailed_commit_history = "No commits found on branch yet."
+
+        # 3. Overall Diff
+        diff_res = subprocess.run(["git", "diff", "origin/main...HEAD"], cwd=target_dir, capture_output=True, text=True)
 
         if template_content:
             gen_prompt = f"""
@@ -374,10 +407,10 @@ def load_or_generate_pr_content(current_branch: str, repo: str):
             CONTEXT:
             Target Branch: {current_branch} -> main
             
-            COMMITS:
-            {commit_logs}
+            **COMMIT-BY-COMMIT ANALYSIS (Detailed)**:
+            {detailed_commit_history}
             
-            **CODE DIFF (First 6000 chars)**:
+            **FULL DIFF SUMMARY (First 6000 chars)**:
             {diff_res.stdout[:6000]}
             
             TEMPLATE:
@@ -385,7 +418,10 @@ def load_or_generate_pr_content(current_branch: str, repo: str):
             
             INSTRUCTIONS:
             1. **Title**: Generate a conventional commit title based on '{current_branch}'.
-            2. **Body**: Fill the template with details from the commits and file changes.
+            2. **Body**: Fill the template with details.
+               - Use the "COMMIT-BY-COMMIT ANALYSIS" to accurately explain *why* and *what* changed at each step.
+               - Group related changes logically.
+               - Be specific about what files were modified and what the impact is.
             3. Return ONLY the filled markdown.
             4. Start output with "TITLE: <Suggested Title>".
             """
@@ -395,7 +431,9 @@ def load_or_generate_pr_content(current_branch: str, repo: str):
             **Title**: Must be based on the branch name.
             **Body**: concise summary of changes.
             
-            Commits: {commit_logs}
+            **Commit History Analysis**:
+            {detailed_commit_history}
+            
             Files: {diff_res.stdout[:500]}
             """
             
@@ -420,11 +458,11 @@ def load_or_generate_pr_content(current_branch: str, repo: str):
     return title, body, draft_file
 
 
-def generate_test_suggestions():
+def generate_test_suggestions(target_dir: str = DEFAULT_TARGET_DIR):
     """LLM generates test case suggestions from diff"""
     print("\n🧪 Luma Reviewer: Analyzing for missing tests...")
     try:
-        diff_res = subprocess.run(["git", "diff", "origin/main...HEAD"], cwd=TARGET_DIR, capture_output=True, text=True)
+        diff_res = subprocess.run(["git", "diff", "origin/main...HEAD"], cwd=target_dir, capture_output=True, text=True)
         
         test_prompt = f"""
         Analyze the following code changes and suggest 3-5 critical test cases that are missing.
@@ -447,7 +485,7 @@ def generate_test_suggestions():
         return ""
 
 
-def get_git_changed_files(mode: str = "all"):
+def get_git_changed_files(mode: str = "all", target_dir: str = DEFAULT_TARGET_DIR):
     """Get changed files from git based on mode"""
     files = set()
     
@@ -455,18 +493,20 @@ def get_git_changed_files(mode: str = "all"):
         # 1. Commits vs origin/main
         print("   📡 Configuring git scope (origin/main...HEAD)...")
         cmd_commits = ["git", "diff", "--name-only", "--relative", "origin/main...HEAD"]
-        res_commits = subprocess.run(cmd_commits, cwd=TARGET_DIR, capture_output=True, text=True)
+        res_commits = subprocess.run(cmd_commits, cwd=target_dir, capture_output=True, text=True)
         if res_commits.returncode == 0:
             files.update([f.strip() for f in res_commits.stdout.split('\n') if f.strip()])
 
         # 2. Local Dirty (Staged + Unstaged)
         cmd_dirty = ["git", "diff", "--name-only", "--relative", "HEAD"]
-        res_dirty = subprocess.run(cmd_dirty, cwd=TARGET_DIR, capture_output=True, text=True)
+        res_dirty = subprocess.run(cmd_dirty, cwd=target_dir, capture_output=True, text=True)
         files.update([f.strip() for f in res_dirty.stdout.split('\n') if f.strip()])
         
         # 3. Untracked
         cmd_untracked = ["git", "ls-files", "--others", "--exclude-standard"]
-        res_untracked = subprocess.run(cmd_untracked, cwd=TARGET_DIR, capture_output=True, text=True)
+        res_untracked = subprocess.run(cmd_untracked, cwd=target_dir, capture_output=True, text=True)
         files.update([f.strip() for f in res_untracked.stdout.split('\n') if f.strip()])
         
     return list(files)
+
+
