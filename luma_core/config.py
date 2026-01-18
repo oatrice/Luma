@@ -16,7 +16,7 @@ OPENROUTER_GENERAL_MODEL = "mistralai/mistral-7b-instruct:free"
 # Gemini Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_CODE_MODEL = "gemini-flash-latest"
-GEMINI_GENERAL_MODEL = "gemini-2.5-flash-lite"
+GEMINI_GENERAL_MODEL = "gemini-2.5-pro"
 
 # Project Target Directory
 # (Adjust logic if you want this to be dynamic)

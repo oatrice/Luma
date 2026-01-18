@@ -615,6 +615,466 @@ def create_branch_in_repos(repo_configs: list, branch_name: str) -> tuple:
             all_success = False
     
     return all_success, results
+def gather_git_data_for_docs(repo_path: str, base_branch: str = "main") -> dict:
+    """
+    Gather git data for documentation generation.
+    
+    Returns dict with:
+        - diff_stat: file changes summary
+        - commit_log: list of commits
+        - feat_commits: feature commits (conventional)
+        - fix_commits: fix commits (conventional)
+        - changed_files: list of changed files
+    """
+    data = {
+        "diff_stat": "",
+        "commit_log": [],
+        "feat_commits": [],
+        "fix_commits": [],
+        "changed_files": [],
+        "contributors": []
+    }
+    
+    try:
+        # 1. Git diff --stat (file changes summary)
+        stat_res = subprocess.run(
+            ["git", "diff", "--stat", f"origin/{base_branch}...HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        data["diff_stat"] = stat_res.stdout.strip()
+        
+        # 2. Git log --oneline (commit history)
+        log_res = subprocess.run(
+            ["git", "log", f"origin/{base_branch}..HEAD", "--oneline", "--no-merges"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        if log_res.stdout.strip():
+            data["commit_log"] = log_res.stdout.strip().split('\n')
+        
+        # 3. Feature commits (grep feat)
+        feat_res = subprocess.run(
+            ["git", "log", f"origin/{base_branch}..HEAD", "--oneline", "--no-merges", "--grep=feat"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        if feat_res.stdout.strip():
+            data["feat_commits"] = feat_res.stdout.strip().split('\n')
+        
+        # 4. Fix commits (grep fix)
+        fix_res = subprocess.run(
+            ["git", "log", f"origin/{base_branch}..HEAD", "--oneline", "--no-merges", "--grep=fix"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        if fix_res.stdout.strip():
+            data["fix_commits"] = fix_res.stdout.strip().split('\n')
+        
+        # 5. Changed files
+        files_res = subprocess.run(
+            ["git", "diff", "--name-only", f"origin/{base_branch}...HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        if files_res.stdout.strip():
+            data["changed_files"] = files_res.stdout.strip().split('\n')
+        
+        # 6. Contributors
+        contrib_res = subprocess.run(
+            ["git", "shortlog", "-sn", f"origin/{base_branch}..HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        if contrib_res.stdout.strip():
+            data["contributors"] = contrib_res.stdout.strip().split('\n')
+            
+    except Exception as e:
+        print(f"   ⚠️ Error gathering git data: {e}")
+    
+    return data
+
+
+def get_current_version(repo_path: str) -> str:
+    """Try to get current version from package.json, build.gradle, or git tag."""
+    import re
+    
+    # Try package.json (Web/Node projects)
+    package_json = os.path.join(repo_path, "package.json")
+    if os.path.exists(package_json):
+        try:
+            with open(package_json, 'r') as f:
+                data = json.load(f)
+            return data.get('version', '')
+        except:
+            pass
+    
+    # Try build.gradle.kts (Android)
+    gradle_files = [
+        os.path.join(repo_path, "app", "build.gradle.kts"),
+        os.path.join(repo_path, "app", "build.gradle"),
+        os.path.join(repo_path, "build.gradle.kts"),
+        os.path.join(repo_path, "build.gradle")
+    ]
+    for gradle_file in gradle_files:
+        if os.path.exists(gradle_file):
+            try:
+                with open(gradle_file, 'r') as f:
+                    content = f.read()
+                # Match versionName = "x.x.x" or versionName "x.x.x"
+                match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
+                if match:
+                    return match.group(1)
+            except:
+                pass
+    
+    # Try latest git tag
+    try:
+        tag_res = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True
+        )
+        if tag_res.returncode == 0 and tag_res.stdout.strip():
+            return tag_res.stdout.strip().lstrip('v')
+    except:
+        pass
+    
+    return ""
+
+
+def ai_generate_changelog_entry(git_data: dict, repo_name: str, existing_content: str = "", repo_path: str = "", suggested_version: str = "") -> str:
+    """Use Gemini to generate CHANGELOG entry based on git data."""
+    from datetime import datetime
+    
+    # Try to detect current version if not provided
+    current_version = suggested_version
+    if not current_version and repo_path:
+        current_version = get_current_version(repo_path)
+    
+    version_hint = f"Version: {current_version}" if current_version else "Version: (suggest a semantic version based on changes)"
+    
+    # Try to use Gemini
+    try:
+        from luma_core.llm import get_llm
+        
+        prompt = f"""Generate a CHANGELOG.md entry for the following changes in {repo_name}.
+
+## Git Data:
+- Commits: {len(git_data.get('commit_log', []))} total
+- Feature commits: {git_data.get('feat_commits', [])}
+- Fix commits: {git_data.get('fix_commits', [])}
+- Changed files: {git_data.get('changed_files', [])}
+- Diff stats:
+{git_data.get('diff_stat', 'N/A')}
+- {version_hint}
+
+## Commit History:
+{chr(10).join(git_data.get('commit_log', [])[:20])}
+
+## Existing CHANGELOG (for reference):
+{existing_content[:1500] if existing_content else 'Empty'}
+
+## Instructions:
+1. Generate a new entry with format: ## [VERSION] - {datetime.now().strftime('%Y-%m-%d')}
+2. If version is known, use it. If not, suggest next semantic version based on:
+   - MAJOR: breaking changes
+   - MINOR: new features (feat commits)
+   - PATCH: bug fixes (fix commits)
+3. Use categories: ### Added, ### Changed, ### Fixed, ### Removed (only if applicable)
+4. Be concise but descriptive
+5. Focus on user-facing changes
+6. Match the language style of existing changelog (Thai or English)
+7. Return ONLY the new entry (not the full changelog)
+
+Generate the new changelog entry:"""
+
+        print(f"   🤖 Generating CHANGELOG with AI...")
+        if current_version:
+            print(f"   📦 Current version: {current_version}")
+        llm = get_llm(temperature=0.3, purpose="general")
+        response = llm.invoke(prompt)
+        return response.content.strip() if response else ""
+        
+    except Exception as e:
+        print(f"   ⚠️ AI generation failed: {e}")
+        # Fallback: manual format
+        return _fallback_changelog_entry(git_data, repo_name)
+
+
+def _fallback_changelog_entry(git_data: dict, repo_name: str) -> str:
+    """Fallback changelog generation without AI."""
+    from datetime import datetime
+    
+    lines = [f"## [{datetime.now().strftime('%Y-%m-%d')}] - {repo_name}"]
+    
+    if git_data.get("feat_commits"):
+        lines.append("\n### Added")
+        for commit in git_data["feat_commits"][:5]:
+            # Extract message after hash
+            msg = commit.split(' ', 1)[1] if ' ' in commit else commit
+            lines.append(f"- {msg}")
+    
+    if git_data.get("fix_commits"):
+        lines.append("\n### Fixed")
+        for commit in git_data["fix_commits"][:5]:
+            msg = commit.split(' ', 1)[1] if ' ' in commit else commit
+            lines.append(f"- {msg}")
+    
+    # Other commits
+    other_commits = [c for c in git_data.get("commit_log", []) 
+                     if c not in git_data.get("feat_commits", []) 
+                     and c not in git_data.get("fix_commits", [])]
+    if other_commits:
+        lines.append("\n### Changed")
+        for commit in other_commits[:5]:
+            msg = commit.split(' ', 1)[1] if ' ' in commit else commit
+            lines.append(f"- {msg}")
+    
+    return '\n'.join(lines)
+
+
+def ai_generate_readme_update(git_data: dict, repo_name: str, existing_content: str = "") -> str:
+    """Use Gemini to suggest README updates based on git data."""
+    try:
+        from luma_core.llm import get_llm
+        
+        prompt = f"""You are updating the README.md for {repo_name}.
+
+## CRITICAL RULES:
+1. DO NOT invent, add, or fabricate any new information
+2. DO NOT add sections that don't exist in the original
+3. DO NOT change tech stack, badges, or role descriptions unless commits explicitly change them
+4. ONLY make minimal, targeted updates based on the actual commit changes
+5. If unsure about a change, DO NOT make it
+6. Preserve ALL existing content structure and formatting
+
+## Recent Commits (ONLY update based on these):
+{chr(10).join(git_data.get('commit_log', [])[:10])}
+
+## Changed Files:
+{git_data.get('changed_files', [])}
+
+## Current README (preserve structure):
+{existing_content if existing_content else 'Empty'}
+
+## What to do:
+1. Look at the commits - what was ACTUALLY changed?
+2. Find the MINIMAL section in README that relates to these changes
+3. Make ONLY the necessary text updates
+4. If commits are about scripts/docs/sync → only update relevant sections
+5. If no section needs updating → respond with EXACTLY "No updates needed"
+
+Return the FULL README with MINIMAL changes (or "No updates needed"):"""
+
+        print(f"   🤖 Generating README updates with AI...")
+        llm = get_llm(temperature=0.2, purpose="general")  # Lower temperature for less creativity
+        response = llm.invoke(prompt)
+        return response.content.strip() if response else ""
+        
+    except Exception as e:
+        print(f"   ⚠️ AI generation failed: {e}")
+        return ""
+
+
+def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
+    """
+    Update documentation (CHANGELOG.md, README.md) for multiple repos with AI.
+    
+    Args:
+        repo_configs: List of dicts with keys: 'name', 'path', 'repo'
+        docs_agent_func: Optional docs agent function (not used in AI mode)
+    
+    Returns:
+        List of results: {name: str, path: str, success: bool, error: str, files_updated: list}
+    """
+    results = []
+    
+    for config in repo_configs:
+        result = {
+            "name": config["name"],
+            "path": config["path"],
+            "success": False,
+            "error": None,
+            "files_updated": []
+        }
+        
+        try:
+            print(f"\n{'='*50}")
+            print(f"📦 [{config['name']}] Checking documentation...")
+            
+            # Check for CHANGELOG.md and README.md
+            changelog_path = os.path.join(config["path"], "CHANGELOG.md")
+            readme_path = os.path.join(config["path"], "README.md")
+            
+            docs_available = []
+            if os.path.exists(changelog_path):
+                docs_available.append("CHANGELOG.md")
+            if os.path.exists(readme_path):
+                docs_available.append("README.md")
+            
+            if not docs_available:
+                result["error"] = "No CHANGELOG.md or README.md found"
+                print(f"   ⚠️ No documentation files found")
+                results.append(result)
+                continue
+            
+            print(f"   📄 Found: {', '.join(docs_available)}")
+            
+            # Gather git data
+            print(f"   📊 Gathering git data...")
+            git_data = gather_git_data_for_docs(config["path"])
+            
+            if not git_data.get("commit_log"):
+                result["error"] = "No commits to document"
+                print(f"   ⏩ No commits ahead of main")
+                results.append(result)
+                continue
+            
+            print(f"   📈 {len(git_data['commit_log'])} commit(s), {len(git_data['changed_files'])} file(s) changed")
+            
+            # Ask user which docs to update
+            print(f"\n   ตัวเลือก:")
+            print(f"   [1] 📋 CHANGELOG.md only")
+            print(f"   [2] 📖 README.md only")
+            print(f"   [3] 📚 Both")
+            print(f"   [0] ⏩ Skip")
+            
+            doc_choice = input(f"   👉 Select: ").strip()
+            
+            if doc_choice == "0":
+                result["error"] = "Skipped by user"
+                results.append(result)
+                continue
+            
+            files_to_update = []
+            if doc_choice == "1" and "CHANGELOG.md" in docs_available:
+                files_to_update = ["CHANGELOG.md"]
+            elif doc_choice == "2" and "README.md" in docs_available:
+                files_to_update = ["README.md"]
+            elif doc_choice == "3":
+                files_to_update = docs_available
+            else:
+                result["error"] = "Invalid choice"
+                results.append(result)
+                continue
+            
+            # Process each doc
+            for doc_name in files_to_update:
+                doc_path = os.path.join(config["path"], doc_name)
+                
+                # Read existing content
+                existing_content = ""
+                if os.path.exists(doc_path):
+                    with open(doc_path, 'r', encoding='utf-8') as f:
+                        existing_content = f.read()
+                
+                # Generate new content with AI
+                if doc_name == "CHANGELOG.md":
+                    new_entry = ai_generate_changelog_entry(
+                        git_data, 
+                        config["name"], 
+                        existing_content,
+                        repo_path=config["path"]
+                    )
+                    if new_entry:
+                        # Prepend new entry after header
+                        if existing_content.startswith("# Changelog"):
+                            header_end = existing_content.find('\n\n')
+                            if header_end > 0:
+                                new_content = existing_content[:header_end+2] + new_entry + "\n\n" + existing_content[header_end+2:]
+                            else:
+                                new_content = existing_content + "\n\n" + new_entry
+                        else:
+                            new_content = "# Changelog\n\n" + new_entry + "\n\n" + existing_content
+                        
+                        # Save preview
+                        preview_path = os.path.join(config["path"], f"{doc_name}.PREVIEW.md")
+                        with open(preview_path, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+                        
+                        # Show new entry preview
+                        print(f"\n   📋 NEW CHANGELOG ENTRY:")
+                        print(f"   " + "=" * 45)
+                        for line in new_entry.split('\n')[:20]:
+                            print(f"   {line}")
+                        print(f"   " + "=" * 45)
+                        
+                        # Show diff comparison with existing
+                        if existing_content:
+                            # Extract first existing entry for comparison
+                            existing_lines = existing_content.split('\n')
+                            first_entry_lines = []
+                            for i, line in enumerate(existing_lines):
+                                if i > 0 and line.startswith('## '):
+                                    # Found next entry header, stop
+                                    break
+                                if i > 0:  # Skip the # Changelog header
+                                    first_entry_lines.append(line)
+                            
+                            if first_entry_lines:
+                                print(f"\n   📜 PREVIOUS ENTRY (for comparison):")
+                                print(f"   " + "-" * 45)
+                                for line in first_entry_lines[:10]:
+                                    print(f"   {line}")
+                                print(f"   " + "-" * 45)
+                        
+                        # Open VS Code diff view for comparison
+                        print(f"\n   📊 Opening VS Code diff...")
+                        print(f"      code --diff {doc_path} {preview_path}")
+                        subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
+                        
+                        save_choice = input(f"\n   💾 Save CHANGELOG changes? (y/N): ").lower()
+                        if save_choice == 'y':
+                            with open(doc_path, 'w', encoding='utf-8') as f:
+                                f.write(new_content)
+                            result["files_updated"].append(doc_name)
+                            print(f"   ✅ CHANGELOG.md updated!")
+                        
+                        # Cleanup preview
+                        if os.path.exists(preview_path):
+                            os.remove(preview_path)
+                
+                elif doc_name == "README.md":
+                    new_content = ai_generate_readme_update(git_data, config["name"], existing_content)
+                    if new_content and new_content != "No updates needed":
+                        preview_path = os.path.join(config["path"], f"{doc_name}.PREVIEW.md")
+                        with open(preview_path, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+                        
+                        print(f"\n   📄 README Preview generated")
+                        print(f"\n   📊 Opening VS Code diff...")
+                        print(f"      code --diff {doc_path} {preview_path}")
+                        subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
+                        
+                        save_choice = input(f"\n   💾 Save README changes? (y/N): ").lower()
+                        if save_choice == 'y':
+                            with open(doc_path, 'w', encoding='utf-8') as f:
+                                f.write(new_content)
+                            result["files_updated"].append(doc_name)
+                            print(f"   ✅ README.md updated!")
+                        
+                        if os.path.exists(preview_path):
+                            os.remove(preview_path)
+                    else:
+                        print(f"   ℹ️ No README updates needed")
+            
+            if result["files_updated"]:
+                result["success"] = True
+                
+        except Exception as e:
+            result["error"] = str(e)
+        
+        results.append(result)
+    
+    return results
 
 
 def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list:

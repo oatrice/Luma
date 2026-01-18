@@ -17,7 +17,8 @@ from luma_core.tools import (
     suggest_version_from_git,
     check_branch_sync,
     create_multi_repo_prs,
-    create_branch_in_repos
+    create_branch_in_repos,
+    update_multi_repo_docs
 )
 from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 from luma_core.agents.docs import docs_agent
@@ -137,6 +138,7 @@ def main():
         print("2a. 🚀 Create Multi-Repo PR (JarWise)")
         print("3. 🧐 Code Review (Local)")
         print("4. 📝 Update Docs (Standalone)")
+        print("4a. 📝 Update Multi-Repo Docs (JarWise)")
         if current_project_key == "1":
             print("5. 🤖 Update Android Server Version")
         print("9. 🔄 Switch Project / Repo")
@@ -490,6 +492,41 @@ def main():
                 
                 app.invoke(doc_state)
                 print("✅ Documentation Update Complete.")
+
+        elif choice == "4a":
+            # --- Flow 4a: Update Multi-Repo Docs ---
+            print("\n📝 Multi-Repo Documentation Update (JarWise)")
+            print("   This will update CHANGELOG.md and README.md in Root, Android, and Web repos")
+            
+            # Get JarWise repos
+            selected_repos = [PROJECTS[key] for key in JARWISE_REPOS if key in PROJECTS]
+            
+            print("\n📦 Target Repos:")
+            for r in selected_repos:
+                print(f"   - {r['name']}: {r['path']}")
+            
+            confirm = input("\n📝 Start docs update for all repos? (y/N): ").lower()
+            if confirm != 'y':
+                continue
+            
+            # Run docs update (manual mode - no AI agent passed)
+            results = update_multi_repo_docs(selected_repos, docs_agent_func=None)
+            
+            # Summary
+            print("\n" + "=" * 40)
+            print("📊 Multi-Repo Docs Summary:")
+            print("=" * 40)
+            
+            success_count = 0
+            for r in results:
+                if r.get("success"):
+                    files = ', '.join(r.get('files_updated', []))
+                    print(f"   ✅ {r['name']}: {files}")
+                    success_count += 1
+                else:
+                    print(f"   ⏩ {r['name']}: {r.get('error', 'Unknown error')}")
+            
+            print(f"\n   Total: {success_count}/{len(results)} updated")
 
         elif choice == "5" and current_project_key == "1":
             # --- Flow 5: Update Android Version ---
