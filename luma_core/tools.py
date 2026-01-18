@@ -701,11 +701,47 @@ def gather_git_data_for_docs(repo_path: str, base_branch: str = "main") -> dict:
     return data
 
 
-def get_current_version(repo_path: str) -> str:
-    """Try to get current version from package.json, build.gradle, or git tag."""
+def get_current_version(repo_path: str, version_file: str = None) -> str:
+    """
+    Get current version from specified version_file or auto-detect.
+    Supports: VERSION file, package.json, build.gradle.kts, git tags.
+    """
     import re
     
-    # Try package.json (Web/Node projects)
+    # If version_file is specified, use it directly
+    if version_file:
+        full_path = os.path.join(repo_path, version_file)
+        if os.path.exists(full_path):
+            # Simple VERSION file (just version number)
+            if version_file.upper() == "VERSION" or version_file.endswith("/VERSION"):
+                try:
+                    with open(full_path, 'r') as f:
+                        return f.read().strip()
+                except:
+                    pass
+            
+            # package.json
+            elif version_file.endswith("package.json"):
+                try:
+                    with open(full_path, 'r') as f:
+                        data = json.load(f)
+                    return data.get('version', '')
+                except:
+                    pass
+            
+            # build.gradle / build.gradle.kts
+            elif "build.gradle" in version_file:
+                try:
+                    with open(full_path, 'r') as f:
+                        content = f.read()
+                    match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
+                    if match:
+                        return match.group(1)
+                except:
+                    pass
+    
+    # Fallback: auto-detect (original behavior)
+    # Try package.json
     package_json = os.path.join(repo_path, "package.json")
     if os.path.exists(package_json):
         try:
@@ -719,20 +755,26 @@ def get_current_version(repo_path: str) -> str:
     gradle_files = [
         os.path.join(repo_path, "app", "build.gradle.kts"),
         os.path.join(repo_path, "app", "build.gradle"),
-        os.path.join(repo_path, "build.gradle.kts"),
-        os.path.join(repo_path, "build.gradle")
     ]
     for gradle_file in gradle_files:
         if os.path.exists(gradle_file):
             try:
                 with open(gradle_file, 'r') as f:
                     content = f.read()
-                # Match versionName = "x.x.x" or versionName "x.x.x"
                 match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
                 if match:
                     return match.group(1)
             except:
                 pass
+    
+    # Try VERSION file
+    version_path = os.path.join(repo_path, "VERSION")
+    if os.path.exists(version_path):
+        try:
+            with open(version_path, 'r') as f:
+                return f.read().strip()
+        except:
+            pass
     
     # Try latest git tag
     try:
@@ -748,6 +790,145 @@ def get_current_version(repo_path: str) -> str:
         pass
     
     return ""
+
+
+def extract_version_from_changelog_entry(changelog_entry: str) -> str:
+    """Extract version number from a CHANGELOG entry like '## [0.4.0] - 2026-01-18'."""
+    import re
+    match = re.search(r'\[(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\]', changelog_entry)
+    if match:
+        return match.group(1)
+    return ""
+
+
+def update_version_in_file(repo_path: str, new_version: str, version_file: str = None) -> dict:
+    """
+    Update version in source files.
+    If version_file is specified, use it directly. Otherwise auto-detect.
+    Supports: VERSION file, package.json, build.gradle.kts.
+    Returns dict with 'success', 'file', 'old_version', 'new_version'.
+    """
+    import re
+    
+    result = {
+        "success": False,
+        "file": None,
+        "old_version": None,
+        "new_version": new_version,
+        "error": None
+    }
+    
+    # If version_file is specified, use it directly
+    if version_file:
+        full_path = os.path.join(repo_path, version_file)
+        if os.path.exists(full_path):
+            try:
+                # Simple VERSION file
+                if version_file.upper() == "VERSION" or version_file.endswith("/VERSION"):
+                    with open(full_path, 'r') as f:
+                        result["old_version"] = f.read().strip()
+                    with open(full_path, 'w') as f:
+                        f.write(new_version + '\n')
+                    result["success"] = True
+                    result["file"] = version_file
+                    return result
+                
+                # package.json
+                elif version_file.endswith("package.json"):
+                    with open(full_path, 'r') as f:
+                        data = json.load(f)
+                    result["old_version"] = data.get('version', '')
+                    data['version'] = new_version
+                    with open(full_path, 'w') as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+                        f.write('\n')
+                    result["success"] = True
+                    result["file"] = version_file
+                    return result
+                
+                # build.gradle / build.gradle.kts
+                elif "build.gradle" in version_file:
+                    with open(full_path, 'r') as f:
+                        content = f.read()
+                    match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
+                    if match:
+                        result["old_version"] = match.group(1)
+                        new_content = re.sub(
+                            r'(versionName\s*[=]?\s*["\'])([^"\']+)(["\'])',
+                            f'\\g<1>{new_version}\\g<3>',
+                            content
+                        )
+                        with open(full_path, 'w') as f:
+                            f.write(new_content)
+                        result["success"] = True
+                        result["file"] = version_file
+                        return result
+            except Exception as e:
+                result["error"] = str(e)
+                return result
+    
+    # Fallback: auto-detect (original behavior)
+    # Try package.json
+    package_json = os.path.join(repo_path, "package.json")
+    if os.path.exists(package_json):
+        try:
+            with open(package_json, 'r') as f:
+                data = json.load(f)
+            result["old_version"] = data.get('version', '')
+            data['version'] = new_version
+            with open(package_json, 'w') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                f.write('\n')
+            result["success"] = True
+            result["file"] = "package.json"
+            return result
+        except Exception as e:
+            result["error"] = str(e)
+    
+    # Try build.gradle.kts (Android)
+    gradle_files = [
+        os.path.join(repo_path, "app", "build.gradle.kts"),
+        os.path.join(repo_path, "app", "build.gradle"),
+    ]
+    for gradle_file in gradle_files:
+        if os.path.exists(gradle_file):
+            try:
+                with open(gradle_file, 'r') as f:
+                    content = f.read()
+                match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
+                if match:
+                    result["old_version"] = match.group(1)
+                    new_content = re.sub(
+                        r'(versionName\s*[=]?\s*["\'])([^"\']+)(["\'])',
+                        f'\\g<1>{new_version}\\g<3>',
+                        content
+                    )
+                    with open(gradle_file, 'w') as f:
+                        f.write(new_content)
+                    result["success"] = True
+                    result["file"] = os.path.basename(gradle_file)
+                    return result
+            except Exception as e:
+                result["error"] = str(e)
+    
+    # Try VERSION file
+    version_path = os.path.join(repo_path, "VERSION")
+    if os.path.exists(version_path):
+        try:
+            with open(version_path, 'r') as f:
+                result["old_version"] = f.read().strip()
+            with open(version_path, 'w') as f:
+                f.write(new_version + '\n')
+            result["success"] = True
+            result["file"] = "VERSION"
+            return result
+        except Exception as e:
+            result["error"] = str(e)
+    
+    if not result["error"]:
+        result["error"] = "No version file found (VERSION, package.json, or build.gradle)"
+    
+    return result
 
 
 def ai_generate_changelog_entry(git_data: dict, repo_name: str, existing_content: str = "", repo_path: str = "", suggested_version: str = "") -> str:
@@ -1037,6 +1218,26 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                                 f.write(new_content)
                             result["files_updated"].append(doc_name)
                             print(f"   ✅ CHANGELOG.md updated!")
+                            
+                            # Offer to bump version in source file
+                            suggested_version = extract_version_from_changelog_entry(new_entry)
+                            version_file = config.get("version_file")
+                            current_version = get_current_version(config["path"], version_file)
+                            
+                            if suggested_version and suggested_version != current_version:
+                                print(f"\n   📦 Version detected in CHANGELOG: {suggested_version}")
+                                print(f"   📦 Current version in source: {current_version or 'Not found'}")
+                                if version_file:
+                                    print(f"   📄 Version file: {version_file}")
+                                
+                                bump_choice = input(f"   🆙 Update source file to {suggested_version}? (y/N): ").lower()
+                                if bump_choice == 'y':
+                                    bump_result = update_version_in_file(config["path"], suggested_version, version_file)
+                                    if bump_result["success"]:
+                                        print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {suggested_version}")
+                                        result["files_updated"].append(bump_result["file"])
+                                    else:
+                                        print(f"   ⚠️ Failed to update version: {bump_result['error']}")
                         
                         # Cleanup preview
                         if os.path.exists(preview_path):
