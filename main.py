@@ -48,17 +48,20 @@ PROJECTS = {
     "2": {
         "name": "JarWise - Root", 
         "path": os.path.join(BASE_PROJECTS_DIR, "JarWise"), 
-        "repo": "oatrice/JarWise-Root"
+        "repo": "oatrice/JarWise-Root",
+        "version_file": "VERSION"  # Simple VERSION file
     },
     "3": {
         "name": "JarWise - Android", 
         "path": os.path.join(BASE_PROJECTS_DIR, "JarWise/Android"), 
-        "repo": "oatrice/JarWise-Android"
+        "repo": "oatrice/JarWise-Android",
+        "version_file": "app/build.gradle.kts"  # Android gradle
     },
     "4": {
         "name": "JarWise - Web", 
         "path": os.path.join(BASE_PROJECTS_DIR, "JarWise/Web"), 
-        "repo": "oatrice/JarWise-Web"
+        "repo": "oatrice/JarWise-Web",
+        "version_file": "package.json"  # Node/Web
     }
 }
 

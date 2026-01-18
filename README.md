@@ -1,6 +1,18 @@
 # 🧠 Luma (The Hive)
 
-**Luma** is a Multi-Agent System (MAS) designed to serve as an "AI Software Architect" for the **Tetris-Battle** project. It acts as an automated software development team that writes code, ensures quality, and manages GitHub Workflows autonomously.
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Python](https://img.shields.io/badge/Python-3.9+-yellow)
+![LLM](https://img.shields.io/badge/LLM-Gemini%202.5-green)
+
+**Luma** is a Multi-Agent System (MAS) designed to serve as an "AI Software Architect" for multi-repository projects. It automates documentation, PR creation, and version management across multiple repos.
+
+## ✨ Key Features
+
+- **📝 Multi-Repo Docs**: AI-powered CHANGELOG and README generation
+- **🚀 Multi-Repo PR**: Create PRs across multiple repositories (JarWise: Root, Android, Web)
+- **🔢 Version Management**: Automatic version detection and bump (VERSION, package.json, build.gradle)
+- **🤖 AI-Powered**: Uses Gemini 2.5 Pro for intelligent content generation
+- **📊 Git Diff Preview**: VS Code diff view for reviewing changes
 
 ## 🏗️ Architecture
 
@@ -10,14 +22,14 @@ Luma is built using **LangGraph** and is composed of several specialized agents:
 - **🧐 Reviewer**: Analyzes code quality, identifies logic errors, and ensures memory safety (specifically for C++/Go).
 - **🧪 Tester**: Runs Unit Tests (or Build Tests) to verify that the generated code functions correctly.
 - **✋ Approver**: (Human-in-the-loop) Awaits user approval before persisting files or pushing changes to Git.
-- **💾 Writer**: Handles file system operations to save code to the target project (Tetris-Battle).
+- **💾 Writer**: Handles file system operations to save code to the target project.
 - **🚀 Publisher**: Automates Git operations—creating branches, committing changes, and opening Pull Requests (PR) on GitHub.
 
 ## 🛠️ Tech Stack
 
-- **Core**: Python 3.11+
+- **Core**: Python 3.9+
 - **Framework**: LangChain, LangGraph
-- **LLM Providers**: Google Gemini (Default), OpenRouter (Optional)
+- **LLM Providers**: Google Gemini 2.5 (Default), OpenRouter (Optional)
 
 ## 📦 Installation & Setup
 
