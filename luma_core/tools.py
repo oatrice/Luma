@@ -510,3 +510,251 @@ def get_git_changed_files(mode: str = "all", target_dir: str = DEFAULT_TARGET_DI
     return list(files)
 
 
+# --- Multi-Repo PR Functions ---
+
+# Try to import GitHub Fetcher
+try:
+    from github_fetcher import get_open_pr, create_pull_request, update_pull_request
+except ImportError:
+    get_open_pr = None
+    create_pull_request = None
+    update_pull_request = None
+
+
+def check_branch_sync(repo_configs: list) -> tuple:
+    """
+    Check if all repos are on the same branch.
+    
+    Args:
+        repo_configs: List of dicts with keys: 'name', 'path', 'repo'
+    
+    Returns:
+        Tuple of (is_synced: bool, branches: dict)
+    """
+    branches = {}
+    
+    for config in repo_configs:
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                branches[config["name"]] = result.stdout.strip()
+            else:
+                branches[config["name"]] = "unknown"
+        except Exception as e:
+            branches[config["name"]] = f"error: {e}"
+    
+    unique_branches = set(branches.values())
+    is_synced = len(unique_branches) == 1 and "unknown" not in unique_branches and not any("error" in b for b in unique_branches)
+    
+    return is_synced, branches
+
+
+def create_branch_in_repos(repo_configs: list, branch_name: str) -> tuple:
+    """
+    Create a new branch in all repos and checkout to it.
+    
+    Args:
+        repo_configs: List of dicts with keys: 'name', 'path', 'repo'
+        branch_name: Name of the branch to create
+    
+    Returns:
+        Tuple of (all_success: bool, results: dict)
+    """
+    results = {}
+    all_success = True
+    
+    for config in repo_configs:
+        try:
+            # Checkout to main first
+            subprocess.run(
+                ["git", "checkout", "main"],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            
+            # Pull latest
+            subprocess.run(
+                ["git", "pull", "origin", "main"],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            
+            # Create and checkout new branch
+            result = subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                results[config["name"]] = f"✅ Created '{branch_name}'"
+            else:
+                # Maybe branch already exists, try to checkout
+                checkout_result = subprocess.run(
+                    ["git", "checkout", branch_name],
+                    cwd=config["path"],
+                    capture_output=True,
+                    text=True
+                )
+                if checkout_result.returncode == 0:
+                    results[config["name"]] = f"✅ Switched to existing '{branch_name}'"
+                else:
+                    results[config["name"]] = f"❌ Failed: {result.stderr.strip()}"
+                    all_success = False
+                    
+        except Exception as e:
+            results[config["name"]] = f"❌ Error: {e}"
+            all_success = False
+    
+    return all_success, results
+
+
+def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list:
+    """
+    Create PRs for multiple repos.
+    
+    Args:
+        repo_configs: List of dicts with keys: 'name', 'path', 'repo'
+        base_branch: Target branch (default: main)
+    
+    Returns:
+        List of results: {repo: str, url: str, success: bool, error: str}
+    """
+    if not create_pull_request:
+        print("❌ GitHub fetcher not available.")
+        return []
+    
+    results = []
+    
+    for config in repo_configs:
+        result = {
+            "repo": config["repo"],
+            "name": config["name"],
+            "url": None,
+            "success": False,
+            "error": None
+        }
+        
+        try:
+            # Get current branch
+            branch_res = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            current_branch = branch_res.stdout.strip()
+            
+            if not current_branch or current_branch in ['main', 'master']:
+                result["error"] = f"On {current_branch or 'unknown'} branch, skipping"
+                results.append(result)
+                continue
+            
+            # Check if there are commits ahead of main
+            commits_ahead_res = subprocess.run(
+                ["git", "rev-list", "--count", f"origin/{base_branch}..HEAD"],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            commits_ahead = int(commits_ahead_res.stdout.strip() or "0")
+            
+            if commits_ahead == 0:
+                result["error"] = f"No commits ahead of {base_branch}, skipping"
+                print(f"⏩ [{config['name']}] No commits ahead of {base_branch}, skipping")
+                results.append(result)
+                continue
+            
+            print(f"\n{'='*50}")
+            print(f"� [{config['name']}] {commits_ahead} commit(s) ahead of {base_branch}")
+            
+            # Step 1: Check if create new or update existing
+            existing_pr = get_open_pr(config["repo"], current_branch) if get_open_pr else None
+            
+            if existing_pr:
+                print(f"   🔄 Mode: UPDATE existing PR #{existing_pr['number']}")
+                print(f"   🔗 {existing_pr['html_url']}")
+            else:
+                print(f"   🆕 Mode: CREATE new PR")
+            
+            # Step 2: Generate new PR draft
+            print(f"\n   📊 Generating PR draft...")
+            title, body, draft_json_file = load_or_generate_pr_content(
+                current_branch, 
+                config["repo"], 
+                target_dir=config["path"]
+            )
+            
+            # Step 3: Create .md preview file and open it
+            preview_file = os.path.join(config["path"], "PR_DRAFT_PREVIEW.md")
+            with open(preview_file, "w") as f:
+                f.write(f"# {title}\n\n")
+                f.write(f"**Repo:** {config['repo']}\n")
+                f.write(f"**Branch:** {current_branch}\n")
+                if existing_pr:
+                    f.write(f"**Action:** Update PR #{existing_pr['number']}\n")
+                else:
+                    f.write(f"**Action:** Create new PR\n")
+                f.write("\n---\n\n")
+                f.write(body or '')
+            
+            print(f"   📄 Opening preview: {preview_file}")
+            subprocess.run(["open", preview_file], capture_output=True)
+            
+            # Step 4: Submit or Cancel
+            submit_choice = input(f"   ✅ Submit this PR? (y/N): ").lower()
+            if submit_choice != 'y':
+                result["error"] = "Cancelled by user"
+                print(f"   ❌ Cancelled {config['name']}")
+                results.append(result)
+                continue
+            
+            # Push branch
+            print(f"   ⬆️ Pushing '{current_branch}'...") 
+            push_res = subprocess.run(
+                ["git", "push", "origin", current_branch],
+                cwd=config["path"],
+                capture_output=True,
+                text=True
+            )
+            
+            if push_res.returncode != 0:
+                result["error"] = f"Push failed: {push_res.stderr}"
+                results.append(result)
+                continue
+            
+            # Create or Update PR
+            if existing_pr:
+                print(f"   🔄 Updating PR #{existing_pr['number']}...")
+                url = update_pull_request(config["repo"], existing_pr['number'], title, body)
+            else:
+                print(f"   🆕 Creating new PR...")
+                url = create_pull_request(config["repo"], title, body, current_branch, base_branch)
+            
+            if url:
+                result["url"] = url
+                result["success"] = True
+                print(f"   ✅ Success: {url}")
+                
+                # Cleanup draft files
+                if os.path.exists(draft_json_file):
+                    os.remove(draft_json_file)
+                if os.path.exists(preview_file):
+                    os.remove(preview_file)
+            else:
+                result["error"] = "PR creation returned no URL"
+                
+        except Exception as e:
+            result["error"] = str(e)
+        
+        results.append(result)
+    
+    return results

@@ -238,3 +238,93 @@ def test_suggest_version_none_server_changes(mock_get_llm, mock_subprocess):
     result = suggest_version_from_git()
     
     assert result is None, "Should return None when AI detects no server changes"
+
+
+# --- Option 2a: Multi-Repo PR ---
+@patch("luma_core.tools.load_or_generate_pr_content")
+@patch("luma_core.tools.create_pull_request", return_value="http://pr-url")
+@patch("luma_core.tools.get_open_pr", return_value=None)
+@patch("luma_core.tools.subprocess.run")
+@patch("builtins.input", return_value="y")  # Auto-confirm submit
+@patch("builtins.open", new_callable=MagicMock)
+def test_multi_repo_pr_creation(mock_open, mock_input, mock_subprocess, mock_get_pr, mock_create_pr, mock_pr_content):
+    """Test multi-repo PR creation for JarWise"""
+    from luma_core.tools import create_multi_repo_prs
+    
+    # Mock subprocess to return branch name and commits ahead
+    def mock_run(cmd, **kwargs):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        if "branch" in cmd and "--show-current" in cmd:
+            mock_result.stdout = "feat/test-branch\n"
+        elif "rev-list" in cmd and "--count" in cmd:
+            mock_result.stdout = "3\n"  # 3 commits ahead
+        else:
+            mock_result.stdout = ""
+        return mock_result
+    
+    mock_subprocess.side_effect = mock_run
+    mock_pr_content.return_value = ("Test PR", "Test Body", "/tmp/.pr_draft.json")
+    
+    repo_configs = [
+        {"name": "Root", "path": "/tmp/root", "repo": "user/root"},
+        {"name": "Web", "path": "/tmp/web", "repo": "user/web"},
+    ]
+    
+    results = create_multi_repo_prs(repo_configs)
+    
+    assert len(results) == 2
+    assert mock_create_pr.call_count == 2
+    assert all(r.get("success") for r in results)
+
+
+@patch("luma_core.tools.subprocess.run")
+def test_multi_repo_branch_sync_check(mock_subprocess):
+    """Test branch synchronization check - all repos must be on same branch"""
+    from luma_core.tools import check_branch_sync
+    
+    # Mock different branches for different repos
+    def mock_branch_output(cmd, **kwargs):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        cwd = kwargs.get('cwd', '')
+        if 'root' in cwd:
+            mock_result.stdout = "feat/currency\n"
+        elif 'web' in cwd:
+            mock_result.stdout = "main\n"
+        else:
+            mock_result.stdout = "feat/currency\n"
+        return mock_result
+    
+    mock_subprocess.side_effect = mock_branch_output
+    
+    repo_configs = [
+        {"name": "Root", "path": "/tmp/root", "repo": "user/root"},
+        {"name": "Web", "path": "/tmp/web", "repo": "user/web"},
+    ]
+    
+    is_synced, branches = check_branch_sync(repo_configs)
+    
+    assert is_synced == False
+    assert branches["Root"] == "feat/currency"
+    assert branches["Web"] == "main"
+
+
+@patch("luma_core.tools.subprocess.run")
+def test_multi_repo_branch_sync_success(mock_subprocess):
+    """Test branch sync check passes when all repos on same branch"""
+    from luma_core.tools import check_branch_sync
+    
+    mock_subprocess.return_value.stdout = "feat/currency\n"
+    mock_subprocess.return_value.returncode = 0
+    
+    repo_configs = [
+        {"name": "Root", "path": "/tmp/root", "repo": "user/root"},
+        {"name": "Web", "path": "/tmp/web", "repo": "user/web"},
+    ]
+    
+    is_synced, branches = check_branch_sync(repo_configs)
+    
+    assert is_synced == True
+    assert len(set(branches.values())) == 1
+

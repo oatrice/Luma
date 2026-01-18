@@ -14,7 +14,10 @@ from luma_core.tools import (
     load_or_generate_pr_content,
     generate_test_suggestions,
     get_git_changed_files,
-    suggest_version_from_git
+    suggest_version_from_git,
+    check_branch_sync,
+    create_multi_repo_prs,
+    create_branch_in_repos
 )
 from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 from luma_core.agents.docs import docs_agent
@@ -57,6 +60,9 @@ PROJECTS = {
         "repo": "oatrice/JarWise-Web"
     }
 }
+
+# JarWise Multi-Repo Config
+JARWISE_REPOS = ["2", "3", "4"]  # Root, Android, Web
 
 def get_ai_advice(issues):
     """AI Advisor for Issue Selection"""
@@ -128,6 +134,7 @@ def main():
         
         print(f"1. 📥 Select Next Issue (Start Coding)")
         print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
+        print("2a. 🚀 Create Multi-Repo PR (JarWise)")
         print("3. 🧐 Code Review (Local)")
         print("4. 📝 Update Docs (Standalone)")
         if current_project_key == "1":
@@ -309,6 +316,92 @@ def main():
                     
             except Exception as e:
                 print(f"❌ Error in PR Flow: {e}")
+
+        elif choice == "2a":
+            # --- Flow 2a: Multi-Repo PR (JarWise) ---
+            print("\n🚀 Multi-Repo PR for JarWise (Root, Android, Web)")
+            
+            # Get repo configs
+            selected_repos = [PROJECTS[k] for k in JARWISE_REPOS if k in PROJECTS]
+            
+            print("\n📦 Target Repos:")
+            for r in selected_repos:
+                print(f"   - {r['name']}: {r['repo']}")
+            
+            # Check branch sync
+            print("\n🔍 Checking branch synchronization...")
+            is_synced, branches = check_branch_sync(selected_repos)
+            
+            print("\n🌿 Current Branches:")
+            for name, branch in branches.items():
+                print(f"   - {name}: {branch}")
+            
+            if not is_synced:
+                print("\n❌ Branch mismatch detected! All repos must be on the same branch.")
+                print("\nตัวเลือก:")
+                print("   [1] 🌿 Create new branch in all repos")
+                print("   [2] ⚠️  Continue anyway (NOT RECOMMENDED)")
+                print("   [0] ❌  Cancel")
+                
+                mismatch_choice = input("\n👉 Select: ").strip()
+                
+                if mismatch_choice == "1":
+                    # Create new branch
+                    print("\n🌿 Create new branch in all repos")
+                    new_branch = get_user_branch_choice(target_dir=selected_repos[0]['path'])
+                    
+                    if new_branch:
+                        print(f"\n🚀 Creating '{new_branch}' in all repos...")
+                        all_success, branch_results = create_branch_in_repos(selected_repos, new_branch)
+                        
+                        print("\n📊 Branch Creation Results:")
+                        for name, result in branch_results.items():
+                            print(f"   {name}: {result}")
+                        
+                        if all_success:
+                            print(f"\n✅ All repos now on '{new_branch}'")
+                            # Re-check sync
+                            is_synced, branches = check_branch_sync(selected_repos)
+                        else:
+                            print("\n❌ Some repos failed. Please fix manually.")
+                            continue
+                    else:
+                        continue
+                        
+                elif mismatch_choice == "2":
+                    print("⚠️ Continuing with mismatched branches...")
+                else:
+                    continue
+            
+            # Check for main/master branch
+            branch_values = list(branches.values())
+            if any(b in ['main', 'master'] for b in branch_values):
+                print("\n⚠️ One or more repos are on 'main' or 'master' branch.")
+                print("   Please switch to a feature branch before creating PRs.")
+                continue
+            
+            # Confirm
+            confirm = input(f"\n🚀 Create PRs for all {len(selected_repos)} repos? (y/N): ").lower()
+            if confirm != 'y':
+                continue
+            
+            # Create PRs
+            results = create_multi_repo_prs(selected_repos)
+            
+            # Summary
+            print("\n" + "=" * 40)
+            print("📊 Multi-Repo PR Summary:")
+            print("=" * 40)
+            
+            success_count = 0
+            for r in results:
+                if r["success"]:
+                    print(f"   ✅ {r['name']}: {r['url']}")
+                    success_count += 1
+                else:
+                    print(f"   ❌ {r['name']}: {r['error']}")
+            
+            print(f"\n   Total: {success_count}/{len(results)} successful")
 
         elif choice == "3":
             # --- Flow 3: Local Code Review (Full Feature) ---
