@@ -18,6 +18,7 @@ from luma_core.state_manager import (
     format_state_header, get_next_step_recommendation,
     get_phase_display
 )
+from luma_core.context_summarizer import ContextSummarizer
 from luma_core.github_project import (
     fetch_kanban_cards, get_ready_issues, get_current_in_progress,
     display_kanban_cards, get_project_config, sync_kanban_on_action,
@@ -164,6 +165,20 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
         project_id=project["kanban_id"],
         repository=card.repository
     )
+    
+    # Show Context
+    print("\n🧠 Loading Project Context...")
+    try:
+        summarizer = ContextSummarizer(project["path"])
+        reminders = summarizer.summarize_rules()
+        if reminders:
+            print("\n📝 Project Reminders & Rules:")
+            for r in reminders:
+                print(f"  {r}")
+        else:
+            print("  No specific rules found.")
+    except Exception as e:
+        print(f"⚠️ Failed to load context: {e}")
     
     # Suggest branch name
     slug = card.title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
