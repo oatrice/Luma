@@ -117,7 +117,16 @@ INSTRUCTIONS:
         
     print(f"\n📝 Draft Prompt saved to: {draft_path}")
     print("✋ Waiting for approval... Please review the prompt file.")
-    input("⌨️  Press Enter to approve and generate PR body (or Ctrl+C to cancel)...")
+    
+    while True:
+        choice = input("👉 Approve and generate PR body? [y/N]: ").strip().lower()
+        if choice == 'y':
+            break
+        elif choice == 'n' or choice == '':
+            print("❌ Operation cancelled by user.")
+            return {}
+        else:
+            print("Invalid input. Please enter 'y' or 'n'.")
 
     # E. Generate
     print("🤖 Generating PR Body with AI...")
