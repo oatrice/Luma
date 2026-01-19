@@ -212,8 +212,10 @@ def action_view_kanban(project: dict):
     print(f"Total: {len(cards)} cards")
 
 
+from luma_core.preflight_checker import PreflightChecker
+
 def action_create_pr(state: LumaState, project: dict):
-    """Create Pull Request (placeholder)"""
+    """Create Pull Request with Pre-flight Checks"""
     if state.phase != WorkflowPhase.CODING:
         print(f"❌ Cannot create PR in '{state.phase.value}' phase")
         print("💡 Start coding first by selecting an issue")
@@ -223,11 +225,80 @@ def action_create_pr(state: LumaState, project: dict):
         print("❌ No active issue/branch")
         return
     
-    print("\n🚀 Create Pull Request")
+    # 1. Transition to PREFLIGHT
+    print("\n🔄 Transitioning to PREFLIGHT phase...")
+    ok, msg = transition_to(state, WorkflowPhase.PREFLIGHT)
+    if not ok:
+        print(msg)
+        return
+
+    # 2. Run Pre-flight Checks
+    print("🛫 Running Pre-flight Checks...")
+    checker = PreflightChecker(project["path"])
+    results = checker.run_checks()
+    
+    passed_all = True
+    print("-" * 50)
+    for res in results:
+        icon = "✅" if res.passed else "❌"
+        status = "PASS" if res.passed else "FAIL"
+        print(f"{icon} [{status}] {res.name}: {res.message}")
+        
+        if not res.passed:
+            passed_all = False
+            
+    print("-" * 50)
+    
+    if not passed_all:
+        print("\n❌ One or more pre-flight checks failed.")
+        print("💡 Please fix the issues above and try again.")
+        
+        override = input("⚠️ Force create PR anyways? (y/n): ").strip().lower()
+        if override != 'y':
+            # Revert to CODING
+            transition_to(state, WorkflowPhase.CODING)
+            return
+
+    # 3. Proceed to Create PR
+    print("\n🚀 Pre-flight checks passed (or overridden). Creating PR...")
     print(f"   Issue: #{state.active_issue.number} {state.active_issue.title}")
     print(f"   Branch: {state.active_branch}")
-    print("\n⚠️ Pre-flight checks not implemented yet (Phase 3)")
-    print("💡 Use V1 for now: python3 v1_legacy/main.py")
+    
+    # Enable GitHub Tools
+    try:
+        from luma_core.agents.publisher import publisher_agent
+    except ImportError:
+        print("❌ Publisher agent not available.")
+        transition_to(state, WorkflowPhase.CODING)
+        return
+    
+    # Construct a temporary state for the publisher
+    pub_state = {
+        "task": state.active_issue.title,
+        "issue_data": {
+            "title": state.active_issue.title,
+            "number": state.active_issue.number
+        },
+        "repo": project["repo"],
+        "test_suggestions": ""
+    }
+    
+    print("\n📤 invoking Publisher Agent...")
+    result = publisher_agent(pub_state)
+    pr_url = result.get("pr_url")
+    
+    if pr_url:
+        print(f"\n✅ PR Created: {pr_url}")
+        ok, msg = transition_to(state, WorkflowPhase.PR_PENDING, pr_url=pr_url)
+        if ok:
+             print("🔄 State updated to PR_PENDING")
+        else:
+             print(f"⚠️ Failed to update state: {msg}")
+    else:
+        print("\n⚠️ Publisher finished but no PR URL returned.")
+        # Revert to CODING so they can retry
+        transition_to(state, WorkflowPhase.CODING)
+
 
 
 def action_switch_project(state: LumaState) -> str:
