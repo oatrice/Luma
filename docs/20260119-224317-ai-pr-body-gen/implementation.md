@@ -20,8 +20,10 @@ Enhance the `publisher_agent` in `luma_core` to automatically generate descripti
         - The Issue Description (if available).
         - The Commit Summary/Diff stats.
         - The PR Template text (with instructions to fill it out or follow its structure).
-    4.  **Generate**: Call `get_llm()` to generate the PR body response.
-    5.  **Fallback**: Ensure there's a fallback to the simple task description if the LLM call fails.
+    4.  **Save Draft Prompt**: Write the constructed prompt to a file (e.g., `draft_pr_prompt.txt`) for debugging/audit.
+    5.  **Manual Approval**: Print the path of the draft prompt and pause execution using `input()`, asking the user to review and verify before proceeding.
+    6.  **Generate**: Call `get_llm()` to generate the PR body response.
+    7.  **Fallback**: Ensure there's a fallback to the simple task description if the LLM call fails.
 
 ## Verification Plan
 
