@@ -6,11 +6,8 @@ from ..state import AgentState
 from ..llm import get_llm
 from ..config import TARGET_DIR
 
-# Try importing github tools
-try:
-    from github_fetcher import get_open_pr, create_pull_request, update_pull_request, update_issue_status
-except ImportError:
-    get_open_pr = None
+# GitHub Integration
+from ..github_client import get_open_pr, create_pull_request, update_pull_request, update_issue_status
 
 def publisher_agent(state: AgentState):
     """Publisher: Pushes Code, Creates PRs"""
