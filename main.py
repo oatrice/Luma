@@ -45,6 +45,13 @@ PROJECTS = {
         "kanban_number": 6,
         "kanban_id": "PVT_kwHOATfKEM4BKZK5",
     },
+    "3": {
+        "name": "Luma (Self-Test)",
+        "path": "/Users/oatrice/Software-projects/Luma",
+        "repo": "oatrice/Luma",
+        "kanban_number": 0,
+        "kanban_id": "dummy",
+    },
 }
 
 
@@ -97,6 +104,20 @@ def display_menu(state: LumaState):
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban"""
     print("\n🔍 Fetching issues from Kanban...")
+    
+    # Handle Self-Test / Dummy Mode
+    if project.get("kanban_id") == "dummy":
+        print("🛠️  Self-Test Mode: Entering dummy issue data.")
+        dummy_card = KanbanCard(
+            issue_number=999,
+            title="Self-Test Feature",
+            url="http://github.com/oatrice/Luma/issues/999",
+            body="Testing Pre-flight checker in dev mode",
+            status="In Progress",
+            item_id="dummy_item_id",
+            repository="oatrice/Luma"
+        )
+        return _start_issue(state, dummy_card, project)
     
     ready_issues = get_ready_issues(project["kanban_number"])
     
