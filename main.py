@@ -20,6 +20,11 @@ from luma_core.tools import (
     create_branch_in_repos,
     update_multi_repo_docs
 )
+from luma_core.pre_coding_checker import (
+    display_status as display_pre_coding_status,
+    interactive_checklist,
+    create_feature_doc
+)
 from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 from luma_core.agents.docs import docs_agent
 
@@ -144,6 +149,7 @@ def main():
         print("4a. 📝 Update Multi-Repo Docs (JarWise)")
         if current_project_key == "1":
             print("5. 🤖 Update Android Server Version")
+        print("6. 📊 Pre-Coding Status (Workflow Checker)")
         print("9. 🔄 Switch Project / Repo")
         print("0. ❌ Exit")
         
@@ -573,6 +579,25 @@ def main():
                         print(f"⚠️ Changelog review failed: {e}")
             else:
                 print("❌ Version required.")
+
+        elif choice == "6":
+            # --- Flow 6: Pre-Coding Status Checker ---
+            print("\n📊 Pre-Coding Status Checker")
+            display_pre_coding_status(current_target_dir, active_config['name'], current_repo_slug)
+            
+            print("\n📋 Options:")
+            print("   [1] 📝 Interactive Checklist")
+            print("   [2] 📄 Create New Feature Doc")
+            print("   [0] ↩️  Back to Main Menu")
+            
+            sub_choice = input("\n👉 Select: ").strip()
+            
+            if sub_choice == "1":
+                interactive_checklist(current_target_dir, active_config['name'], current_repo_slug)
+            elif sub_choice == "2":
+                create_feature_doc(current_target_dir)
+            else:
+                print("↩️ Back to main menu")
 
 if __name__ == "__main__":
     main()
