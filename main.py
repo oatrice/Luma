@@ -54,8 +54,13 @@ PROJECTS = {
 # Display Functions
 # =============================================================================
 
+def clear_screen():
+    """Clear the terminal screen"""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 def display_header(state: LumaState, project: dict):
     """Display the state-aware header"""
+    clear_screen()
     emoji, phase_name, _ = get_phase_display(state.phase)
     
     print("\n" + "╔" + "═" * 58 + "╗")
@@ -81,15 +86,34 @@ def display_header(state: LumaState, project: dict):
 
 def display_menu(state: LumaState):
     """Display context-sensitive menu"""
+    # Color codes (Basic usage)
+    DIM = "\033[90m"
+    RESET = "\033[0m"
+    
+    actions = {
+        "1": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
+        "2": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
+        "3": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
+        "4": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
+        "5": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
+        "6": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
+        "9": {"label": "🔀 Switch Project",             "valid_phases": [WorkflowPhase.IDLE]},
+        "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
+    }
+    
     print("\n📋 Actions:")
-    print("  [1] 📥 Select Issue (from Kanban)")
-    print("  [2] 🚀 Create Pull Request")
-    print("  [3] 🧐 Code Review (Local)")
-    print("  [4] 📝 Update Docs")
-    print("  [5] 📊 View Kanban Status")
-    print("  [6] 🔄 Refresh State")
-    print("  [9] 🔀 Switch Project")
-    print("  [0] ❌ Exit")
+    for key, action in actions.items():
+        is_valid = False
+        if action["valid_phases"] == "ALL":
+            is_valid = True
+        elif state.phase in action["valid_phases"]:
+            is_valid = True
+            
+        if is_valid:
+            print(f"  [{key}] {action['label']}")
+        else:
+            # Show disabled option in dim color
+            print(f"  {DIM}[{key}] {action['label']} (Not available){RESET}")
 
 
 # =============================================================================
