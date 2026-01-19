@@ -1,0 +1,92 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Luma Project Rules",
+    "type": "object",
+    "properties": {
+        "project_name": {
+            "type": "string",
+            "description": "Name of the project"
+        },
+        "version": {
+            "type": "string",
+            "description": "Configuration version"
+        },
+        "kanban": {
+            "type": "object",
+            "properties": {
+                "project_number": {
+                    "type": "integer"
+                },
+                "owner": {
+                    "type": "string"
+                },
+                "status_mapping": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "project_number",
+                "owner"
+            ]
+        },
+        "preflight_checks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "file_modified",
+                            "file_exists",
+                            "version_updated",
+                            "command"
+                        ]
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "command": {
+                        "type": "string"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "default": true
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "type"
+                ]
+            }
+        },
+        "context_rules": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "context_sources": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of markdown files to load as context sources"
+        }
+    },
+    "required": [
+        "project_name"
+    ]
+}

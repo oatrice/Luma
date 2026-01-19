@@ -4,11 +4,6 @@ import json
 from unittest.mock import patch, MagicMock
 from luma_core.preflight_checker import PreflightChecker, PreflightCheckResult, CheckType
 
-# Temporary stubs until implementation exists
-# These will be moved to luma_core/preflight_checker.py later
-# but for TDD "Red" phase, we'll try to import them and expect failure
-# or define tests expecting the class to exist.
-
 class TestPreflightChecker:
     
     @pytest.fixture
@@ -23,7 +18,7 @@ class TestPreflightChecker:
         
         # Create rules file
         rules = {
-            "project": "Test",
+            "project_name": "Test",
             "preflight_checks": [
                 {
                     "id": "check_changelog",
@@ -44,12 +39,15 @@ class TestPreflightChecker:
             ]
         }
         rules_file = project_dir / ".luma_rules.json"
+        
+        # We need to make sure rules_loader can load this
+        # Since we are using the real rules_loader, correct file placement is enough
         rules_file.write_text(json.dumps(rules))
         
         return project_dir
 
     def test_init_loads_rules(self, mock_project):
-        """Test that checker loads rules from JSON file"""
+        """Test that checker loads rules from JSON file via loader"""
         checker = PreflightChecker(str(mock_project))
         assert len(checker.rules) == 2
         assert checker.rules[0]["id"] == "check_changelog"
@@ -116,8 +114,6 @@ class TestPreflightChecker:
     def test_run_all_checks(self, mock_project):
         """Test running all checks returns list of results"""
         (mock_project / "README.md").write_text("# Readme")
-        # For file_modified, we might need to mock git or some fallback
-        # For now let's assume it fails if we haven't mocked git
         
         checker = PreflightChecker(str(mock_project))
         
