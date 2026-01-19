@@ -28,12 +28,15 @@ class PreflightChecker:
 
     def _load_rules(self) -> List[Dict[str, Any]]:
         if not os.path.exists(self.rules_path):
+            print(f"⚠️ Rules file not found at: {self.rules_path}")
             return []
         
         try:
             with open(self.rules_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data.get("preflight_checks", [])
+                rules = data.get("preflight_checks", [])
+                print(f"🔧 Loaded {len(rules)} rules from {self.rules_path}")
+                return rules
         except Exception as e:
             print(f"Error loading rules: {e}")
             return []
