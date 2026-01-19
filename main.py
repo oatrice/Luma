@@ -337,6 +337,7 @@ def action_create_pr(state: LumaState, project: dict):
             "number": state.active_issue.number
         },
         "repo": project["repo"],
+        "target_dir": project["path"],
         "test_suggestions": ""
     }
     

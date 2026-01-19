@@ -12,6 +12,9 @@ from ..github_client import get_open_pr, create_pull_request, update_pull_reques
 def publisher_agent(state: AgentState):
     """Publisher: Pushes Code, Creates PRs"""
     print("🚀 Auto-Deploy / Publisher Agent...")
+
+    target_dir = state.get('target_dir', TARGET_DIR)
+    print(f"📂 Working Directory: {target_dir}")
     
     if not get_open_pr:
         print("⚠️ GitHub tools not compiled/available. Skipping PR creation.")
@@ -33,18 +36,18 @@ def publisher_agent(state: AgentState):
     # 2. Add & Commit
     try:
         # Check if we are on the branch
-        res = subprocess.run(["git", "branch", "--show-current"], cwd=TARGET_DIR, capture_output=True, text=True)
+        res = subprocess.run(["git", "branch", "--show-current"], cwd=target_dir, capture_output=True, text=True)
         current = res.stdout.strip()
         
         if current != branch_name:
              # Create/Checkout
              print(f"   Switching to {branch_name}...")
-             subprocess.run(["git", "checkout", "-b", branch_name], cwd=TARGET_DIR, capture_output=True) # Try create
-             subprocess.run(["git", "checkout", branch_name], cwd=TARGET_DIR, capture_output=True) # Try switch
+             subprocess.run(["git", "checkout", "-b", branch_name], cwd=target_dir, capture_output=True) # Try create
+             subprocess.run(["git", "checkout", branch_name], cwd=target_dir, capture_output=True) # Try switch
             
-        subprocess.run(["git", "add", "."], cwd=TARGET_DIR, check=True)
+        subprocess.run(["git", "add", "."], cwd=target_dir, check=True)
         commit_msg = f"feat: {state['task'][:50]}..."
-        subprocess.run(["git", "commit", "-m", commit_msg], cwd=TARGET_DIR)
+        subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_dir)
         
     except Exception as e:
         print(f"⚠️ Git Local Ops failed: {e}")
@@ -55,7 +58,7 @@ def publisher_agent(state: AgentState):
     
     # Check for Template
     body = state['task']
-    template_path = os.path.join(TARGET_DIR, ".github", "pull_request_template.md")
+    template_path = os.path.join(target_dir, ".github", "pull_request_template.md")
     
     if os.path.exists(template_path):
         with open(template_path, "r") as f:
@@ -70,7 +73,7 @@ def publisher_agent(state: AgentState):
     # 4. Push & PR
     try:
         print(f"⬆️ Pushing {branch_name}...")
-        subprocess.run(["git", "push", "origin", branch_name], cwd=TARGET_DIR, check=True)
+        subprocess.run(["git", "push", "origin", branch_name], cwd=target_dir, check=True)
         
         existing = get_open_pr(state['repo'], branch_name)
         if existing:

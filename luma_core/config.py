@@ -21,6 +21,5 @@ GEMINI_GENERAL_MODEL = "gemini-2.5-pro"
 # GitHub Configuration
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
-# Project Target Directory
-# (Adjust logic if you want this to be dynamic)
-TARGET_DIR = "../Tetris-Battle/client-nuxt"
+# Default to current directory if not dynamically overridden
+TARGET_DIR = os.getcwd()
