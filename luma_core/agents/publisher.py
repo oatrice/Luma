@@ -58,17 +58,30 @@ def publisher_agent(state: AgentState):
     
     # A. Capture Git Context
     try:
-        # Get list of changed files and short stats
-        git_stats = subprocess.check_output(
-            ["git", "show", "--stat", "--oneline", "HEAD"], 
+        # Get list of commits on this branch relative to main
+        # We assume 'main' is the base branch as per config
+        try:
+            commits = subprocess.check_output(
+                ["git", "log", "--oneline", "main..HEAD"],
+                cwd=target_dir, text=True
+            ).strip()
+        except subprocess.CalledProcessError:
+            # Fallback if main not found, try master
+            commits = subprocess.check_output(
+                ["git", "log", "--oneline", "master..HEAD"],
+                cwd=target_dir, text=True
+            ).strip()
+
+        # Get cumulative stats
+        diff_stats = subprocess.check_output(
+            ["git", "diff", "--stat", "HEAD", "--not", "main", "master"], # diff against whatever base is excluded
             cwd=target_dir, text=True
-        )
-        # Get full diff for context (limit length to avoid token limits if naive)
-        # For now, let's use the stats and the commit message as primary context
-        # to be safe and fast.
+        ).strip()
+        
+        git_stats = f"COMMITS:\n{commits}\n\nSTATS:\n{diff_stats}"
     except Exception as e:
         print(f"⚠️ Failed to get git stats: {e}")
-        git_stats = "No git context available."
+        git_stats = "No git context available (or failed to diff against main/master)."
 
     # B. Load Template
     template_content = ""
