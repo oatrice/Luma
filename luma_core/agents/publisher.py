@@ -53,20 +53,71 @@ def publisher_agent(state: AgentState):
         print(f"⚠️ Git Local Ops failed: {e}")
         return {}
 
-    # 3. Generate PR Body
-    llm = get_llm(temperature=0.5)
+    # 3. Generate PR Body with AI
+    llm = get_llm(temperature=0.7)
     
-    # Check for Template
-    body = state['task']
+    # A. Capture Git Context
+    try:
+        # Get list of changed files and short stats
+        git_stats = subprocess.check_output(
+            ["git", "show", "--stat", "--oneline", "HEAD"], 
+            cwd=target_dir, text=True
+        )
+        # Get full diff for context (limit length to avoid token limits if naive)
+        # For now, let's use the stats and the commit message as primary context
+        # to be safe and fast.
+    except Exception as e:
+        print(f"⚠️ Failed to get git stats: {e}")
+        git_stats = "No git context available."
+
+    # B. Load Template
+    template_content = ""
     template_path = os.path.join(target_dir, ".github", "pull_request_template.md")
-    
     if os.path.exists(template_path):
         with open(template_path, "r") as f:
-            template = f.read()
-        # Basic replacement
-        body = template.replace("<!-- Brief description of changes -->", f"Auto-generated implementation for: {state['task']}")
+            template_content = f.read()
+
+    # C. Construct Prompt
+    prompt = f"""You are an AI assistant helping to create a Pull Request description.
     
-    # Add Test Suggestions
+TASK: {state['task']}
+ISSUE: {json.dumps(state.get('issue_data', {}), indent=2)}
+
+GIT CONTEXT:
+{git_stats}
+
+PR TEMPLATE:
+{template_content}
+
+INSTRUCTIONS:
+1. Generate a comprehensive PR description in Markdown format.
+2. If a template is provided, fill it out intelligently.
+3. If no template, use a standard structure: Summary, Changes, Impact.
+4. Focus on 'Why' and 'What'.
+5. Do not include 'Here is the PR description' preamble. Just the body.
+"""
+
+    # D. Save Draft & Wait for Approval
+    draft_path = os.path.join(target_dir, "draft_pr_prompt.txt")
+    with open(draft_path, "w") as f:
+        f.write(prompt)
+        
+    print(f"\n📝 Draft Prompt saved to: {draft_path}")
+    print("✋ Waiting for approval... Please review the prompt file.")
+    input("⌨️  Press Enter to approve and generate PR body (or Ctrl+C to cancel)...")
+
+    # E. Generate
+    print("🤖 Generating PR Body with AI...")
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        body = response.content
+        print("✅ AI Generation Complete.")
+    except Exception as e:
+        print(f"❌ AI Generation Failed: {e}")
+        print("Using basic fallback.")
+        body = f"implementation for: {state['task']}\n\n(AI Generation failed)"
+
+    # Add Test Suggestions appended
     if state.get("test_suggestions"):
         body += f"\n\n## 🧪 Suggested Test Cases\n{state['test_suggestions']}"
 
