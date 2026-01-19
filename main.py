@@ -45,13 +45,7 @@ PROJECTS = {
         "kanban_number": 6,
         "kanban_id": "PVT_kwHOATfKEM4BKZK5",
     },
-    "3": {
-        "name": "Luma (Self-Test)",
-        "path": "/Users/oatrice/Software-projects/Luma",
-        "repo": "oatrice/Luma",
-        "kanban_number": 0,
-        "kanban_id": "dummy",
-    },
+
 }
 
 
@@ -274,7 +268,10 @@ def action_create_pr(state: LumaState, project: dict):
         print("\n❌ One or more pre-flight checks failed.")
         print("💡 Please fix the issues above and try again.")
         
-        override = input("⚠️ Force create PR anyways? (y/n): ").strip().lower()
+        override = input("⚠️ Force create PR anyways? (y/N): ").strip().lower()
+        if not override:
+            override = 'n'
+            
         if override != 'y':
             # Revert to CODING
             transition_to(state, WorkflowPhase.CODING)
