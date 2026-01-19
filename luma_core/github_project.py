@@ -73,20 +73,63 @@ def run_gh_command(args: List[str], timeout: int = 30) -> Optional[str]:
     Returns:
         Command output or None if failed
     """
-    cmd = ["gh"] + args
+    import os
+    import shutil
+    
+    # Find gh executable
+    gh_path = shutil.which("gh")
+    
+    if not gh_path:
+        # Try common locations
+        for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"]:
+            if os.path.exists(path):
+                gh_path = path
+                break
+    
+    if not gh_path:
+        print("❌ gh CLI not installed. Visit: https://cli.github.com/")
+        return None
+    
+    cmd = [gh_path] + args
     
     try:
+        # Create a clean environment for gh CLI
+        env = os.environ.copy()
+        
+        # EXPLICTLY REMOVE GITHUB_TOKEN provided via env vars 
+        # because the one in .env/shell often lacks 'read:org' scope causing 'unknown owner type'
+        # We want to force usage of the system keyring auth which has correct scopes.
+        for token_key in ['GITHUB_TOKEN', 'GH_TOKEN']:
+            if env.pop(token_key, None):
+                pass
+        
+        # Remove Python-specific env vars that can interfere with gh CLI
+        for key in ['VIRTUAL_ENV', 'PYTHONHOME', 'PYTHONPATH']:
+            env.pop(key, None)
+
+        # Force a clean PATH with only essential directories
+        clean_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        env["PATH"] = clean_path
+        
+        # Ensure HOME is preserved (crucial for gh config)
+        if "HOME" not in env:
+             env["HOME"] = os.path.expanduser("~")
+        
         result = subprocess.run(
             cmd, 
             capture_output=True, 
             text=True, 
-            timeout=timeout
+            timeout=timeout,
+            env=env,
+            cwd=env.get("HOME") # Run from HOME to avoid local git config interference
         )
         
         if result.returncode != 0:
             error_msg = result.stderr.strip()
             if "auth login" in error_msg.lower():
                 print("❌ gh CLI not logged in. Run: gh auth login")
+            # Only print error if it's not a "no items" verification empty state which might be valid in some contexts
+            # but for item-list we generally expect success
             else:
                 print(f"❌ gh CLI error: {error_msg[:100]}")
             return None
@@ -155,7 +198,8 @@ def fetch_kanban_cards(
     args = [
         "project", "item-list", str(project_number),
         "--owner", owner,
-        "--format", "json"
+        "--format", "json",
+        "--limit", "1000"
     ]
     
     output = run_gh_command(args, timeout=30)
