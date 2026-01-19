@@ -512,13 +512,8 @@ def get_git_changed_files(mode: str = "all", target_dir: str = DEFAULT_TARGET_DI
 
 # --- Multi-Repo PR Functions ---
 
-# Try to import GitHub Fetcher
-try:
-    from github_fetcher import get_open_pr, create_pull_request, update_pull_request
-except ImportError:
-    get_open_pr = None
-    create_pull_request = None
-    update_pull_request = None
+# GitHub Integration
+from .github_client import get_open_pr, create_pull_request, update_pull_request
 
 
 def check_branch_sync(repo_configs: list) -> tuple:

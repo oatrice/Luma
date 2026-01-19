@@ -18,6 +18,9 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_CODE_MODEL = "gemini-flash-latest"
 GEMINI_GENERAL_MODEL = "gemini-2.5-pro"
 
+# GitHub Configuration
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
 # Project Target Directory
 # (Adjust logic if you want this to be dynamic)
 TARGET_DIR = "../Tetris-Battle/client-nuxt"
