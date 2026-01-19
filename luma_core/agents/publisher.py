@@ -90,5 +90,6 @@ def publisher_agent(state: AgentState):
             
     except Exception as e:
         print(f"❌ Publisher Failed: {e}")
+        return {}
 
-    return {}
+    return {"pr_url": url} if 'url' in locals() else {}
