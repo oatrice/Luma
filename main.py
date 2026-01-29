@@ -97,6 +97,7 @@ def display_menu(state: LumaState):
         "4": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
         "5": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
         "6": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
+        "7": {"label": "🧬 Refine Issue (Analyst)",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
         "9": {"label": "🔀 Switch Project",             "valid_phases": [WorkflowPhase.IDLE]},
         "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
     }
@@ -358,6 +359,38 @@ def action_create_pr(state: LumaState, project: dict):
         transition_to(state, WorkflowPhase.CODING)
 
 
+def action_refine_issue(state: LumaState, project: dict):
+    """Run Analyst Agent to refine issue"""
+    if not state.active_issue:
+        print("❌ No active issue selected to refine.")
+        return
+
+    # Enable Analyst Agent
+    try:
+        from luma_core.agents.analyst import analyst_agent
+    except ImportError:
+        print("❌ Analyst agent not available.")
+        return
+
+    # Create temporary state
+    analyst_state = {
+        "task": state.active_issue.title,
+        "issue_data": {
+            "title": state.active_issue.title,
+            "number": state.active_issue.number,
+            "body": state.active_issue.body
+        },
+        "target_dir": project["path"]
+    }
+
+    print("\n🧠 Invoking Analyst Agent...")
+    result = analyst_agent(analyst_state)
+    
+    if result.get("analysis_file"):
+        print(f"\n✨ Analysis complete! Document saved to: {result['analysis_file']}")
+        input("Press Enter to continue...")
+    else:
+        print("\n⚠️ Analysis failed or produced no output.")
 
 def action_switch_project(state: LumaState) -> str:
     """Switch to different project"""
@@ -431,6 +464,9 @@ def main():
         elif choice == "6":
             state = load_state(project["path"])
             print("🔄 State refreshed")
+
+        elif choice == "7":
+            action_refine_issue(state, project)
         
         elif choice == "9":
             new_key = action_switch_project(state)
