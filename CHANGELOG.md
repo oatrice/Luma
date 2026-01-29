@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.1] - 2026-01-29
+
+### Added
+- Initial release of the Luma AI Software Engineer agent.
+- Core framework for autonomous task execution, including planning, implementation, and QA phases.
+- Integration with GitHub for project management, issue tracking, and code manipulation.
+- State management system to track agent progress and state.
+- Introduced a rules-based system for guiding agent behavior.
+- Comprehensive test suite for core components and agent flows.
+
 ## [0.5.0] - 2026-01-18
 
 ### Added
