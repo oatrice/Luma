@@ -98,6 +98,7 @@ def display_menu(state: LumaState):
         "5": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
         "6": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
         "7": {"label": "🧬 Refine Issue (Analyst)",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
+        "8": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
         "9": {"label": "🔀 Switch Project",             "valid_phases": [WorkflowPhase.IDLE]},
         "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
     }
@@ -265,6 +266,55 @@ def action_view_kanban(project: dict):
             print(f"   ... and {len(items) - 5} more")
     print(f"\n{'─' * 60}")
     print(f"Total: {len(cards)} cards")
+
+
+def action_list_active_issues(project: dict):
+    """List all active issues (Backlog, Ready, In Progress)"""
+    print(f"\n📋 Fetching Active Issues for {project['name']}...")
+    
+    cards = fetch_kanban_cards(project["kanban_number"])
+    
+    if not cards:
+        print("📭 No cards found")
+        return
+    
+    # Filter out Done/Closed
+    ignored_statuses = ["Done", "Closed"]
+    active_cards = [c for c in cards if c.status not in ignored_statuses]
+    
+    if not active_cards:
+        print("✅ No active issues! All done.")
+        return
+
+    # Sort Logic: In Progress -> Ready -> Backlog -> Others
+    priority = {"In Progress": 0, "Ready": 1, "Backlog": 2}
+    
+    def get_priority(card):
+        return priority.get(card.status, 99)
+    
+    active_cards.sort(key=lambda c: (get_priority(c), c.issue_number))
+    
+    print(f"\n{'─' * 70}")
+    print(f"{'#':<5} {'Title':<40} {'Status':<12} {'Repository'}")
+    print(f"{'─' * 70}")
+    
+    for card in active_cards:
+        # Title truncation
+        title = card.title[:38] + ".." if len(card.title) > 40 else card.title
+        
+        # Colorize status (simulated with emojis)
+        status_icon = ""
+        if card.status == "In Progress": status_icon = "🔥 "
+        elif card.status == "Ready": status_icon = "✅ "
+        elif card.status == "Backlog": status_icon = "📥 "
+        
+        display_status = f"{status_icon}{card.status}"
+        
+        print(f"#{card.issue_number:<4} {title:<40} {display_status:<15} {card.repository.split('/')[-1]}")
+    
+    print(f"{'─' * 70}")
+    print(f"Total Active: {len(active_cards)} issues")
+
 
 
 from luma_core.preflight_checker import PreflightChecker
@@ -468,6 +518,9 @@ def main():
         elif choice == "7":
             action_refine_issue(state, project)
         
+        elif choice == "8":
+            action_list_active_issues(project)
+
         elif choice == "9":
             new_key = action_switch_project(state)
             if new_key:
