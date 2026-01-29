@@ -76,8 +76,9 @@ def analyst_agent(state: AgentState):
     # 4. Save Output
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     sanitized_title = sanitize_filename(task)
-    output_folder_name = f"{timestamp}-{sanitized_title}"
-    output_dir = os.path.join(target_dir, "docs", output_folder_name)
+    issue_number = issue_data.get('number', '0')
+    output_folder_name = f"{timestamp}-{issue_number}-{sanitized_title}"
+    output_dir = os.path.join(target_dir, "features", output_folder_name)
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -92,3 +93,46 @@ def analyst_agent(state: AgentState):
         "analysis_file": output_file,
         "analysis_content": analysis_content
     }
+
+def generate_branch_names(title: str, body: str, issue_number: int) -> list:
+    """Generate 3 suggested branch names using LLM."""
+    print("🤖 Generating smart branch names...")
+    
+    system_prompt = """You are a Git expert. Generate 3 valid git branch names based on the issue title and body.
+    
+    Rules:
+    - Format: feat/ISSUE_NUMBER-short-summary
+    - Use kebab-case (lowercase, hyphens).
+    - Keep it concise (max 40 chars after prefix).
+    - If it's a bug, use 'fix/' prefix instead of 'feat/'.
+    - If it's a chore/refactor, use 'chore/' or 'refactor/'.
+    - Output ONLY the 3 branch names, one per line. No numbering, no bullets.
+    """
+    
+    user_prompt = f"""
+    Issue #{issue_number}: {title}
+    
+    Body:
+    {body[:500]}...
+    """
+    
+    try:
+        llm = get_llm(temperature=0.7, purpose="code")
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+        response = llm.invoke(messages)
+        
+        # Parse lines
+        names = [line.strip() for line in response.content.split('\n') if line.strip()]
+        
+        # Basic cleanup/validation
+        cleaned = [n for n in names if '/' in n][:3]
+        return cleaned if cleaned else names[:3]
+        
+    except Exception as e:
+        print(f"⚠️ LLM Branch Gen Error: {e}")
+        # Fallback
+        slug = sanitize_filename(title)[:30]
+        return [f"feat/{issue_number}-{slug}"]

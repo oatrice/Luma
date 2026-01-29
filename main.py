@@ -123,7 +123,7 @@ def display_menu(state: LumaState):
 # =============================================================================
 
 def action_select_issue(state: LumaState, project: dict) -> bool:
-    """Select an issue from Kanban"""
+    """Select an issue from Kanban (Ready or In Progress)"""
     print("\n🔍 Fetching issues from Kanban...")
     
     # Handle Self-Test / Dummy Mode
@@ -140,23 +140,34 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
         )
         return _start_issue(state, dummy_card, project)
     
-    ready_issues = get_ready_issues(project["kanban_number"])
+    # Fetch all cards
+    all_cards = fetch_kanban_cards(project["kanban_number"])
     
-    if not ready_issues:
-        print("📭 No 'Ready' issues found on Kanban.")
-        
-        # Try In Progress
-        current = get_current_in_progress(project["kanban_number"])
-        if current:
-            print(f"\n💡 You have an active task: #{current.issue_number} {current.title}")
-            resume = input("Resume this task? (y/n): ").strip().lower()
-            if resume == 'y':
-                return _start_issue(state, current, project)
+    # Filter for Ready or In Progress
+    valid_statuses = ["Ready", "In Progress"]
+    selectable_issues = []
+    
+    for card in all_cards:
+        # Case-insensitive check
+        if any(s.lower() == card.status.lower() for s in valid_statuses):
+            selectable_issues.append(card)
+            
+    if not selectable_issues:
+        print("📭 No 'Ready' or 'In Progress' issues found on Kanban.")
         return False
+
+    # Sort: In Progress first, then Ready
+    def sort_key(c):
+        # 0 = In Progress, 1 = Ready
+        prio = 0 if c.status.lower() == "in progress" else 1
+        return (prio, c.issue_number)
+        
+    selectable_issues.sort(key=sort_key)
     
-    print("\n--- 📋 Ready Issues ---")
-    for i, card in enumerate(ready_issues, 1):
-        print(f"  [{i}] #{card.issue_number}: {card.title[:50]}")
+    print("\n--- 📋 Select Issue to Work On ---")
+    for i, card in enumerate(selectable_issues, 1):
+        status_icon = "🔥" if card.status.lower() == "in progress" else "✅"
+        print(f"  [{i}] {status_icon} #{card.issue_number}: {card.title[:50]} ({card.status})")
     print("  [0] Cancel")
     
     choice = input("\nSelect issue: ").strip()
@@ -166,8 +177,8 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     
     try:
         idx = int(choice) - 1
-        if 0 <= idx < len(ready_issues):
-            return _start_issue(state, ready_issues[idx], project)
+        if 0 <= idx < len(selectable_issues):
+            return _start_issue(state, selectable_issues[idx], project)
     except ValueError:
         pass
     
@@ -207,14 +218,28 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
         print(f"⚠️ Failed to load context: {e}")
     
     # Suggest branch name
-    slug = card.title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
-    branch_name = f"feat/{card.issue_number}-{slug}"
+    try:
+        from luma_core.agents.analyst import generate_branch_names
+        suggestions = generate_branch_names(card.title, card.body or "", card.issue_number)
+    except Exception as e:
+        print(f"⚠️ AI Agent unavailable: {e}")
+        slug = card.title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
+        suggestions = [f"feat/{card.issue_number}-{slug}"]
+
+    print("\n🌿 Suggested branches:")
+    for i, name in enumerate(suggestions, 1):
+        print(f"  [{i}] {name}")
     
-    print(f"\n🌿 Suggested branch: {branch_name}")
-    custom = input("Press Enter to accept or type custom name: ").strip()
+    choice = input("Select [1-3] or type custom name: ").strip()
     
-    if custom:
-        branch_name = custom
+    branch_name = suggestions[0] # Default
+    
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(suggestions):
+            branch_name = suggestions[idx]
+    elif choice:
+        branch_name = choice
     
     # Transition to coding
     ok, msg = transition_to(
