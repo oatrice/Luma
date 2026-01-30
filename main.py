@@ -8,6 +8,7 @@ State-based Workflow Orchestrator with GitHub Project Integration
 import os
 import sys
 import argparse
+import unicodedata
 
 # Ensure luma_core is in path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -25,6 +26,13 @@ from luma_core.github_project import (
     KanbanCard
 )
 from luma_core.workflow import build_graph
+from luma_core.tools import (
+    get_git_changed_files,
+    update_multi_repo_docs,
+    update_android_version_logic,
+    suggest_version_from_git
+)
+from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 
 
 # =============================================================================
@@ -40,6 +48,13 @@ PROJECTS = {
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
     },
     "2": {
+        "name": "JarWise (Android)",
+        "path": "/Users/oatrice/Software-projects/JarWise/Android",
+        "repo": "oatrice/JarWise-Android",
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "3": {
         "name": "Tetris Battle",
         "path": "/Users/oatrice/Software-projects/Tetris-Battle",
         "repo": "oatrice/Tetris-Battle",
@@ -56,32 +71,96 @@ PROJECTS = {
 
 def clear_screen():
     """Clear the terminal screen"""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    # os.system('cls' if os.name == 'nt' else 'clear')
+    pass
+
+def _get_visual_width(s: str) -> int:
+    """Approximate visual width of a string using unicodedata"""
+    width = 0
+    for char in s:
+        # Zero-width characters (Nonspacing Mark, Enclosing Mark, Format)
+        if unicodedata.category(char) in ('Mn', 'Me', 'Cf'):
+            continue
+        
+        # East Asian Width (Wide and Fullwidth count as 2)
+        # Hangel Jamo leads/vowels are tricky but usually covered by W/F or 
+        # distinct Logic if needed. For now, W/F is standard.
+        eaw = unicodedata.east_asian_width(char)
+        if eaw in ('W', 'F'):
+            width += 2
+        else:
+            width += 1
+    return width
+
+def _print_boxed_line(content: str, width: int = 58):
+    """Print a line within the box, auto-padding right side"""
+    vis_len = _get_visual_width(content)
+    # We want total inner width = width + 2 (1 space left, 1 space right)
+    # The border is width+2 long.
+    # content + padding should equal width.
+    padding = width - vis_len
+    if padding < 0:
+        padding = 0
+    
+    print(f"║ {content}{' ' * padding} ║")
 
 def display_header(state: LumaState, project: dict):
     """Display the state-aware header"""
-    clear_screen()
+    # Disable clear_screen as requested
+    # clear_screen()
+    
     emoji, phase_name, _ = get_phase_display(state.phase)
     
-    print("\n" + "╔" + "═" * 58 + "╗")
-    print("║  🤖 Luma AI Architect V2 - Workflow Guardian" + " " * 12 + "║")
-    print("╠" + "═" * 58 + "╣")
-    print(f"║  📂 Project: {project['name']:<43} ║")
-    print(f"║  📍 Phase: {emoji} {phase_name:<44} ║")
+    BOX_WIDTH = 58
+    INNER_WIDTH = BOX_WIDTH
+    
+    # Border
+    print("\n" + "╔" + "═" * (BOX_WIDTH + 2) + "╗")
+    
+    # Title
+    title_text = " 🤖 Luma AI Architect V2 - Workflow Guardian"
+    _print_boxed_line(title_text, BOX_WIDTH)
+    
+    print("╠" + "═" * (BOX_WIDTH + 2) + "╣")
+    
+    # Content Rows
+    # We define a standard label width to align values vertically
+    # "  🎯 Task: " -> approx 11-12 vis chars
+    
+    def format_row(icon, label, value):
+        # Format: "  {icon} {label}: {value}"
+        # We assume icon is 2-char wide visually
+        prefix = f"  {icon} {label}: "
+        return f"{prefix}{value}"
+
+    _print_boxed_line(format_row("📂", "Project", project['name']), BOX_WIDTH)
+    _print_boxed_line(format_row("📍", "Phase  ", f"{emoji} {phase_name}"), BOX_WIDTH)
     
     if state.active_issue:
-        title = state.active_issue.title[:35] + "..." if len(state.active_issue.title) > 38 else state.active_issue.title
-        print(f"║  🎯 Task: #{state.active_issue.number} {title:<40} ║")
+        # Truncate title
+        max_title_len = 35 
+        title = state.active_issue.title
+        if len(title) > max_title_len:
+            title = title[:max_title_len] + "..."
+        
+        task_info = f"#{state.active_issue.number} {title}"
+        _print_boxed_line(format_row("🎯", "Task   ", task_info), BOX_WIDTH)
     
     if state.active_branch:
-        branch = state.active_branch[:42] if len(state.active_branch) > 42 else state.active_branch
-        print(f"║  🌿 Branch: {branch:<45} ║")
+        # Truncate branch
+        max_branch_len = 40
+        branch = state.active_branch
+        if len(branch) > max_branch_len:
+            branch = branch[:max_branch_len] + "..."
+            
+        _print_boxed_line(format_row("🌿", "Branch ", branch), BOX_WIDTH)
     
-    print("╠" + "═" * 58 + "╣")
+    print("╠" + "═" * (BOX_WIDTH + 2) + "╣")
     
     next_step = get_next_step_recommendation(state)
-    print(f"║  ➡️  {next_step[:52]:<52} ║")
-    print("╚" + "═" * 58 + "╝")
+    _print_boxed_line(f"  ➡️  {next_step}", BOX_WIDTH)
+    
+    print("╚" + "═" * (BOX_WIDTH + 2) + "╝")
 
 
 def display_menu(state: LumaState):
@@ -91,15 +170,15 @@ def display_menu(state: LumaState):
     RESET = "\033[0m"
     
     actions = {
-        "1": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
-        "2": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
-        "3": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
-        "4": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
-        "5": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
-        "6": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
-        "7": {"label": "🧬 Refine Issue (Analyst)",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
-        "8": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
-        "9": {"label": "🔀 Switch Project",             "valid_phases": [WorkflowPhase.IDLE]},
+        "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
+        "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
+        "3": {"label": "🧬 Refine Issue (Analyst)",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
+        "4": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
+        "5": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
+        "6": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
+        "7": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
+        "8": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
+        "9": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
         "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
     }
     
@@ -434,6 +513,114 @@ def action_create_pr(state: LumaState, project: dict):
         transition_to(state, WorkflowPhase.CODING)
 
 
+def action_code_review(state: LumaState, project: dict):
+    """Run local code review agent"""
+    print(f"\n🧐 Local Code Reviewer ({project['name']})")
+    
+    target_dir = project["path"]
+    
+    # 1. Get changed files
+    try:
+        file_list = get_git_changed_files("all", target_dir=target_dir)
+        if not file_list:
+            print("✅ No changes found (Clean vs origin/main).")
+            return
+            
+        print(f"   🔎 Found {len(file_list)} changed files.")
+        
+        # Limit files
+        if len(file_list) > 30:
+            print(f"⚠️ Too many files ({len(file_list)}). Reviewing top 10.")
+            file_list = file_list[:10]
+        
+        changes = {}
+        for rel_path in file_list:
+            full_path = os.path.join(target_dir, rel_path)
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                # Skip binary/large files heuristic
+                if rel_path.endswith(('.png', '.jpg', '.ico', '.pdf', '.jar')):
+                    continue
+                try:
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        changes[rel_path] = f.read()
+                except:
+                    pass
+        
+        if not changes:
+            print("❌ No readable content to review.")
+            return
+
+        # 2. Run Reviewer
+        print(f"🚀 Running Reviewer on {list(changes.keys())}...")
+        
+        review_state = {
+            "task": "Review local code changes for bugs, security issues, and best practices.",
+            "changes": changes,
+            "iterations": 0,
+            "test_errors": "",
+            "skip_coder": False
+        }
+        
+        result = reviewer_agent(review_state)
+        
+        if result.get("code_content"):
+            print("\n📝 Reviewer Feedback:")
+            print("--------------------------------------------------")
+            print(result["code_content"])
+            print("--------------------------------------------------")
+        
+        if result.get("test_suggestions"):
+            print("\n🧪 Test Suggestions:")
+            print(result["test_suggestions"])
+            
+        print("\n✅ Review Complete.")
+        
+    except Exception as e:
+        print(f"❌ Error during code review: {e}")
+
+
+def action_update_docs(state: LumaState, project: dict):
+    """Update documentation (Changelog, Version, README)"""
+    print("\n📝 Documentation Update")
+    print(f"   Project: {project['name']}")
+    
+    # 1. Determine Scope (Single vs Multi-Repo)
+    # Heuristic: If project name contains "Root", treated as Multi-Repo Coordinator
+    is_multi_repo = "Root" in project.get("name", "")
+    target_repos = [project]
+    
+    if is_multi_repo:
+        print("   Mode: Multi-Repo (JarWise)")
+        # In a real dynamic system, we'd lookup sibling projects from the config
+        # For now, hardcoded safe-check or assume PROJECTS dictionary has them
+        # We will iterate through PROJECTS to find related ones if strict naming
+        pass 
+    
+    print("\n🚀 Ready to update:")
+    for repo in target_repos:
+        print(f"   - {repo['name']}")
+        
+    confirm = input("\nProceed with docs update? (y/N): ").lower()
+    if confirm != 'y':
+        return
+
+    # 2. Run Update
+    print("\n⏳ Updating docs (AI-powered)...")
+    results = update_multi_repo_docs(target_repos, docs_agent_func=None)
+    
+    # 3. Summary
+    print("\n" + "=" * 40)
+    print("📊 Docs Update Summary:")
+    print("=" * 40)
+    
+    for r in results:
+        status = "✅" if r.get("success") else "⏩"
+        msg = ', '.join(r.get('files_updated', [])) if r.get("success") else r.get('error')
+        print(f"   {status} {r['name']}: {msg}")
+        
+    print("\n✅ Done.")
+
+
 def action_refine_issue(state: LumaState, project: dict):
     """Run Analyst Agent to refine issue"""
     if not state.active_issue:
@@ -476,11 +663,6 @@ def action_switch_project(state: LumaState) -> str:
     choice = input("\nSelect: ").strip()
     
     if choice in PROJECTS:
-        # Reset state if switching
-        if state.phase != WorkflowPhase.IDLE:
-            confirm = input("⚠️ You have active work. Reset state? (y/n): ").strip().lower()
-            if confirm == 'y':
-                transition_to(state, WorkflowPhase.IDLE)
         return choice
     
     return None
@@ -519,32 +701,30 @@ def main():
             break
         
         elif choice == "1":
+            action_list_active_issues(project)
+
+        elif choice == "2":
             if action_select_issue(state, project):
                 save_state(state, project["path"])
         
-        elif choice == "2":
-            action_create_pr(state, project)
-        
         elif choice == "3":
-            print("\n🧐 Code Review - Use V1 for now")
-            print("💡 python3 v1_legacy/main.py")
-        
+            action_refine_issue(state, project)
+
         elif choice == "4":
-            print("\n📝 Update Docs - Use V1 for now")
-            print("💡 python3 v1_legacy/main.py")
+            action_code_review(state, project)
         
         elif choice == "5":
-            action_view_kanban(project)
+            action_update_docs(state, project)
         
         elif choice == "6":
-            state = load_state(project["path"])
-            print("🔄 State refreshed")
-
+            action_create_pr(state, project)
+        
         elif choice == "7":
-            action_refine_issue(state, project)
+            action_view_kanban(project)
         
         elif choice == "8":
-            action_list_active_issues(project)
+            state = load_state(project["path"])
+            print("🔄 State refreshed")
 
         elif choice == "9":
             new_key = action_switch_project(state)
