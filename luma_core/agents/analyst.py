@@ -74,12 +74,39 @@ def analyst_agent(state: AgentState):
         return {}
 
     # 4. Save Output
-    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    sanitized_title = sanitize_filename(task)
-    issue_number = issue_data.get('number', '0')
-    output_folder_name = f"{timestamp}-{issue_number}-{sanitized_title}"
-    output_dir = os.path.join(target_dir, "features", output_folder_name)
+    # Smart path resolution for docs/features
+    features_root = os.path.join(target_dir, "docs", "features")
     
+    # If not found in target_dir, try parent (common in monorepos like JarWise/Web -> JarWise)
+    if not os.path.exists(os.path.join(target_dir, "docs")) and os.path.exists(os.path.join(target_dir, "..", "docs")):
+        features_root = os.path.join(target_dir, "..", "docs", "features")
+    
+    os.makedirs(features_root, exist_ok=True)
+
+    # Calculate Next Index
+    next_index = 1
+    try:
+        existing_dirs = [d for d in os.listdir(features_root) if os.path.isdir(os.path.join(features_root, d))]
+        indices = []
+        for d in existing_dirs:
+            match = re.match(r'^(\d+)_', d)
+            if match:
+                indices.append(int(match.group(1)))
+        
+        if indices:
+            next_index = max(indices) + 1
+    except Exception as e:
+        print(f"⚠️ Error calculating next index: {e}")
+
+    # specific format: N_issue-ID_slug
+    sanitized_title = sanitize_filename(task)
+    # Replace spaces with hyphens for slug style if sanitize didn't
+    sanitized_title = sanitized_title.replace(" ", "-")
+    
+    issue_number = issue_data.get('number', '0')
+    output_folder_name = f"{next_index}_issue-{issue_number}_{sanitized_title}"
+    
+    output_dir = os.path.join(features_root, output_folder_name)
     os.makedirs(output_dir, exist_ok=True)
     
     output_file = os.path.join(output_dir, "analysis.md")
