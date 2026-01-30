@@ -1,5 +1,6 @@
 import os
 import sys
+import datetime
 from luma_core.state_manager import (
     LumaState, IssueData, WorkflowPhase,
     transition_to, get_next_step_recommendation
@@ -149,6 +150,33 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
     if ok:
         print(f"\n✅ Started: #{card.issue_number} {card.title}")
         print(f"🌿 Branch: {branch_name}")
+        
+        # Actually create the branch in Git
+        import subprocess
+        try:
+            print(f"🔄 Creating git branch...")
+            result = subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                cwd=project["path"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                print(f"✅ Branch '{branch_name}' created and checked out.")
+            else:
+                # Branch might already exist, try switching to it
+                switch_result = subprocess.run(
+                    ["git", "checkout", branch_name],
+                    cwd=project["path"],
+                    capture_output=True,
+                    text=True
+                )
+                if switch_result.returncode == 0:
+                    print(f"✅ Switched to existing branch '{branch_name}'.")
+                else:
+                    print(f"⚠️ Git error: {result.stderr.strip()}")
+        except Exception as e:
+            print(f"⚠️ Failed to create branch: {e}")
         
         # Sync Kanban
         if card.item_id and project.get("kanban_id"):
@@ -389,6 +417,25 @@ def action_code_review(state: LumaState, project: dict):
         if result.get("test_suggestions"):
             print("\n🧪 Test Suggestions:")
             print(result["test_suggestions"])
+            
+        # Save to file
+        report_path = os.path.join(target_dir, "code_review.md")
+        try:
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write("# Luma Code Review Report\n\n")
+                f.write(f"**Date:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"**Files Reviewed:** {list(changes.keys())}\n\n")
+                
+                if result.get("code_content"):
+                    f.write("## 📝 Reviewer Feedback\n\n")
+                    f.write(result["code_content"] + "\n\n")
+                
+                if result.get("test_suggestions"):
+                    f.write("## 🧪 Test Suggestions\n\n")
+                    f.write(result["test_suggestions"] + "\n\n")
+            print(f"\n✅ Review Report saved to: {report_path}")
+        except Exception as e:
+            print(f"\n⚠️ Failed to save report: {e}")
             
         print("\n✅ Review Complete.")
         
