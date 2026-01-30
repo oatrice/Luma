@@ -1315,18 +1315,34 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                                 print(f"      • PATCH (bug fix): {_suggest_bumped_version(current_version, 'patch')}")
                                 print(f"      • MINOR (feature): {_suggest_bumped_version(current_version, 'minor')}")
                             
-                            new_version_input = input(f"   🆙 Enter new version (or Enter to skip): ").strip()
-                            if new_version_input:
-                                bump_result = update_version_in_file(config["path"], new_version_input, version_file)
-                                if bump_result["success"]:
-                                    print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {new_version_input}")
-                                    result["files_updated"].append(bump_result["file"])
-                                    # Also update the CHANGELOG if version differs from detected
-                                    if new_version_input != suggested_version and suggested_version:
-                                        _update_changelog_version(doc_path, suggested_version, new_version_input)
-                                        print(f"   ✅ CHANGELOG.md version updated: {suggested_version} → {new_version_input}")
-                                else:
-                                    print(f"   ⚠️ Failed to update version: {bump_result['error']}")
+                            # Determine default version to use
+                            default_version = suggested_version if suggested_version != current_version else ""
+                            
+                            if default_version:
+                                prompt_text = f"   🆙 Update to {default_version}? (Enter=Yes, n=Skip, or type version): "
+                            else:
+                                prompt_text = f"   🆙 Enter new version (n=Skip): "
+                            
+                            new_version_input = input(prompt_text).strip()
+                            
+                            # Handle input
+                            if new_version_input.lower() == 'n':
+                                print(f"   ⏩ Version bump skipped")
+                            else:
+                                # If empty and we have default, use default
+                                version_to_apply = new_version_input if new_version_input else default_version
+                                
+                                if version_to_apply:
+                                    bump_result = update_version_in_file(config["path"], version_to_apply, version_file)
+                                    if bump_result["success"]:
+                                        print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {version_to_apply}")
+                                        result["files_updated"].append(bump_result["file"])
+                                        # Also update the CHANGELOG if version differs from detected
+                                        if version_to_apply != suggested_version and suggested_version:
+                                            _update_changelog_version(doc_path, suggested_version, version_to_apply)
+                                            print(f"   ✅ CHANGELOG.md version updated: {suggested_version} → {version_to_apply}")
+                                    else:
+                                        print(f"   ⚠️ Failed to update version: {bump_result['error']}")
                         
                         # Cleanup preview
                         if os.path.exists(preview_path):
