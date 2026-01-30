@@ -38,13 +38,20 @@ PROJECTS = {
         "type": "monorepo_root",
     },
     "2": {
+        "name": "JarWise (Web)",
+        "path": "/Users/oatrice/Software-projects/JarWise/Web",
+        "repo": "oatrice/JarWise-Web",
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "3": {
         "name": "JarWise (Android)",
         "path": "/Users/oatrice/Software-projects/JarWise/Android",
         "repo": "oatrice/JarWise-Android",
         "kanban_number": 7,
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
     },
-    "3": {
+    "4": {
         "name": "Tetris Battle",
         "path": "/Users/oatrice/Software-projects/Tetris-Battle",
         "repo": "oatrice/Tetris-Battle",
