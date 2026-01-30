@@ -830,6 +830,45 @@ def extract_version_from_changelog_entry(changelog_entry: str) -> str:
     return ""
 
 
+def _suggest_bumped_version(current_version: str, bump_type: str = "patch") -> str:
+    """Suggest a bumped version based on semantic versioning."""
+    if not current_version:
+        return "1.0.0"
+    
+    parts = current_version.split('.')
+    if len(parts) < 3:
+        return current_version
+    
+    try:
+        major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2].split('-')[0])
+        if bump_type == "major":
+            return f"{major + 1}.0.0"
+        elif bump_type == "minor":
+            return f"{major}.{minor + 1}.0"
+        else:  # patch
+            return f"{major}.{minor}.{patch + 1}"
+    except ValueError:
+        return current_version
+
+
+def _update_changelog_version(changelog_path: str, old_version: str, new_version: str) -> bool:
+    """Update version in CHANGELOG.md file."""
+    try:
+        with open(changelog_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Replace the first occurrence of old version with new version
+        updated_content = content.replace(f"[{old_version}]", f"[{new_version}]", 1)
+        
+        if updated_content != content:
+            with open(changelog_path, 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def update_version_in_file(repo_path: str, new_version: str, version_file: str = None) -> dict:
     """
     Update version in source files.
@@ -1011,7 +1050,13 @@ Generate the new changelog entry:"""
             print(f"   📦 Current version: {current_version}")
         llm = get_llm(temperature=0.3, purpose="general")
         response = llm.invoke(prompt)
-        return response.content.strip() if response else ""
+        if response:
+            content = response.content
+            # Handle case where content might be a list (e.g., from some LLM providers)
+            if isinstance(content, list):
+                content = "\n".join(str(item) for item in content)
+            return content.strip() if content else ""
+        return ""
         
     except Exception as e:
         print(f"   ⚠️ AI generation failed: {e}")
@@ -1087,7 +1132,13 @@ Return the FULL README with MINIMAL changes (or "No updates needed"):"""
         print(f"   🤖 Generating README updates with AI...")
         llm = get_llm(temperature=0.2, purpose="general")  # Lower temperature for less creativity
         response = llm.invoke(prompt)
-        return response.content.strip() if response else ""
+        if response:
+            content = response.content
+            # Handle case where content might be a list (e.g., from some LLM providers)
+            if isinstance(content, list):
+                content = "\n".join(str(item) for item in content)
+            return content.strip() if content else ""
+        return ""
         
     except Exception as e:
         print(f"   ⚠️ AI generation failed: {e}")
@@ -1253,20 +1304,29 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                             version_file = config.get("version_file")
                             current_version = get_current_version(config["path"], version_file)
                             
-                            if suggested_version and suggested_version != current_version:
-                                print(f"\n   📦 Version detected in CHANGELOG: {suggested_version}")
-                                print(f"   📦 Current version in source: {current_version or 'Not found'}")
-                                if version_file:
-                                    print(f"   📄 Version file: {version_file}")
-                                
-                                bump_choice = input(f"   🆙 Update source file to {suggested_version}? (y/N): ").lower()
-                                if bump_choice == 'y':
-                                    bump_result = update_version_in_file(config["path"], suggested_version, version_file)
-                                    if bump_result["success"]:
-                                        print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {suggested_version}")
-                                        result["files_updated"].append(bump_result["file"])
-                                    else:
-                                        print(f"   ⚠️ Failed to update version: {bump_result['error']}")
+                            # Always show version info and ask for confirmation
+                            print(f"\n   📦 Version detected in CHANGELOG: {suggested_version or 'Not detected'}")
+                            print(f"   📦 Current version in source: {current_version or 'Not found'}")
+                            if version_file:
+                                print(f"   📄 Version file: {version_file}")
+                            
+                            if suggested_version == current_version:
+                                print(f"   ⚠️ Version is the same! Consider bumping:")
+                                print(f"      • PATCH (bug fix): {_suggest_bumped_version(current_version, 'patch')}")
+                                print(f"      • MINOR (feature): {_suggest_bumped_version(current_version, 'minor')}")
+                            
+                            new_version_input = input(f"   🆙 Enter new version (or Enter to skip): ").strip()
+                            if new_version_input:
+                                bump_result = update_version_in_file(config["path"], new_version_input, version_file)
+                                if bump_result["success"]:
+                                    print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {new_version_input}")
+                                    result["files_updated"].append(bump_result["file"])
+                                    # Also update the CHANGELOG if version differs from detected
+                                    if new_version_input != suggested_version and suggested_version:
+                                        _update_changelog_version(doc_path, suggested_version, new_version_input)
+                                        print(f"   ✅ CHANGELOG.md version updated: {suggested_version} → {new_version_input}")
+                                else:
+                                    print(f"   ⚠️ Failed to update version: {bump_result['error']}")
                         
                         # Cleanup preview
                         if os.path.exists(preview_path):

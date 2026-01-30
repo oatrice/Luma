@@ -24,27 +24,35 @@ def publisher_agent(state: AgentState):
     # The 'Writer' handles file writing. 
     # Publisher handles the Git interactions.
     
-    branch_name = "feat/luma-auto" # Default fallback
-    if state.get('issue_data'):
-        # Derive branch from issue
+    # 2. Get current branch first
+    try:
+        res = subprocess.run(["git", "branch", "--show-current"], cwd=target_dir, capture_output=True, text=True)
+        current_branch = res.stdout.strip()
+    except:
+        current_branch = ""
+    
+    # Determine which branch to use
+    if current_branch and current_branch not in ['main', 'master']:
+        # Already on a feature branch - use it
+        branch_name = current_branch
+        print(f"🌲 Using Current Branch: {branch_name}")
+    elif state.get('issue_data'):
+        # On main/master, derive new branch from issue
         issue = state['issue_data']
         safe_title = issue['title'].lower().replace(" ", "-")
+        # Remove special characters that are invalid in git branch names
+        safe_title = "".join(c for c in safe_title if c.isalnum() or c in '-_')
         branch_name = f"feat/issue-{issue['number']}-{safe_title}"[:50]
-        
-    print(f"🌲 Managing Branch: {branch_name}")
+        print(f"🌲 Creating New Branch: {branch_name}")
+        # Create and checkout new branch
+        subprocess.run(["git", "checkout", "-b", branch_name], cwd=target_dir, capture_output=True)
+    else:
+        branch_name = "feat/luma-auto"
+        print(f"🌲 Using Default Branch: {branch_name}")
+        subprocess.run(["git", "checkout", "-b", branch_name], cwd=target_dir, capture_output=True)
     
-    # 2. Add & Commit
+    # 3. Add & Commit
     try:
-        # Check if we are on the branch
-        res = subprocess.run(["git", "branch", "--show-current"], cwd=target_dir, capture_output=True, text=True)
-        current = res.stdout.strip()
-        
-        if current != branch_name:
-             # Create/Checkout
-             print(f"   Switching to {branch_name}...")
-             subprocess.run(["git", "checkout", "-b", branch_name], cwd=target_dir, capture_output=True) # Try create
-             subprocess.run(["git", "checkout", branch_name], cwd=target_dir, capture_output=True) # Try switch
-            
         subprocess.run(["git", "add", "."], cwd=target_dir, check=True)
         commit_msg = f"feat: {state['task'][:50]}..."
         subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_dir)
@@ -72,11 +80,20 @@ def publisher_agent(state: AgentState):
                 cwd=target_dir, text=True
             ).strip()
 
-        # Get cumulative stats
-        diff_stats = subprocess.check_output(
-            ["git", "diff", "--stat", "HEAD", "--not", "main", "master"], # diff against whatever base is excluded
-            cwd=target_dir, text=True
-        ).strip()
+        # Get cumulative stats against main (or master as fallback)
+        try:
+            diff_stats = subprocess.check_output(
+                ["git", "diff", "--stat", "main..HEAD"],
+                cwd=target_dir, text=True
+            ).strip()
+        except subprocess.CalledProcessError:
+            try:
+                diff_stats = subprocess.check_output(
+                    ["git", "diff", "--stat", "master..HEAD"],
+                    cwd=target_dir, text=True
+                ).strip()
+            except subprocess.CalledProcessError:
+                diff_stats = "(diff stats unavailable)"
         
         git_stats = f"COMMITS:\n{commits}\n\nSTATS:\n{diff_stats}"
     except Exception as e:
@@ -111,8 +128,9 @@ INSTRUCTIONS:
 """
 
     # D. Save Draft & Wait for Approval
-    draft_path = os.path.join(target_dir, "draft_pr_prompt.txt")
+    draft_path = os.path.join(target_dir, "draft_pr_prompt.md")
     with open(draft_path, "w") as f:
+        f.write(f"# PR Draft Prompt\n\n")
         f.write(prompt)
         
     print(f"\n📝 Draft Prompt saved to: {draft_path}")
