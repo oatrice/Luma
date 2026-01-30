@@ -35,7 +35,8 @@ class PreflightChecker:
             return []
             
         rules = rules_data.get("preflight_checks", [])
-        print(f"🔧 Loaded {len(rules)} rules from {self.rules_path}")
+        if rules:
+            print(f"🔧 Loaded {len(rules)} preflight rules from {self.rules_path}")
         return rules
 
     def check_file_exists(self, path: str) -> bool:
