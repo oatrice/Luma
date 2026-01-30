@@ -86,6 +86,40 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
 
 def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
     """Start working on an issue"""
+    
+    # Check if this issue is already active (re-selecting same issue)
+    if state.active_issue and state.active_issue.number == card.issue_number:
+        print(f"\n✅ Already working on #{card.issue_number} - continuing...")
+        print(f"🌿 Branch: {state.active_branch}")
+        
+        # Ensure git is on the correct branch
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "checkout", state.active_branch],
+                cwd=project["path"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                print(f"✅ Switched to branch '{state.active_branch}'.")
+            else:
+                # Branch doesn't exist, create it
+                create_result = subprocess.run(
+                    ["git", "checkout", "-b", state.active_branch],
+                    cwd=project["path"],
+                    capture_output=True,
+                    text=True
+                )
+                if create_result.returncode == 0:
+                    print(f"✅ Created and switched to branch '{state.active_branch}'.")
+                else:
+                    print(f"⚠️ Git: {create_result.stderr.strip()}")
+        except Exception as e:
+            print(f"⚠️ Git error: {e}")
+        
+        return True
+    
     # Transition to selecting first
     if state.phase == WorkflowPhase.IDLE:
         transition_to(state, WorkflowPhase.SELECTING)

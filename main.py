@@ -7,7 +7,7 @@ State-based Workflow Orchestrator with GitHub Project Integration
 
 import os
 import sys
-import argparse
+import json
 import argparse
 
 import luma_core.ui as ui
@@ -44,6 +44,27 @@ from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 # =============================================================================
 
 BOX_WIDTH = 58
+GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
+
+
+def load_global_config():
+    """Load global config (last project, etc)"""
+    if os.path.exists(GLOBAL_CONFIG_FILE):
+        try:
+            with open(GLOBAL_CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    return {"last_project": "1"}
+
+
+def save_global_config(config):
+    """Save global config"""
+    try:
+        with open(GLOBAL_CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=2)
+    except:
+        pass
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
@@ -84,8 +105,15 @@ def main():
     parser.add_argument("--project", type=str, default="1", help="Project key (1=JarWise, 2=Tetris)")
     args = parser.parse_args()
     
-    # Initialize
-    project_key = args.project if args.project in PROJECTS else "1"
+    # Load global config for last project
+    global_config = load_global_config()
+    stored_project = global_config.get("last_project", "1")
+    
+    # Initialize - use stored project if no CLI arg provided
+    if args.project == "1" and stored_project in PROJECTS:
+        project_key = stored_project
+    else:
+        project_key = args.project if args.project in PROJECTS else "1"
     project = PROJECTS[project_key]
     
     # Load state
@@ -141,6 +169,9 @@ def main():
                 project = PROJECTS[project_key]
                 state = load_state(project["path"])
                 state.project_key = project_key
+                # Save last project to global config
+                global_config["last_project"] = project_key
+                save_global_config(global_config)
         
         else:
             print("❌ Invalid option")
