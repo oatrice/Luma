@@ -1,6 +1,20 @@
 # Changelog
 
-## [0.0.1] - 2026-01-29
+## [1.0.0] - 2026-01-30
+
+### Added
+- **[Luma V2]** Complete overhaul of the workflow engine ("Workflow Guardian")
+- **[State Management]** Persistent state (`.luma_state.json`) to track phases: Idle, Selecting, Coding, Preflight, PR Pending
+- **[UI V2]** New `ui.py` with responsive boxed interface, emoji support, and dynamic width calculation
+- **[Actions V2]** Modular `actions.py` decoupling business logic from the main loop
+- **[Config]** Centralized configuration in `luma_core/config.py` with explicit multi-repo support
+
+### Changed
+- **[Refactor]** `main.py` is now a lightweight controller (< 150 lines)
+- **[UX]** Removed "Reset State" prompts; auto-save on project switch supported
+- **[Docs]** Updated README to reflect V2 architecture
+
+## [0.5.1] - 2026-01-29
 
 ### Added
 - Initial release of the Luma AI Software Engineer agent.
