@@ -328,15 +328,42 @@ def load_or_generate_pr_content(current_branch: str, repo: str, target_dir: str 
     title = ""
     body = ""
     
-    # Check for existing DRAFT
-    if os.path.exists(draft_file):
-        print("📄 Found saved PR Draft!")
+    # Check for existing DRAFT or PREVIEW
+    preview_file = os.path.join(target_dir, "PR_PREVIEW.md")
+    
+    if os.path.exists(preview_file) or os.path.exists(draft_file):
+        print("📄 Found existing PR Draft/Preview!")
         if input("Reuse saved draft? (y/N): ").lower() == 'y':
             try:
-                with open(draft_file, "r") as f:
-                    data = json.load(f)
-                    title = data.get("title", "")
-                    body = data.get("body", "")
+                # Prefer Markdown Preview if exists (as user likely edited it)
+                if os.path.exists(preview_file):
+                    with open(preview_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        
+                    # Parse Title from first line if formatted as "# TITLE: ..."
+                    lines = content.split('\n')
+                    if lines[0].startswith("# TITLE:"):
+                        title = lines[0].replace("# TITLE:", "").strip()
+                        body = "\n".join(lines[1:]).strip()
+                    elif lines[0].startswith("# "):
+                         # Fallback if user just wrote a header
+                         title = lines[0].replace("# ", "").strip()
+                         body = "\n".join(lines[1:]).strip()
+                    else:
+                        # Fallback
+                        title = ""
+                        body = content
+                    
+                    print(f"📖 Loaded from {preview_file}")
+                
+                # Fallback to JSON if no Markdown or parsing failed/incomplete (though unlikely to fallback if file exists)
+                elif os.path.exists(draft_file):
+                    with open(draft_file, "r") as f:
+                        data = json.load(f)
+                        title = data.get("title", "")
+                        body = data.get("body", "")
+                    print(f"📖 Loaded from {draft_file}")
+
             except Exception as e:
                 print(f"⚠️ Failed to load draft: {e}")
 
@@ -450,10 +477,17 @@ def load_or_generate_pr_content(current_branch: str, repo: str, target_dir: str 
             title = first_line.replace("TITLE:", "").strip()
             body = "\n".join(lines[1:]).strip()
 
-        # SAVE DRAFT
+        # SAVE DRAFT (JSON for System)
         with open(draft_file, "w") as f:
             json.dump({"title": title, "body": body}, f)
+            
+        # SAVE PREVIEW (Markdown for User)
+        preview_file = os.path.join(target_dir, "PR_PREVIEW.md")
+        with open(preview_file, "w", encoding="utf-8") as f:
+            f.write(f"# TITLE: {title}\n\n{body}")
+            
         print(f"💾 Draft saved to {draft_file}")
+        print(f"📝 Preview available at {preview_file} (You can edit this file and I will reload it!)")
         
     return title, body, draft_file
 
