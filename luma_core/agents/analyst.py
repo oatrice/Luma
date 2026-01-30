@@ -37,6 +37,15 @@ def analyst_agent(state: AgentState):
 
     # 2. Construct Prompt
     print("🤖 Constructing LLM Prompt...")
+    
+    # Build Issue URL if we have enough info
+    issue_url = issue_data.get('url', '')
+    if not issue_url and issue_data.get('number'):
+        # Try to construct from repo info if available
+        repo = issue_data.get('repository', '')
+        if repo:
+            issue_url = f"https://github.com/{repo}/issues/{issue_data.get('number')}"
+    
     system_prompt = """You are a Senior Technical Analyst. Your goal is to analyze the provided GitHub Issue and fill out the Technical Analysis Document based on the provided template.
     
     Guidelines:
@@ -44,6 +53,8 @@ def analyst_agent(state: AgentState):
     - If information is missing in the issue, make reasonable assumptions based on standard software practices, but note them.
     - For 'Impact Analysis', consider a standard web/mobile app structure (React/Next.js frontend, Python/Node backend).
     - Maintain the exact markdown structure of the template.
+    - IMPORTANT: In the 'Feature Information' table, you MUST include an 'Issue URL' row with a markdown link to the GitHub issue.
+    - Use the current date for the 'Date' field.
     - Output ONLY the filled markdown content.
     """
     
@@ -52,6 +63,7 @@ def analyst_agent(state: AgentState):
     
     Issue Title: {issue_data.get('title', task)}
     Issue Number: {issue_data.get('number', 'N/A')}
+    Issue URL: {issue_url or 'N/A'}
     Issue Body:
     {issue_data.get('body', 'No description provided.')}
     
