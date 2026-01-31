@@ -11,7 +11,8 @@ from luma_core.github_project import (
 )
 from luma_core.tools import (
     get_git_changed_files,
-    update_multi_repo_docs
+    update_multi_repo_docs,
+    generate_draft_code_review
 )
 from luma_core.config import PROJECTS
 from luma_core.preflight_checker import PreflightChecker
@@ -619,3 +620,25 @@ def action_generate_sbe(state: LumaState, project: dict):
             pass
     else:
         print("\n⚠️ SBE generation failed or produced no output.")
+
+
+def action_generate_draft(state: LumaState, project: dict):
+    """Generate draft_code_review.md with full diff context"""
+    print("\n📊 Generating Draft Code Review...")
+    
+    try:
+        output_path = generate_draft_code_review(project["path"])
+        print(f"\n✅ Draft saved to: {output_path}")
+        print("   💡 This file can be used for PR creation and code review.")
+        print("   📋 Publisher Agent will automatically use this file if present.")
+        
+        # Open in VS Code
+        import subprocess
+        try:
+            subprocess.run(["code", output_path], capture_output=True)
+            print("   📂 Opened in VS Code")
+        except:
+            pass
+            
+    except Exception as e:
+        print(f"\n❌ Failed to generate draft: {e}")

@@ -77,6 +77,7 @@ MENU_ACTIONS = {
     "8": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "9": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "S": {"label": "📋 Generate SBE Specs",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
+    "D": {"label": "📑 Draft Code Review",        "valid_phases": [WorkflowPhase.CODING]},
     "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
 }
 
@@ -205,6 +206,9 @@ def main():
         
         elif choice.upper() == "S":
             actions.action_generate_sbe(state, project)
+        
+        elif choice.upper() == "D":
+            actions.action_generate_draft(state, project)
         
         else:
             print("❌ Invalid option")

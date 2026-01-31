@@ -64,41 +64,64 @@ def publisher_agent(state: AgentState):
     # 3. Generate PR Body with AI
     llm = get_llm(temperature=0.7)
     
-    # A. Capture Git Context
-    try:
-        # Get list of commits on this branch relative to main
-        # We assume 'main' is the base branch as per config
+    # A. Check for draft_code_review.md first (richer context)
+    draft_review_path = os.path.join(target_dir, "draft_code_review.md")
+    git_stats = ""
+    
+    if os.path.exists(draft_review_path):
+        print(f"📋 Found draft_code_review.md - using for PR context...")
         try:
-            commits = subprocess.check_output(
-                ["git", "log", "--oneline", "main..HEAD"],
-                cwd=target_dir, text=True
-            ).strip()
-        except subprocess.CalledProcessError:
-            # Fallback if main not found, try master
-            commits = subprocess.check_output(
-                ["git", "log", "--oneline", "master..HEAD"],
-                cwd=target_dir, text=True
-            ).strip()
-
-        # Get cumulative stats against main (or master as fallback)
+            with open(draft_review_path, 'r', encoding='utf-8') as f:
+                git_stats = f.read()
+            print("✅ Loaded draft with full diff context")
+        except Exception as e:
+            print(f"⚠️ Failed to read draft: {e}")
+            git_stats = ""
+    
+    # B. Fallback: Generate context on the fly
+    if not git_stats:
+        print("📊 Generating git context...")
         try:
-            diff_stats = subprocess.check_output(
-                ["git", "diff", "--stat", "main..HEAD"],
-                cwd=target_dir, text=True
-            ).strip()
-        except subprocess.CalledProcessError:
+            # Get list of commits on this branch relative to main
             try:
-                diff_stats = subprocess.check_output(
-                    ["git", "diff", "--stat", "master..HEAD"],
+                commits = subprocess.check_output(
+                    ["git", "log", "--oneline", "main..HEAD"],
                     cwd=target_dir, text=True
                 ).strip()
             except subprocess.CalledProcessError:
-                diff_stats = "(diff stats unavailable)"
-        
-        git_stats = f"COMMITS:\n{commits}\n\nSTATS:\n{diff_stats}"
-    except Exception as e:
-        print(f"⚠️ Failed to get git stats: {e}")
-        git_stats = "No git context available (or failed to diff against main/master)."
+                commits = subprocess.check_output(
+                    ["git", "log", "--oneline", "master..HEAD"],
+                    cwd=target_dir, text=True
+                ).strip()
+
+            # Get cumulative stats
+            try:
+                diff_stats = subprocess.check_output(
+                    ["git", "diff", "--stat", "main..HEAD"],
+                    cwd=target_dir, text=True
+                ).strip()
+            except subprocess.CalledProcessError:
+                try:
+                    diff_stats = subprocess.check_output(
+                        ["git", "diff", "--stat", "master..HEAD"],
+                        cwd=target_dir, text=True
+                    ).strip()
+                except subprocess.CalledProcessError:
+                    diff_stats = "(diff stats unavailable)"
+            
+            # Get full diff (limited)
+            try:
+                full_diff = subprocess.check_output(
+                    ["git", "diff", "main..HEAD"],
+                    cwd=target_dir, text=True
+                ).strip()[:5000]
+            except:
+                full_diff = ""
+            
+            git_stats = f"COMMITS:\n{commits}\n\nSTATS:\n{diff_stats}\n\nDIFF:\n{full_diff}"
+        except Exception as e:
+            print(f"⚠️ Failed to get git stats: {e}")
+            git_stats = "No git context available."
 
     # B. Load Template
     template_content = ""
