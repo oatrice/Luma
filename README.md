@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 1.1.0  
+> **Version:** 1.2.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -107,4 +107,5 @@ python main.py
 - [x] **Pre-flight Checker**: Auto-validates code before PR.
 - [x] **UI Upgrade**: "Boxed" UI with emoji and responsive width.
 - [x] **Modular Architecture**: Easy to extend and maintain.
-- [x] **SBE Generator**: AI-powered Specification by Example (Menu: S). 🆕
+- [x] **SBE Generator**: AI-powered Specification by Example (Menu: S).
+- [x] **Draft Code Review**: Generate rich PR context with one click (Menu: D). 🆕
