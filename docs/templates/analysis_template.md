@@ -57,10 +57,13 @@ flowchart TD
 
 ### 2.2 Screen/Page Requirements
 
-| หน้าจอ | Actions | Components |
-|--------|---------|------------|
-| [Screen 1] | [Actions] | [Components] |
-| [Screen 2] | [Actions] | [Components] |
+> [!IMPORTANT]
+> **Policy**: Web Mock UI must be implemented and verified FIRST before any backend/Android logic.
+
+| หน้าจอ | Actions | Components | UI Mock Status |
+|--------|---------|------------|----------------|
+| [Screen 1] | [Actions] | [Components] | ⬜ Pending / ✅ Done |
+| [Screen 2] | [Actions] | [Components] | ⬜ Pending / ✅ Done |
 
 ### 2.3 Input/Output Specification
 
@@ -106,6 +109,9 @@ flowchart TD
 ## 4. Feasibility Analysis
 
 ### 4.1 Technical Feasibility
+
+> [!IMPORTANT]
+> **Android Build Policy**: MUST use scripts in `Android/scripts/` (e.g., `build_android.sh`) instead of direct `./gradlew` to ensure correct JDK version (Java 21).
 
 | คำถาม | คำตอบ | หมายเหตุ |
 |-------|-------|----------|
