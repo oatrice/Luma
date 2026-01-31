@@ -108,13 +108,14 @@ def display_header(state: LumaState, project: dict):
     print("╚" + "═" * (BOX_WIDTH + 2) + "╝")
 
 
-def display_menu(state: LumaState):
+def display_menu(state: LumaState, actions: dict = None):
     """Display context-sensitive menu"""
     # Color codes (Basic usage)
     DIM = "\033[90m"
     RESET = "\033[0m"
     
-    actions = MENU_ACTIONS
+    if actions is None:
+        actions = MENU_ACTIONS
     
     print("\n📋 Actions:")
     for key, action in actions.items():
