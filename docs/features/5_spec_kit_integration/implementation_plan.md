@@ -27,6 +27,19 @@ Implement a native Spec-Driven workflow: **Specify (The What) -> Plan (The How) 
 
 ---
 
+## Bug Fix: SpecKit Menu Access (Current Task)
+
+### Goal Description
+Fix a bug where menu option '3' ("Generate Spec") is incorrectly routed to "Refine Issue" due to duplicate logic in `main.py`.
+
+### Proposed Changes
+
+#### [MODIFY] [main.py](file:///Users/oatrice/Software-projects/Luma/main.py)
+- Remove the stale `elif choice == "3":` block (approx line 148) that calls `actions.action_refine_issue`.
+- Ensure the correct `elif choice == "3":` block (approx line 208) that calls `actions.action_generate_spec` is active and correctly placed.
+
+---
+
 ## Verification Plan
 
 ### Automated Checks
@@ -36,5 +49,4 @@ Implement a native Spec-Driven workflow: **Specify (The What) -> Plan (The How) 
 ### Manual Verification
 1. Start Luma (`python main.py`)
 2. Select Issue.
-3. Run **[3] Generate Spec** -> Verify `docs/features/X/spec.md` created.
-4. Run **[P] Generate Plan** -> Verify `docs/features/X/plan.md` created.
+3. Run **[3] Generate Spec** -> Verify PROMPT asks for SBE/Spec generation (not Refine Issue).
