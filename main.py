@@ -156,6 +156,7 @@ def main():
         
         elif choice == "6":
             actions.action_create_pr(state, project)
+            save_state(state, project["path"])
         
         elif choice == "7":
             actions.action_view_kanban(project)
