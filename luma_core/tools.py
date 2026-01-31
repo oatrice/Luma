@@ -1459,27 +1459,49 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                             if version_file:
                                 print(f"   📄 Version file: {version_file}")
                             
-                            if suggested_version == current_version:
-                                print(f"   ⚠️ Version is the same! Consider bumping:")
-                                print(f"      • PATCH (bug fix): {_suggest_bumped_version(current_version, 'patch')}")
-                                print(f"      • MINOR (feature): {_suggest_bumped_version(current_version, 'minor')}")
+                            current = current_version or "0.0.0"
+                            patch_ver = _suggest_bumped_version(current, 'patch')
+                            minor_ver = _suggest_bumped_version(current, 'minor')
+                            major_ver = _suggest_bumped_version(current, 'major')
                             
-                            # Determine default version to use
-                            default_version = suggested_version if suggested_version != current_version else ""
+                            print(f"\n   🚀 Select Version Bump:")
+                            print(f"      [1] PATCH : {patch_ver}")
+                            print(f"      [2] MINOR : {minor_ver}")
+                            print(f"      [3] MAJOR : {major_ver}")
                             
-                            if default_version:
-                                prompt_text = f"   🆙 Update to {default_version}? (Enter=Yes, n=Skip, or type version): "
+                            default_ver = suggested_version if (suggested_version and suggested_version != current) else patch_ver
+                            
+                            if suggested_version and suggested_version != current:
+                                print(f"      [4] AI Suggested: {suggested_version} (Default)")
+                            
+                            print(f"      [0] Skip")
+
+                            # Determine prompt
+                            if suggested_version and suggested_version != current:
+                                prompt_text = f"\n   👉 Select [1-4] (Default={suggested_version}) or type custom: "
                             else:
-                                prompt_text = f"   🆙 Enter new version (n=Skip): "
+                                prompt_text = f"\n   👉 Select [1-3] or type custom: "
+
+                            user_input = input(prompt_text).strip()
                             
-                            new_version_input = input(prompt_text).strip()
+                            version_to_apply = ""
                             
-                            # Handle input
-                            if new_version_input.lower() == 'n':
-                                print(f"   ⏩ Version bump skipped")
+                            if user_input == '1':
+                                version_to_apply = patch_ver
+                            elif user_input == '2':
+                                version_to_apply = minor_ver
+                            elif user_input == '3':
+                                version_to_apply = major_ver
+                            elif user_input == '4' and suggested_version:
+                                version_to_apply = suggested_version
+                            elif user_input == '0':
+                                print(f"   ⏩ Version update skipped")
+                                version_to_apply = ""
+                            elif user_input == "" and suggested_version and suggested_version != current:
+                                version_to_apply = suggested_version
                             else:
-                                # If empty and we have default, use default
-                                version_to_apply = new_version_input if new_version_input else default_version
+                                version_to_apply = user_input # Custom string or empty
+
                                 
                                 if version_to_apply:
                                     bump_result = update_version_in_file(config["path"], version_to_apply, version_file)
