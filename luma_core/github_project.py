@@ -466,6 +466,50 @@ def display_kanban_cards(cards: List[KanbanCard], show_body: bool = False) -> No
 
 
 # =============================================================================
+# PR Status Check
+# =============================================================================
+
+def check_pr_merged(pr_url: str) -> dict:
+    """
+    Check if a PR has been merged
+    
+    Args:
+        pr_url: Full PR URL (e.g., https://github.com/owner/repo/pull/123)
+        
+    Returns:
+        {"merged": True/False, "state": "open|closed|merged", "error": None|str}
+    """
+    import re
+    
+    # Parse PR URL
+    match = re.match(r'https://github\.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
+    if not match:
+        return {"merged": False, "state": "unknown", "error": "Invalid PR URL"}
+    
+    owner, repo, pr_number = match.groups()
+    
+    # Use gh CLI to get PR status
+    args = ["pr", "view", pr_number, "--repo", f"{owner}/{repo}", "--json", "state,merged"]
+    output = run_gh_command(args, timeout=15)
+    
+    if not output:
+        return {"merged": False, "state": "unknown", "error": "Failed to fetch PR"}
+    
+    try:
+        data = json.loads(output)
+        state = data.get("state", "unknown").lower()
+        merged = data.get("merged", False)
+        
+        if merged:
+            return {"merged": True, "state": "merged", "error": None}
+        else:
+            return {"merged": False, "state": state, "error": None}
+            
+    except json.JSONDecodeError as e:
+        return {"merged": False, "state": "unknown", "error": str(e)}
+
+
+# =============================================================================
 # Export
 # =============================================================================
 
@@ -482,4 +526,5 @@ __all__ = [
     "get_project_field_schema",
     "run_gh_command",
     "run_gh_graphql",
+    "check_pr_merged",
 ]
