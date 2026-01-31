@@ -109,16 +109,42 @@ def publisher_agent(state: AgentState):
                 except subprocess.CalledProcessError:
                     diff_stats = "(diff stats unavailable)"
             
-            # Get full diff (limited)
+            # Get Smart Diff (Prioritize source code)
             try:
-                full_diff = subprocess.check_output(
-                    ["git", "diff", "main..HEAD"],
+                # 1. Get list of changed files
+                changed_files_raw = subprocess.check_output(
+                    ["git", "diff", "--name-only", "main..HEAD"],
                     cwd=target_dir, text=True
-                ).strip()[:5000]
-            except:
-                full_diff = ""
+                ).strip()
+                changed_files = changed_files_raw.splitlines()
+
+                # 2. Filter for interesting source files
+                INTERESTING_EXTENSIONS = ['.kt', '.xml', '.java', '.py', '.ts', '.tsx', '.js', '.jsx', '.go', '.rs', '.swift', '.gradle.kts', '.toml']
+                source_files = [f for f in changed_files if any(f.endswith(ext) for ext in INTERESTING_EXTENSIONS)]
+                
+                # 3. Get diff for source files first (or all if few)
+                files_to_diff = source_files if source_files else changed_files
+                
+                # 4. Run diff command
+                if files_to_diff:
+                    # git diff main..HEAD -- file1 file2 ...
+                    cmd = ["git", "diff", "main..HEAD", "--"] + files_to_diff
+                    full_diff = subprocess.check_output(
+                        cmd,
+                        cwd=target_dir, text=True
+                    ).strip()
+                else:
+                    full_diff = ""
+                
+                # 5. Cap size but be generous (20k chars)
+                if len(full_diff) > 20000:
+                    full_diff = full_diff[:20000] + "\n... (Diff truncated for size) ..."
+
+            except Exception as e:
+                print(f"⚠️ Smart diff failed: {e}")
+                full_diff = "(diff unavailable)"
             
-            git_stats = f"COMMITS:\n{commits}\n\nSTATS:\n{diff_stats}\n\nDIFF:\n{full_diff}"
+            git_stats = f"COMMITS:\n{commits}\n\nSTATS:\n{diff_stats}\n\nKEY FILE DIFFS:\n{full_diff}"
         except Exception as e:
             print(f"⚠️ Failed to get git stats: {e}")
             git_stats = "No git context available."
