@@ -160,7 +160,36 @@ def main():
         
         elif choice == "8":
             state = load_state(project["path"])
-            print("🔄 State refreshed")
+            
+            # Auto-detect merged PR
+            if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
+                from luma_core.github_project import check_pr_merged, sync_kanban_on_action
+                print(f"🔍 Checking PR status: {state.pr_url}")
+                pr_status = check_pr_merged(state.pr_url)
+                
+                if pr_status["merged"]:
+                    print("✅ PR has been merged!")
+                    
+                    # Move Kanban to Done
+                    if state.active_issue and state.active_issue.project_item_id:
+                        sync_kanban_on_action(
+                            "pr_merged",
+                            state.active_issue.project_id,
+                            state.active_issue.project_item_id
+                        )
+                    
+                    # Reset state to IDLE
+                    state = LumaState(project_key=state.project_key)
+                    save_state(state, project["path"])
+                    print("🎉 State reset to IDLE. Ready for next task!")
+                elif pr_status["error"]:
+                    print(f"⚠️ Could not check PR: {pr_status['error']}")
+                    print("🔄 State refreshed")
+                else:
+                    print(f"📋 PR status: {pr_status['state']} (not merged yet)")
+                    print("🔄 State refreshed")
+            else:
+                print("🔄 State refreshed")
 
         elif choice == "9":
             new_key = actions.action_switch_project(state)
