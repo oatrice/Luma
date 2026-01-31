@@ -8,45 +8,34 @@ Transition Luma to **Spec-Driven Development (SDD)** by adopting concepts from [
 Implement a native Spec-Driven workflow: **Specify (The What) -> Plan (The How) -> Code**.
 
 ## Core Components
-
-### 1. Constitution (`docs/constitution.md`)
-- Defines standard rules and principles for all AI agents.
-- Injected into prompts to ensure consistency.
-
-### 2. Templates (`docs/templates/`)
-- **`spec_template.md`**: Focuses on User Requirements, Context, and SBE Scenarios.
-- **`plan_template.md`**: Focuses on Technical Implementation steps and Architecture.
-
-### 3. New Agents (`luma_core/agents/`)
-- **`spec_agent.py`**: Generates `spec.md` from Issue + Constitution.
-- **`architect_agent.py`**: Generates `plan.md` from `spec.md` + Constitution.
-
-### 4. Workflow Integration (`main.py`)
-- **Menu [3]**: Generate Spec (`action_generate_spec`)
-- **Menu [P]**: Generate Plan (`action_generate_plan`)
+*(Unchanged components section omitted for brevity)*
 
 ---
 
 ## Bug Fix: SpecKit Menu Access (Current Task)
 
 ### Goal Description
-Fix a bug where menu option '3' ("Generate Spec") is incorrectly routed to "Refine Issue" due to duplicate logic in `main.py`.
+Fix a bug where menu option '3' has a conflict between "Refine Issue" (Legacy) and "Generate Spec" (New). The user wants to **keep both features**.
 
 ### Proposed Changes
 
 #### [MODIFY] [main.py](file:///Users/oatrice/Software-projects/Luma/main.py)
-- Remove the stale `elif choice == "3":` block (approx line 148) that calls `actions.action_refine_issue`.
-- Ensure the correct `elif choice == "3":` block (approx line 208) that calls `actions.action_generate_spec` is active and correctly placed.
+- **Update Menu Definitions**: Add "Refine Issue" to `MENU_ACTIONS` with key **'R'**.
+- **Update Logic**:
+    - Change the handler for `actions.action_refine_issue` from `choice == "3"` to `choice.upper() == "R"`.
+    - Keep `choice == "3"` assigned to `actions.action_generate_spec`.
 
----
+### Menu Mapping Plan
+| Key | Action | Status |
+| :--- | :--- | :--- |
+| **3** | `action_generate_spec` (SpecKit) | ✅ Keep as is |
+| **R** | `action_refine_issue` (Analyst) | 🆕 Reassign from '3' to 'R' |
 
 ## Verification Plan
 
-### Automated Checks
-- Run import check script to verify new modules load correctly.
-- (Done: `✅ Spec Kit Integrations OK`)
-
 ### Manual Verification
 1. Start Luma (`python main.py`)
-2. Select Issue.
-3. Run **[3] Generate Spec** -> Verify PROMPT asks for SBE/Spec generation (not Refine Issue).
+2. Verify Menu UI shows **[R] Refine Issue**.
+3. Select Issue involved in active task.
+4. Run **[R]** -> Check if "Analyst Agent" runs.
+5. Run **[3]** -> Check if "Spec Agent" runs.

@@ -77,6 +77,7 @@ MENU_ACTIONS = {
     "7": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "8": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "9": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
+    "R": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "S": {"label": "📋 Generate SBE Specs (Old)",  "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "D": {"label": "📑 Draft Code Review",         "valid_phases": [WorkflowPhase.CODING]},
     "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
@@ -146,6 +147,9 @@ def main():
                 save_state(state, project["path"])
         
         elif choice == "3":
+            actions.action_generate_spec(state, project)
+
+        elif choice.upper() == "R":
             actions.action_refine_issue(state, project)
 
         elif choice == "4":
@@ -206,8 +210,7 @@ def main():
                 global_config["last_project"] = project_key
                 save_global_config(global_config)
         
-        elif choice == "3":
-            actions.action_generate_spec(state, project)
+
         
         elif choice.upper() == "P":
             actions.action_generate_plan(state, project)
