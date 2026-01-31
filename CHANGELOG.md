@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] - 2026-01-31
+
+### Added
+- **[SBE]** Specification by Example (SBE) feature for pre-coding phase
+- **[SBE Core]** `luma_core/sbe.py` with `Scenario`, `SBESpec` dataclasses
+- **[SBE Agent]** AI-powered SBE generator (`luma_core/agents/sbe_agent.py`)
+- **[SBE Template]** `docs/templates/sbe_template.md` for standardized format
+- **[Menu]** New menu option "S" to generate SBE specs from active issue
+- **[Tests]** 9 unit tests for SBE module
+
+### Changed
+- **[Actions]** Added `action_generate_sbe()` function
+- **[Main]** Extended menu with SBE option
+
 ## [1.0.0] - 2026-01-30
 
 ### Added

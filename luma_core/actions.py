@@ -565,3 +565,57 @@ def action_switch_project(state: LumaState) -> str:
         return choice
     
     return None
+
+
+def action_generate_sbe(state: LumaState, project: dict):
+    """Generate SBE (Specification by Example) for current issue"""
+    if not state.active_issue:
+        print("❌ No active issue selected.")
+        print("💡 Select an issue first (Menu option 2)")
+        return
+    
+    print("\n📋 SBE (Specification by Example) Generator")
+    print(f"   Issue: #{state.active_issue.number} {state.active_issue.title}")
+    
+    # Enable SBE Agent
+    try:
+        from luma_core.agents.sbe_agent import sbe_agent
+    except ImportError as e:
+        print(f"❌ SBE agent not available: {e}")
+        return
+    
+    # Create state for SBE agent
+    sbe_state = {
+        "task": state.active_issue.title,
+        "issue_data": {
+            "title": state.active_issue.title,
+            "number": state.active_issue.number,
+            "body": state.active_issue.body,
+            "url": state.active_issue.html_url,
+            "repository": state.active_issue.repository
+        },
+        "target_dir": project["path"]
+    }
+    
+    print("\n🤖 Invoking SBE Agent (AI-powered)...")
+    result = sbe_agent(sbe_state)
+    
+    if result.get("sbe_file"):
+        print(f"\n✨ SBE Specification created!")
+        print(f"   📁 File: {result['sbe_file']}")
+        
+        # Preview first few lines
+        try:
+            with open(result['sbe_file'], 'r') as f:
+                lines = f.readlines()[:15]
+                print("\n📄 Preview:")
+                print("-" * 50)
+                for line in lines:
+                    print(line.rstrip())
+                if len(lines) >= 15:
+                    print("...")
+                print("-" * 50)
+        except:
+            pass
+    else:
+        print("\n⚠️ SBE generation failed or produced no output.")
