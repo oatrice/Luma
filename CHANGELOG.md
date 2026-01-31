@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0] - 2026-01-31
+
+### Added
+- **[Spec Kit]** Adopted Spec-Driven Development (SDD) workflow.
+- **[Docs]** Added `docs/constitution.md` (Project Rules) and templates for Spec (`spec.md`) and Plan (`plan.md`).
+- **[Agents]** New `Spec Agent` (Menu: 3) and `Architect Agent` (Menu: P).
+- **[Workflow]** New flow: Issue -> **Specify** -> **Plan** -> Code.
+
 ## [1.2.0] - 2026-01-31
 
 ### Added
