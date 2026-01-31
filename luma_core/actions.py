@@ -120,9 +120,10 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
         
         return True
     
-    # Transition to selecting first
+    # Transition to selecting first (only if coming from IDLE)
     if state.phase == WorkflowPhase.IDLE:
         transition_to(state, WorkflowPhase.SELECTING)
+    # If already CODING, we're switching issues - no need to go through SELECTING
     
     # Create IssueData
     issue = IssueData(
