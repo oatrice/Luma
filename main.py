@@ -129,7 +129,7 @@ def main():
     while True:
         # Display UI
         ui.display_header(state, project)
-        ui.display_menu(state)
+        ui.display_menu(state, MENU_ACTIONS)
         
         choice = input("\n👉 Select: ").strip()
         
