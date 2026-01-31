@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0] - 2026-01-31
+
+### Added
+- **[Draft Code Review]** New feature to generate `draft_code_review.md` with full git diff, commits, and stats.
+- **[Menu]** Option "D" to manually trigger draft generation.
+- **[Publisher]** Publisher Agent now auto-detects and uses `draft_code_review.md` for richer PR context.
+- **[Tools]** `generate_draft_code_review()` function in `luma_core/tools.py`.
+
 ## [1.1.0] - 2026-01-31
 
 ### Added
