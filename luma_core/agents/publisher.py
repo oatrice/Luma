@@ -82,38 +82,37 @@ def publisher_agent(state: AgentState):
     if not git_stats:
         print("📊 Generating git context...")
         try:
-            # Get list of commits on this branch relative to main
-            try:
-                commits = subprocess.check_output(
-                    ["git", "log", "--oneline", "main..HEAD"],
-                    cwd=target_dir, text=True
-                ).strip()
-            except subprocess.CalledProcessError:
-                commits = subprocess.check_output(
-                    ["git", "log", "--oneline", "master..HEAD"],
-                    cwd=target_dir, text=True
-                ).strip()
+            # Get list of commits on this branch relative to defaults
+            base_branches = ["origin/main", "origin/master", "main", "master"]
+            commits = ""
+            base_ref = "main" # fallback
+            
+            for ref in base_branches:
+                try:
+                    commits = subprocess.check_output(
+                        ["git", "log", "--oneline", f"{ref}..HEAD"],
+                        cwd=target_dir, text=True, stderr=subprocess.DEVNULL
+                    ).strip()
+                    if commits:
+                        base_ref = ref
+                        break
+                except subprocess.CalledProcessError:
+                    continue
 
             # Get cumulative stats
             try:
                 diff_stats = subprocess.check_output(
-                    ["git", "diff", "--stat", "main..HEAD"],
+                    ["git", "diff", "--stat", f"{base_ref}..HEAD"],
                     cwd=target_dir, text=True
                 ).strip()
             except subprocess.CalledProcessError:
-                try:
-                    diff_stats = subprocess.check_output(
-                        ["git", "diff", "--stat", "master..HEAD"],
-                        cwd=target_dir, text=True
-                    ).strip()
-                except subprocess.CalledProcessError:
-                    diff_stats = "(diff stats unavailable)"
+                diff_stats = "(diff stats unavailable)"
             
             # Get Smart Diff (Prioritize source code)
             try:
                 # 1. Get list of changed files
                 changed_files_raw = subprocess.check_output(
-                    ["git", "diff", "--name-only", "main..HEAD"],
+                    ["git", "diff", "--name-only", f"{base_ref}..HEAD"],
                     cwd=target_dir, text=True
                 ).strip()
                 changed_files = changed_files_raw.splitlines()
@@ -127,8 +126,8 @@ def publisher_agent(state: AgentState):
                 
                 # 4. Run diff command
                 if files_to_diff:
-                    # git diff main..HEAD -- file1 file2 ...
-                    cmd = ["git", "diff", "main..HEAD", "--"] + files_to_diff
+                    # git diff base..HEAD -- file1 file2 ...
+                    cmd = ["git", "diff", f"{base_ref}..HEAD", "--"] + files_to_diff
                     full_diff = subprocess.check_output(
                         cmd,
                         cwd=target_dir, text=True
@@ -184,27 +183,51 @@ INSTRUCTIONS:
         
     print(f"\n📝 Draft Prompt saved to: {draft_path}")
     print("✋ Waiting for approval... Please review the prompt file.")
+    print("👉 Options: [y] Auto-Generate, [m] Use Manual Body, [n] Cancel")
+    
+    manual_body_path = os.path.join(target_dir, "draft_pr_body.md")
     
     while True:
-        choice = input("👉 Approve and generate PR body? [y/N]: ").strip().lower()
+        choice = input("👉 Select Check: ").strip().lower()
         if choice == 'y':
+            # E. Generate Auto
+            print("🤖 Generating PR Body with AI...")
+            try:
+                response = llm.invoke([HumanMessage(content=prompt)])
+                body = response.content
+                print("✅ AI Generation Complete.")
+            except Exception as e:
+                print(f"❌ AI Generation Failed: {e}")
+                print("Using basic fallback.")
+                body = f"implementation for: {state['task']}\n\n(AI Generation failed)"
             break
+            
+        elif choice == 'm':
+            # E. Manual Body
+            print(f"📂 Looking for manual body at: {manual_body_path}")
+            if os.path.exists(manual_body_path):
+                try:
+                    with open(manual_body_path, "r") as f:
+                        body = f.read()
+                    print("✅ Loaded manual PR body.")
+                    break
+                except Exception as e:
+                    print(f"❌ Failed to read manual body: {e}")
+                    print("Falling back to Auto-Generate? (y/n)")
+                    continue
+            else:
+                # Create empty template if not exists
+                with open(manual_body_path, "w") as f:
+                    f.write(f"# {state['task']}\n\n<!-- Paste your generated PR description here -->\n")
+                print(f"⚠️ File not found. Created template at: {manual_body_path}")
+                print(f"👉 Please edit the file and select 'm' again.")
+                continue
+                
         elif choice == 'n' or choice == '':
             print("❌ Operation cancelled by user.")
             return {}
         else:
-            print("Invalid input. Please enter 'y' or 'n'.")
-
-    # E. Generate
-    print("🤖 Generating PR Body with AI...")
-    try:
-        response = llm.invoke([HumanMessage(content=prompt)])
-        body = response.content
-        print("✅ AI Generation Complete.")
-    except Exception as e:
-        print(f"❌ AI Generation Failed: {e}")
-        print("Using basic fallback.")
-        body = f"implementation for: {state['task']}\n\n(AI Generation failed)"
+            print("Invalid input. Please enter 'y', 'm', or 'n'.")
 
     # Add Test Suggestions appended
     if state.get("test_suggestions"):
