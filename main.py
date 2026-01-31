@@ -76,6 +76,7 @@ MENU_ACTIONS = {
     "7": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "8": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "9": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
+    "S": {"label": "📋 Generate SBE Specs",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
 }
 
@@ -172,6 +173,9 @@ def main():
                 # Save last project to global config
                 global_config["last_project"] = project_key
                 save_global_config(global_config)
+        
+        elif choice.upper() == "S":
+            actions.action_generate_sbe(state, project)
         
         else:
             print("❌ Invalid option")

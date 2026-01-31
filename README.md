@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 1.0.0  
+> **Version:** 1.1.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -29,6 +29,7 @@ flowchart TB
 - **State Manager:** Tracks project status (Idle, Coding, PR Pending) via `.luma_state.json`.
 - **GitHub Project Sync:** Deep integration with GitHub Projects (Kanban).
 - **Pre-flight Checker:** Enforces definition of done (Tests, Lint, etc.) before PR.
+- **SBE Generator:** AI-powered Specification by Example for pre-coding phase. 🆕
 - **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions.py`, `config.py`).
 
 ---
@@ -60,13 +61,21 @@ stateDiagram-v2
 ```
 Luma/
 ├── luma_core/
-│   ├── actions.py           # [NEW] Business logic for menu actions
-│   ├── config.py            # [NEW] Centralized configuration
-│   ├── ui.py                # [NEW] UI & Display logic
+│   ├── actions.py           # Business logic for menu actions
+│   ├── config.py            # Centralized configuration
+│   ├── sbe.py               # [NEW] SBE core module
+│   ├── ui.py                # UI & Display logic
 │   ├── state_manager.py     # State management
 │   ├── github_project.py    # GitHub Sync
 │   ├── preflight_checker.py # Validation
-│   └── tools.py             # Agent tools
+│   ├── tools.py             # Agent tools
+│   └── agents/
+│       ├── analyst.py       # Issue analysis agent
+│       ├── sbe_agent.py     # [NEW] SBE generator agent
+│       └── ...              # Other agents
+├── docs/
+│   └── templates/
+│       └── sbe_template.md  # [NEW] SBE template
 ├── v1_legacy/               # Archived V1 code
 ├── main.py                  # Entry Controller
 └── README.md                # Documentation
@@ -98,3 +107,4 @@ python main.py
 - [x] **Pre-flight Checker**: Auto-validates code before PR.
 - [x] **UI Upgrade**: "Boxed" UI with emoji and responsive width.
 - [x] **Modular Architecture**: Easy to extend and maintain.
+- [x] **SBE Generator**: AI-powered Specification by Example (Menu: S). 🆕
