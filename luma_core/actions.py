@@ -598,7 +598,9 @@ def action_generate_sbe(state: LumaState, project: dict):
         "target_dir": project["path"]
     }
     
-    print("\n🤖 Invoking SBE Agent (AI-powered)...")
+    print("\n🤖 Invoking SBE Agent (Integration -> Spec Agent)...")
+    # Redirect legacy SBE to new Spec Agent if possible, or keep separate for now.
+    # For now, let's keep SBE as a sub-feature, but we encourage using the full Spec Agent.
     result = sbe_agent(sbe_state)
     
     if result.get("sbe_file"):
@@ -642,3 +644,96 @@ def action_generate_draft(state: LumaState, project: dict):
             
     except Exception as e:
         print(f"\n❌ Failed to generate draft: {e}")
+
+
+def action_generate_spec(state: LumaState, project: dict):
+    """Generate spec.md using Spec Agent"""
+    if not state.active_issue:
+        print("❌ No active issue selected.")
+        return
+
+    # Enable Spec Agent
+    try:
+        from luma_core.agents.spec_agent import spec_agent
+    except ImportError as e:
+        print(f"❌ Spec agent not available: {e}")
+        return
+
+    # Create State
+    spec_state = {
+        "task": state.active_issue.title,
+        "issue_data": {
+            "title": state.active_issue.title,
+            "number": state.active_issue.number,
+            "body": state.active_issue.body,
+            "url": state.active_issue.html_url,
+            "repository": state.active_issue.repository
+        },
+        "target_dir": project["path"]
+    }
+
+    print("\n🧬 Invoking Spec Agent (Spec Kit)...")
+    result = spec_agent(spec_state)
+    
+    if result.get("feature_dir"):
+        # Update state with feature dir for subsequent steps
+        # In a real app, we might want to persist this in LumaState
+        print(f"   📂 Feature Directory: {result['feature_dir']}")
+        
+        # Determine relative path for display
+        rel_path = os.path.relpath(result['feature_dir'], project["path"])
+        # Store in state for Plan Agent to use immediately
+        state.context["last_feature_dir"] = result['feature_dir'] 
+        print(f"   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
+
+
+def action_generate_plan(state: LumaState, project: dict):
+    """Generate plan.md using Architect Agent"""
+    # Try to find feature dir: 1. From context, 2. Ask user
+    feature_dir = state.context.get("last_feature_dir")
+    
+    if not feature_dir:
+        # Simple heuristic: Look for valid feature dirs in docs/features
+        # and ask user to pick
+        features_root = os.path.join(project["path"], "docs", "features")
+        if not os.path.exists(features_root):
+            print("❌ No features directory found.")
+            return
+
+        dirs = [d for d in os.listdir(features_root) if os.path.isdir(os.path.join(features_root, d))]
+        if not dirs:
+            print("❌ No feature directories found.")
+            return
+            
+        print("\n📂 Select Feature to Plan:")
+        for i, d in enumerate(dirs, 1):
+            print(f"  [{i}] {d}")
+        
+        choice = input("Select: ").strip()
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(dirs):
+                feature_dir = os.path.join(features_root, dirs[idx])
+            else:
+                return
+        except:
+            return
+
+    # Enable Architect Agent
+    try:
+        from luma_core.agents.architect_agent import architect_agent
+    except ImportError as e:
+        print(f"❌ Architect agent not available: {e}")
+        return
+
+    plan_state = {
+        "feature_dir": feature_dir,
+        "target_dir": project["path"]
+    }
+
+    print("\n📐 Invoking Architect Agent (Spec Kit)...")
+    result = architect_agent(plan_state)
+    
+    if result.get("plan_file"):
+        print(f"\n✨ Plan created at: {result['plan_file']}")
+
