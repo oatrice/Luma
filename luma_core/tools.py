@@ -1294,6 +1294,78 @@ Return the FULL README with MINIMAL changes (or "No updates needed"):"""
         return ""
 
 
+def _interactive_version_bump(config: dict, suggested_version: str = "", update_changelog: bool = False, changelog_path: str = ""):
+    """Prompt user for version bump and update files."""
+    try:
+        version_file = config.get("version_file")
+        current_version = get_current_version(config["path"], version_file)
+        
+        # Always show version info and ask for confirmation
+        print(f"\n   📦 Version detected in CHANGELOG: {suggested_version or 'Not detected'}")
+        print(f"   📦 Current version in source: {current_version or 'Not found'}")
+        if version_file:
+            print(f"   📄 Version file: {version_file}")
+        
+        current = current_version or "0.0.0"
+        patch_ver = _suggest_bumped_version(current, 'patch')
+        minor_ver = _suggest_bumped_version(current, 'minor')
+        major_ver = _suggest_bumped_version(current, 'major')
+        
+        print(f"\n   🚀 Select Version Bump:")
+        print(f"      [1] PATCH : {patch_ver}")
+        print(f"      [2] MINOR : {minor_ver}")
+        print(f"      [3] MAJOR : {major_ver}")
+        
+        if suggested_version and suggested_version != current:
+            print(f"      [4] AI Suggested: {suggested_version} (Default)")
+        
+        print(f"      [0] Skip")
+
+        # Determine prompt
+        if suggested_version and suggested_version != current:
+            prompt_text = f"\n   👉 Select [1-4] (Default={suggested_version}) or type custom: "
+        else:
+            prompt_text = f"\n   👉 Select [1-3] or type custom: "
+
+        user_input = input(prompt_text).strip()
+        
+        version_to_apply = ""
+        
+        if user_input == '1':
+            version_to_apply = patch_ver
+        elif user_input == '2':
+            version_to_apply = minor_ver
+        elif user_input == '3':
+            version_to_apply = major_ver
+        elif user_input == '4' and suggested_version:
+            version_to_apply = suggested_version
+        elif user_input == '0':
+            print(f"   ⏩ Version update skipped")
+            return None
+        elif user_input == "" and suggested_version and suggested_version != current:
+            version_to_apply = suggested_version
+        else:
+            version_to_apply = user_input # Custom string or empty
+
+            
+        if version_to_apply:
+            bump_result = update_version_in_file(config["path"], version_to_apply, version_file)
+            if bump_result["success"]:
+                print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {version_to_apply}")
+                
+                # Also update the CHANGELOG if version differs from detected
+                if update_changelog and changelog_path and version_to_apply != suggested_version and suggested_version:
+                    _update_changelog_version(changelog_path, suggested_version, version_to_apply)
+                    print(f"   ✅ CHANGELOG.md version updated: {suggested_version} → {version_to_apply}")
+                
+                return user_input # Return something to indicate success
+            else:
+                print(f"   ⚠️ Failed to update version: {bump_result['error']}")
+    except Exception as e:
+        print(f"   ⚠️ Error during version bump: {e}")
+    
+    return None
+
 def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
     """
     Update documentation (CHANGELOG.md, README.md) for multiple repos with AI.
@@ -1376,6 +1448,10 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                 results.append(result)
                 continue
             
+            # Variables for version bumping logic later
+            detected_version_from_changelog = ""
+            changelog_was_updated = False
+            
             # Process each doc
             for doc_name in files_to_update:
                 doc_path = os.path.join(config["path"], doc_name)
@@ -1448,72 +1524,9 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                             result["files_updated"].append(doc_name)
                             print(f"   ✅ CHANGELOG.md updated!")
                             
-                            # Offer to bump version in source file
-                            suggested_version = extract_version_from_changelog_entry(new_entry)
-                            version_file = config.get("version_file")
-                            current_version = get_current_version(config["path"], version_file)
-                            
-                            # Always show version info and ask for confirmation
-                            print(f"\n   📦 Version detected in CHANGELOG: {suggested_version or 'Not detected'}")
-                            print(f"   📦 Current version in source: {current_version or 'Not found'}")
-                            if version_file:
-                                print(f"   📄 Version file: {version_file}")
-                            
-                            current = current_version or "0.0.0"
-                            patch_ver = _suggest_bumped_version(current, 'patch')
-                            minor_ver = _suggest_bumped_version(current, 'minor')
-                            major_ver = _suggest_bumped_version(current, 'major')
-                            
-                            print(f"\n   🚀 Select Version Bump:")
-                            print(f"      [1] PATCH : {patch_ver}")
-                            print(f"      [2] MINOR : {minor_ver}")
-                            print(f"      [3] MAJOR : {major_ver}")
-                            
-                            default_ver = suggested_version if (suggested_version and suggested_version != current) else patch_ver
-                            
-                            if suggested_version and suggested_version != current:
-                                print(f"      [4] AI Suggested: {suggested_version} (Default)")
-                            
-                            print(f"      [0] Skip")
-
-                            # Determine prompt
-                            if suggested_version and suggested_version != current:
-                                prompt_text = f"\n   👉 Select [1-4] (Default={suggested_version}) or type custom: "
-                            else:
-                                prompt_text = f"\n   👉 Select [1-3] or type custom: "
-
-                            user_input = input(prompt_text).strip()
-                            
-                            version_to_apply = ""
-                            
-                            if user_input == '1':
-                                version_to_apply = patch_ver
-                            elif user_input == '2':
-                                version_to_apply = minor_ver
-                            elif user_input == '3':
-                                version_to_apply = major_ver
-                            elif user_input == '4' and suggested_version:
-                                version_to_apply = suggested_version
-                            elif user_input == '0':
-                                print(f"   ⏩ Version update skipped")
-                                version_to_apply = ""
-                            elif user_input == "" and suggested_version and suggested_version != current:
-                                version_to_apply = suggested_version
-                            else:
-                                version_to_apply = user_input # Custom string or empty
-
-                                
-                                if version_to_apply:
-                                    bump_result = update_version_in_file(config["path"], version_to_apply, version_file)
-                                    if bump_result["success"]:
-                                        print(f"   ✅ {bump_result['file']} updated: {bump_result['old_version']} → {version_to_apply}")
-                                        result["files_updated"].append(bump_result["file"])
-                                        # Also update the CHANGELOG if version differs from detected
-                                        if version_to_apply != suggested_version and suggested_version:
-                                            _update_changelog_version(doc_path, suggested_version, version_to_apply)
-                                            print(f"   ✅ CHANGELOG.md version updated: {suggested_version} → {version_to_apply}")
-                                    else:
-                                        print(f"   ⚠️ Failed to update version: {bump_result['error']}")
+                            # Capture suggested version for the standalone bump step
+                            detected_version_from_changelog = extract_version_from_changelog_entry(new_entry)
+                            changelog_was_updated = True
                         
                         # Cleanup preview
                         if os.path.exists(preview_path):
@@ -1542,6 +1555,20 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                             os.remove(preview_path)
                     else:
                         print(f"   ℹ️ No README updates needed")
+            
+            # === Version Bump Step (Decoupled) ===
+            # Run this if any files were updated OR if user explicitly wants to check version
+            # Here we run it if at least one doc was attempted/updated, or we can just always run it for flow
+            if result["files_updated"]:
+                print(f"\n   🔖 Version Bump Check...")
+                updated_ver = _interactive_version_bump(
+                    config, 
+                    suggested_version=detected_version_from_changelog, 
+                    update_changelog=changelog_was_updated,
+                    changelog_path=changelog_path
+                )
+                if updated_ver:
+                     result["files_updated"].append("VERSION(bump)")
             
             if result["files_updated"]:
                 result["success"] = True
