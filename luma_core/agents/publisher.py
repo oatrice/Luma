@@ -195,13 +195,31 @@ INSTRUCTIONS:
             print("🤖 Generating PR Body with AI...")
             try:
                 response = llm.invoke([HumanMessage(content=prompt)])
-                body = response.content
+                generated_body = response.content
                 print("✅ AI Generation Complete.")
+                
+                # Save to draft file for user review
+                with open(manual_body_path, "w") as f:
+                    f.write(generated_body)
+                
+                print(f"📝 Generated content saved to: {manual_body_path}")
+                print("💡 You can review or edit this file now.")
+                
+                confirm = input("👉 Submit this PR description? (y/N): ").strip().lower()
+                if confirm == 'y':
+                    # Reload in case user edited it
+                    with open(manual_body_path, "r") as f:
+                        body = f.read()
+                    break
+                else:
+                    print("🔄 Cancelled submission. Returning to menu (Select 'm' to use draft later).")
+                    continue
+
             except Exception as e:
                 print(f"❌ AI Generation Failed: {e}")
                 print("Using basic fallback.")
                 body = f"implementation for: {state['task']}\n\n(AI Generation failed)"
-            break
+                break
             
         elif choice == 'm':
             # E. Manual Body
@@ -209,9 +227,16 @@ INSTRUCTIONS:
             if os.path.exists(manual_body_path):
                 try:
                     with open(manual_body_path, "r") as f:
-                        body = f.read()
+                        body_content = f.read()
                     print("✅ Loaded manual PR body.")
-                    break
+                    
+                    confirm = input("👉 Submit this manual PR description? (y/N): ").strip().lower()
+                    if confirm == 'y':
+                        body = body_content
+                        break
+                    else:
+                        print("🔄 Cancelled submission. You can edit the file and try again.")
+                        continue
                 except Exception as e:
                     print(f"❌ Failed to read manual body: {e}")
                     print("Falling back to Auto-Generate? (y/n)")
@@ -237,7 +262,16 @@ INSTRUCTIONS:
     # 4. Push & PR
     try:
         print(f"⬆️ Pushing {branch_name}...")
-        subprocess.run(["git", "push", "origin", branch_name], cwd=target_dir, check=True)
+        subprocess.run(["git", "push", "-u", "origin", branch_name], cwd=target_dir, check=True)
+        
+        # Verify remote branch exists as requested
+        print("🔍 Verifying remote branch...")
+        verify = subprocess.run(
+            ["git", "ls-remote", "--exit-code", "--heads", "origin", branch_name],
+            cwd=target_dir, capture_output=True
+        )
+        if verify.returncode != 0:
+            raise Exception(f"Remote branch 'origin/{branch_name}' not found after push!")
         
         existing = get_open_pr(state['repo'], branch_name)
         if existing:
