@@ -35,6 +35,9 @@ class NewModel:
 ## 3. Verification Plan
 *How will we verify success?*
 
+> [!IMPORTANT]
+> **Android Build Policy**: MUST use scripts in `Android/scripts/` (e.g., `build_android.sh`) instead of direct `./gradlew` to ensure correct JDK version (Java 21).
+
 ### Automated Tests
 - [ ] Unit Tests: `tests/test_feature.py`
 - [ ] Integration Tests
