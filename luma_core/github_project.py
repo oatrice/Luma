@@ -489,7 +489,7 @@ def check_pr_merged(pr_url: str) -> dict:
     owner, repo, pr_number = match.groups()
     
     # Use gh CLI to get PR status
-    args = ["pr", "view", pr_number, "--repo", f"{owner}/{repo}", "--json", "state,merged"]
+    args = ["pr", "view", pr_number, "--repo", f"{owner}/{repo}", "--json", "state"]
     output = run_gh_command(args, timeout=15)
     
     if not output:
@@ -498,9 +498,8 @@ def check_pr_merged(pr_url: str) -> dict:
     try:
         data = json.loads(output)
         state = data.get("state", "unknown").lower()
-        merged = data.get("merged", False)
         
-        if merged:
+        if state == "merged":
             return {"merged": True, "state": "merged", "error": None}
         else:
             return {"merged": False, "state": state, "error": None}
