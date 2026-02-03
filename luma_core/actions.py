@@ -685,6 +685,13 @@ def action_generate_spec(state: LumaState, project: dict):
         # Store in state for Plan Agent to use immediately
         state.context["last_feature_dir"] = result['feature_dir'] 
         print(f"   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
+        
+    # Chain SBE Generation
+    print("\n------------------------------------------------")
+    ask_sbe = input("❓ Generate Specification by Example (SBE) tables / QA Docs? (Y/n): ").strip().lower()
+    if ask_sbe != 'n':
+        # Chain call to existing SBE action in this module
+        action_generate_sbe(state, project)
 
 
 def action_generate_plan(state: LumaState, project: dict):
