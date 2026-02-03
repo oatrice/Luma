@@ -108,16 +108,22 @@ def display_header(state: LumaState, project: dict):
     print("╚" + "═" * (BOX_WIDTH + 2) + "╝")
 
 
-def display_menu(state: LumaState, actions: dict = None):
-    """Display context-sensitive menu"""
-    # Color codes (Basic usage)
-    DIM = "\033[90m"
-    RESET = "\033[0m"
-    
+from simple_term_menu import TerminalMenu
+import sys
+
+def select_menu_option(state: LumaState, actions: dict = None) -> str:
+    """
+    Display interactive menu and return selected action key.
+    Uses simple-term-menu for arrow key navigation.
+    """
     if actions is None:
         actions = MENU_ACTIONS
+
+    # Prepare menu items
+    menu_items = []
+    keys = []
     
-    print("\n📋 Actions:")
+    # Filter valid actions
     for key, action in actions.items():
         is_valid = False
         if action["valid_phases"] == "ALL":
@@ -126,7 +132,47 @@ def display_menu(state: LumaState, actions: dict = None):
             is_valid = True
             
         if is_valid:
-            print(f"  [{key}] {action['label']}")
-        else:
-            # Show disabled option in dim color
-            print(f"  {DIM}[{key}] {action['label']} (Not available){RESET}")
+            # Format: "[Key] Label"
+            menu_items.append(f"[{key}] {action['label']}")
+            keys.append(key)
+            
+    if not menu_items:
+        return "0"
+
+    print("\n") # Space before menu
+    
+    terminal_menu = TerminalMenu(
+        menu_items,
+        title="👉 Select an action:",
+        menu_cursor="> ",
+        menu_cursor_style=("fg_cyan", "bold"),
+        menu_highlight_style=("bg_cyan", "fg_black"),
+        cycle_cursor=True,
+        clear_screen=False,
+    )
+    
+    # Handle KeyboardInterrupt during menu selection gracefully
+    try:
+        menu_entry_index = terminal_menu.show()
+    except KeyboardInterrupt:
+        return "0"
+    
+    if menu_entry_index is None:
+        return "0" # Exit on ESC/Cancel
+        
+    return keys[menu_entry_index]
+
+
+def display_menu(state: LumaState, actions: dict = None):
+    """
+    Legacy display function.
+    Now just delegates to select_menu_option if called, 
+    but strictly speaking main.py calls this then input().
+    To avoid breaking if we revert main.py, we keep it but it's unused if main.py changes.
+    """
+    if actions is None:
+        actions = MENU_ACTIONS
+    
+    print("\n📋 Actions (Legacy View):")
+    for key, action in actions.items():
+        print(f"  [{key}] {action['label']}")

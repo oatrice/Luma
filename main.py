@@ -128,9 +128,16 @@ def main():
     while True:
         # Display UI
         ui.display_header(state, project)
-        ui.display_menu(state, MENU_ACTIONS)
         
-        choice = input("\n👉 Select: ").strip()
+        # Interactive Menu
+        try:
+            choice = ui.select_menu_option(state, MENU_ACTIONS)
+            # print(f"Selected: {choice}") # Optional feedback
+        except Exception as e:
+            # Fallback for environments where simple-term-menu might fail
+            print(f"⚠️ Interactive menu unavailable: {e}")
+            # ui.display_menu(state, MENU_ACTIONS) # StartLine 111 in ui.py was defined legacy
+            choice = input("\n👉 Select: ").strip()
         
         if choice == "0":
             # Save state before exit
