@@ -95,31 +95,48 @@ def analyst_agent(state: AgentState):
     
     os.makedirs(features_root, exist_ok=True)
 
-    # Calculate Next Index
+    # Calculate Next Index or Find Existing
     next_index = 1
+    existing_dir_path = None
+    
     try:
-        existing_dirs = [d for d in os.listdir(features_root) if os.path.isdir(os.path.join(features_root, d))]
-        indices = []
-        for d in existing_dirs:
-            match = re.match(r'^(\d+)_', d)
-            if match:
-                indices.append(int(match.group(1)))
-        
-        if indices:
-            next_index = max(indices) + 1
+        if os.path.exists(features_root):
+            existing_dirs = [d for d in os.listdir(features_root) if os.path.isdir(os.path.join(features_root, d))]
+            indices = []
+            
+            # 1. Search for existing folder for this issue
+            issue_num_str = str(issue_data.get('number', ''))
+            if issue_num_str:
+                for d in existing_dirs:
+                    if f"issue-{issue_num_str}_" in d:
+                        existing_dir_path = os.path.join(features_root, d)
+                        print(f"📂 Found existing feature directory: {d}")
+                        break
+            
+            # 2. Calculate next index (if needed)
+            for d in existing_dirs:
+                match = re.match(r'^(\d+)_', d)
+                if match:
+                    indices.append(int(match.group(1)))
+            
+            if indices:
+                next_index = max(indices) + 1
     except Exception as e:
         print(f"⚠️ Error calculating next index: {e}")
 
-    # specific format: N_issue-ID_slug
-    sanitized_title = sanitize_filename(task)
-    # Replace spaces with hyphens for slug style if sanitize didn't
-    sanitized_title = sanitized_title.replace(" ", "-")
-    
-    issue_number = issue_data.get('number', '0')
-    output_folder_name = f"{next_index}_issue-{issue_number}_{sanitized_title}"
-    
-    output_dir = os.path.join(features_root, output_folder_name)
-    os.makedirs(output_dir, exist_ok=True)
+    if existing_dir_path:
+        output_dir = existing_dir_path
+    else:
+        # specific format: N_issue-ID_slug
+        sanitized_title = sanitize_filename(task)
+        # Replace spaces with hyphens for slug style if sanitize didn't
+        sanitized_title = sanitized_title.replace(" ", "-")
+        
+        issue_number = issue_data.get('number', '0')
+        output_folder_name = f"{next_index}_issue-{issue_number}_{sanitized_title}"
+        
+        output_dir = os.path.join(features_root, output_folder_name)
+        os.makedirs(output_dir, exist_ok=True)
     
     output_file = os.path.join(output_dir, "analysis.md")
     
