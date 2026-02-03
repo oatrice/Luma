@@ -195,7 +195,12 @@ INSTRUCTIONS:
             print("🤖 Generating PR Body with AI...")
             try:
                 response = llm.invoke([HumanMessage(content=prompt)])
-                generated_body = response.content
+                if isinstance(generated_body, list):
+                    # Handle case where content is a list of blocks
+                    generated_body = " ".join([str(item) for item in generated_body])
+                elif not isinstance(generated_body, str):
+                     generated_body = str(generated_body)
+
                 print("✅ AI Generation Complete.")
                 
                 # Save to draft file for user review
@@ -217,9 +222,9 @@ INSTRUCTIONS:
 
             except Exception as e:
                 print(f"❌ AI Generation Failed: {e}")
-                print("Using basic fallback.")
-                body = f"implementation for: {state['task']}\n\n(AI Generation failed)"
-                break
+                print("🔄 Sending you back to menu to retry or use manual input...")
+                continue # Do not break, let user decide what to do next
+
             
         elif choice == 'm':
             # E. Manual Body
