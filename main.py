@@ -69,16 +69,15 @@ def save_global_config(config):
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
-    "R": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
-    "3": {"label": "📝 Generate Spec (Spec + SBE)", "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
-    "P": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
-    "4": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
-    "5": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
-    "6": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
-    "7": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
-    "8": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
-    "9": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
-    # "D": {"label": "📑 Draft Code Review",         "valid_phases": [WorkflowPhase.CODING]},
+    "3": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
+    "4": {"label": "📝 Generate Spec + SBE",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
+    "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
+    "6": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
+    "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
+    "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
+    "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
+    "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
+    "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
 }
 
@@ -153,25 +152,28 @@ def main():
                 save_state(state, project["path"])
         
         elif choice == "3":
+            actions.action_refine_issue(state, project)
+            
+        elif choice == "4":
             actions.action_generate_spec(state, project)
 
-        elif choice.upper() == "R":
-            actions.action_refine_issue(state, project)
+        elif choice == "5":
+            actions.action_generate_plan(state, project)
 
-        elif choice == "4":
+        elif choice == "6":
             actions.action_code_review(state, project)
         
-        elif choice == "5":
+        elif choice == "7":
             actions.action_update_docs(state, project)
         
-        elif choice == "6":
+        elif choice == "8":
             actions.action_create_pr(state, project)
             save_state(state, project["path"])
         
-        elif choice == "7":
+        elif choice.upper() == "K":
             actions.action_view_kanban(project)
         
-        elif choice == "8":
+        elif choice.upper() == "R":
             state = load_state(project["path"])
             
             # Auto-detect merged PR
@@ -204,7 +206,7 @@ def main():
             else:
                 print("🔄 State refreshed")
 
-        elif choice == "9":
+        elif choice.upper() == "S":
             new_key = actions.action_switch_project(state)
             if new_key:
                 save_state(state, project["path"])  # Save old state
@@ -215,17 +217,6 @@ def main():
                 # Save last project to global config
                 global_config["last_project"] = project_key
                 save_global_config(global_config)
-        
-
-        
-        elif choice.upper() == "P":
-            actions.action_generate_plan(state, project)
-
-        # elif choice.upper() == "S":
-        #    actions.action_generate_sbe(state, project)
-        
-        # elif choice.upper() == "D":
-        #    actions.action_generate_draft(state, project)
         
         else:
             print("❌ Invalid option")
