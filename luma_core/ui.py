@@ -7,18 +7,8 @@ from luma_core.state_manager import LumaState, WorkflowPhase, get_phase_display,
 
 BOX_WIDTH = 58
 
-MENU_ACTIONS = {
-    "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
-    "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
-    "3": {"label": "🧬 Refine Issue (Analyst)",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
-    "4": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
-    "5": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
-    "6": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
-    "7": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
-    "8": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
-    "9": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
-    "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
-}
+# MENU_ACTIONS is now passed from main.py to avoid duplication.
+# See select_menu_option `actions` parameter.
 
 # =============================================================================
 # Display Functions
@@ -113,11 +103,12 @@ import sys
 
 def select_menu_option(state: LumaState, actions: dict = None) -> str:
     """
-    Display interactive menu and return selected action key.
+    display interactive menu and return selected action key.
     Uses simple-term-menu for arrow key navigation.
     """
     if actions is None:
-        actions = MENU_ACTIONS
+        print("⚠️ No actions provided to menu.")
+        return "0"
 
     # Prepare menu items
     menu_items = []
@@ -171,7 +162,8 @@ def display_menu(state: LumaState, actions: dict = None):
     To avoid breaking if we revert main.py, we keep it but it's unused if main.py changes.
     """
     if actions is None:
-        actions = MENU_ACTIONS
+        print("⚠️ No actions provided.")
+        return
     
     print("\n📋 Actions (Legacy View):")
     for key, action in actions.items():
