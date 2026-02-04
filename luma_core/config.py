@@ -36,6 +36,7 @@ PROJECTS = {
         "kanban_number": 7,
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
         "type": "monorepo_root",
+        "sibling_repos": ["2", "3", "4"],  # Web, Backend, Android
     },
     "2": {
         "name": "JarWise (Web)",
