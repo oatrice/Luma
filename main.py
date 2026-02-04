@@ -73,7 +73,7 @@ MENU_ACTIONS = {
     "4": {"label": "📝 Generate Spec + SBE",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "6": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
-    "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
+    "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING]},
     "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
