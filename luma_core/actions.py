@@ -116,6 +116,35 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                     print(f"✅ Created and switched to branch '{state.active_branch}'.")
                 else:
                     print(f"⚠️ Git: {create_result.stderr.strip()}")
+            
+            # Also ensure sibling repos are on the correct branch
+            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+                from luma_core.config import PROJECTS
+                print(f"🔄 Syncing sibling repos...")
+                for sibling_key in project.get("sibling_repos", []):
+                    sibling = PROJECTS.get(sibling_key)
+                    if sibling and os.path.exists(sibling["path"]):
+                        sib_result = subprocess.run(
+                            ["git", "checkout", state.active_branch],
+                            cwd=sibling["path"],
+                            capture_output=True,
+                            text=True
+                        )
+                        if sib_result.returncode == 0:
+                            print(f"   ✅ {sibling['name']}: Switched to branch")
+                        else:
+                            # Try to create the branch
+                            create_sib = subprocess.run(
+                                ["git", "checkout", "-b", state.active_branch],
+                                cwd=sibling["path"],
+                                capture_output=True,
+                                text=True
+                            )
+                            if create_sib.returncode == 0:
+                                print(f"   ✅ {sibling['name']}: Branch created")
+                            else:
+                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
+                                
         except Exception as e:
             print(f"⚠️ Git error: {e}")
         
@@ -211,6 +240,35 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                     print(f"✅ Switched to existing branch '{branch_name}'.")
                 else:
                     print(f"⚠️ Git error: {result.stderr.strip()}")
+            
+            # Create branches in sibling repos (Web, Backend, Android)
+            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+                from luma_core.config import PROJECTS
+                print(f"\n🔄 Creating branches in sibling repos...")
+                for sibling_key in project.get("sibling_repos", []):
+                    sibling = PROJECTS.get(sibling_key)
+                    if sibling and os.path.exists(sibling["path"]):
+                        sib_result = subprocess.run(
+                            ["git", "checkout", "-b", branch_name],
+                            cwd=sibling["path"],
+                            capture_output=True,
+                            text=True
+                        )
+                        if sib_result.returncode == 0:
+                            print(f"   ✅ {sibling['name']}: Branch created")
+                        else:
+                            # Try to switch to existing branch
+                            switch_sib = subprocess.run(
+                                ["git", "checkout", branch_name],
+                                cwd=sibling["path"],
+                                capture_output=True,
+                                text=True
+                            )
+                            if switch_sib.returncode == 0:
+                                print(f"   ✅ {sibling['name']}: Switched to existing branch")
+                            else:
+                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
+                                
         except Exception as e:
             print(f"⚠️ Failed to create branch: {e}")
         
@@ -924,6 +982,36 @@ def action_archive_artifacts(state: LumaState, project: dict):
         print(f"✅ Archived {moved_count} files.")
 
 
+def get_feature_dir(project_path: str, issue_number: int) -> str:
+    """Helper to find feature directory for an issue"""
+    features_root = os.path.join(project_path, "docs", "features")
+    if not os.path.exists(features_root):
+        return None
+        
+    for d in os.listdir(features_root):
+        # Match patterns: 71_..., issue-71..., x-issue-71..., etc.
+        if d.startswith(f"{issue_number}_") or f"issue-{issue_number}" in d or f"-{issue_number}_" in d:
+             return os.path.join(features_root, d)
+    return None
+
+def check_planning_artifacts(feature_dir: str) -> dict:
+    """Check existence of planning artifacts"""
+    artifacts = {
+        "analysis": "analysis.md",
+        "spec": "spec.md",
+        "plan": "plan.md"
+    }
+    status = {}
+    if not feature_dir or not os.path.exists(feature_dir):
+        for k in artifacts: status[k] = False
+        return status
+        
+    for key, filename in artifacts.items():
+        status[key] = os.path.exists(os.path.join(feature_dir, filename))
+    
+    return status
+
+
 def action_guided_workflow(state: LumaState, project: dict):
     """Run a guided end-to-end feature workflow"""
     print("\n⚡ Starting Guided Feature Workflow")
@@ -940,10 +1028,99 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     # 2. Planning (Refine -> Spec -> Plan)
     print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
-    if input("   Run Planning Phase? (Y/n): ").lower() != 'n':
-        action_refine_issue(state, project)
-        action_generate_spec(state, project)
-        action_generate_plan(state, project)
+    
+    # Check for existing artifacts
+    feature_dir = get_feature_dir(project["path"], state.active_issue.number)
+    # Also check context if just created
+    if not feature_dir and state.context.get("last_feature_dir"):
+        feature_dir = state.context.get("last_feature_dir")
+    
+    # Save to context immediately so action_generate_plan will use it
+    if feature_dir:
+        state.context["last_feature_dir"] = feature_dir
+        
+    artifacts_status = check_planning_artifacts(feature_dir)
+    has_any = any(artifacts_status.values())
+    
+    run_planning = True
+    planning_mode = "all" # all, missing, selective
+    selected_steps = ["analysis", "spec", "plan"]
+    
+    if has_any:
+        print(f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:")
+        for k, exists in artifacts_status.items():
+            icon = "[x]" if exists else "[ ]"
+            print(f"      {icon} {k.capitalize()} ({k}.md)")
+            
+        print("\n   Select action:")
+        print("   [1] Run All (Overwrite)")
+        print("   [2] Generate Missing Only")
+        print("   [3] Select Specific Documents")
+        print("   [0] Skip Planning Phase")
+        
+        p_choice = input("\n   Select [0-3]: ").strip()
+        
+        if p_choice == "0":
+            run_planning = False
+        elif p_choice == "2":
+            planning_mode = "missing"
+        elif p_choice == "3":
+            planning_mode = "selective"
+            # Ask for selection
+            selected_steps = []
+            if input("      - Run Analysis? (y/N): ").lower() == 'y': selected_steps.append("analysis")
+            if input("      - Run Spec? (y/N): ").lower() == 'y': selected_steps.append("spec")
+            if input("      - Run Plan? (y/N): ").lower() == 'y': selected_steps.append("plan")
+            if not selected_steps:
+                print("      (No steps selected, skipping planning)")
+                run_planning = False
+        else:
+            # Default to Run All
+            planning_mode = "all"
+            
+    else:
+        # Standard flow
+        if input("   Run Planning Phase? (Y/n): ").lower() == 'n':
+            run_planning = False
+
+    if run_planning:
+        # Execute based on mode/selection
+        
+        # 1. Analyst
+        should_run_analyst = False
+        if planning_mode == "all": should_run_analyst = True
+        elif planning_mode == "missing" and not artifacts_status["analysis"]: should_run_analyst = True
+        elif planning_mode == "selective" and "analysis" in selected_steps: should_run_analyst = True
+        
+        if should_run_analyst:
+            action_refine_issue(state, project)
+            # Update feature dir after analyst runs (it might have created it)
+            feature_dir = get_feature_dir(project["path"], state.active_issue.number)
+            state.context["last_feature_dir"] = feature_dir
+
+        # 2. Spec
+        should_run_spec = False
+        if planning_mode == "all": should_run_spec = True
+        elif planning_mode == "missing" and not artifacts_status["spec"]: should_run_spec = True
+        elif planning_mode == "selective" and "spec" in selected_steps: should_run_spec = True
+        
+        if should_run_spec:
+            action_generate_spec(state, project)
+            # Update feature dir
+            if state.context.get("last_feature_dir"):
+                 feature_dir = state.context.get("last_feature_dir")
+
+        # 3. Plan
+        should_run_plan = False
+        if planning_mode == "all": should_run_plan = True
+        elif planning_mode == "missing" and not artifacts_status["plan"]: should_run_plan = True
+        elif planning_mode == "selective" and "plan" in selected_steps: should_run_plan = True
+        
+        if should_run_plan:
+            # Ensure feature_dir is in context so action_generate_plan doesn't ask again
+            if feature_dir:
+                state.context["last_feature_dir"] = feature_dir
+            action_generate_plan(state, project)
 
     # 3. Coding (User)
     print("\n🔹 Step 3: Coding Phase")
