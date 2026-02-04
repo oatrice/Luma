@@ -58,7 +58,7 @@ VALID_TRANSITIONS = {
     WorkflowPhase.SELECTING: [WorkflowPhase.IDLE, WorkflowPhase.CODING],
     WorkflowPhase.CODING: [WorkflowPhase.IDLE, WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],  # Allow switching issues while coding
     WorkflowPhase.PREFLIGHT: [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING],
-    WorkflowPhase.PR_PENDING: [WorkflowPhase.IDLE, WorkflowPhase.CODING],
+    WorkflowPhase.PR_PENDING: [WorkflowPhase.IDLE, WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT], # Allow re-checks
 }
 
 TRANSITION_REQUIREMENTS = {
@@ -211,10 +211,12 @@ def transition_to(
     if not can_transition(state.phase, new_phase):
         return False, f"❌ Cannot transition from '{state.phase.value}' to '{new_phase.value}'"
     
+    
     # Check requirements
-    key = (state.phase, new_phase)
-    if key in TRANSITION_REQUIREMENTS:
-        for req in TRANSITION_REQUIREMENTS[key]:
+    # Handle composite keys for requirements (tuple) or simple lookups
+    reqs = TRANSITION_REQUIREMENTS.get((state.phase, new_phase))
+    if reqs:
+        for req in reqs:
             if req not in kwargs or kwargs[req] is None:
                 return False, f"❌ Missing required data: '{req}'"
     

@@ -195,6 +195,8 @@ INSTRUCTIONS:
             print("🤖 Generating PR Body with AI...")
             try:
                 response = llm.invoke([HumanMessage(content=prompt)])
+                # Extract content from response first
+                generated_body = response.content
                 if isinstance(generated_body, list):
                     # Handle case where content is a list of blocks
                     generated_body = " ".join([str(item) for item in generated_body])
