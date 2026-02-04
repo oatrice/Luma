@@ -844,3 +844,152 @@ def action_update_roadmap(state: LumaState, project: dict):
         print(f"❌ Failed to write roadmap: {e}")
 
 
+def action_archive_artifacts(state: LumaState, project: dict):
+    """Move active artifacts to feature directory"""
+    if not state.active_issue:
+        print("❌ No active issue to archive for.")
+        return
+
+    print(f"\n📦 Archiving artifacts for Issue #{state.active_issue.number}...")
+
+    # Determine Feature Directory
+    # Strategy: Try to find existing dir matching issue number
+    features_root = os.path.join(project["path"], "docs", "features")
+    if not os.path.exists(features_root):
+        os.makedirs(features_root)
+
+    feature_dir = None
+    
+    # 1. Check if we already have a context
+    if state.context.get("last_feature_dir"):
+        feature_dir = state.context.get("last_feature_dir")
+
+    # 2. Search existing
+    if not feature_dir:
+        for d in os.listdir(features_root):
+            if d.startswith(f"{state.active_issue.number}_") or f"issue-{state.active_issue.number}" in d:
+                feature_dir = os.path.join(features_root, d)
+                break
+    
+    # 3. Create new if needed
+    if not feature_dir:
+        slug = state.active_issue.title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:50]
+        dirname = f"{state.active_issue.number}_{slug}"
+        feature_dir = os.path.join(features_root, dirname)
+        os.makedirs(feature_dir, exist_ok=True)
+        print(f"   📂 Created feature dir: {dirname}")
+    else:
+        print(f"   📂 Target: {os.path.basename(feature_dir)}")
+
+    # Files to move
+    # We look for these in the project root
+    artifacts = [
+        "analysis.md", "spec.md", "plan.md", "task.md", "walkthrough.md",
+        "implementation_plan.md", "code_review.md" 
+    ]
+    # Also support platform specific variations like plan_android.md
+    
+    import shutil
+    
+    moved_count = 0
+    
+    # Scan root for exact matches and checking for prefix variations if needed
+    for filename in os.listdir(project["path"]):
+        # Check explicit list or pattern
+        is_match = filename in artifacts
+        
+        # Check variations: plan_*.md, walkthrough_*.md
+        if not is_match:
+            if filename.startswith("plan_") and filename.endswith(".md"): is_match = True
+            if filename.startswith("walkthrough_") and filename.endswith(".md"): is_match = True
+        
+        if is_match:
+            src = os.path.join(project["path"], filename)
+            dst = os.path.join(feature_dir, filename)
+            
+            try:
+                shutil.move(src, dst)
+                print(f"   ➡️  Moved {filename}")
+                moved_count += 1
+            except Exception as e:
+                print(f"   ⚠️  Failed to move {filename}: {e}")
+
+    if moved_count == 0:
+        print("   (No artifacts found in root to move)")
+    else:
+        print(f"✅ Archived {moved_count} files.")
+
+
+def action_guided_workflow(state: LumaState, project: dict):
+    """Run a guided end-to-end feature workflow"""
+    print("\n⚡ Starting Guided Feature Workflow")
+    print("====================================")
+    
+    # 1. Select Issue
+    if not state.active_issue:
+        print("\n🔹 Step 1: Select Issue")
+        if not action_select_issue(state, project):
+            print("❌ No issue selected. Aborting.")
+            return
+    else:
+        print(f"\n🔹 Step 1: Issue #{state.active_issue.number} already selected.")
+
+    # 2. Planning (Refine -> Spec -> Plan)
+    print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
+    if input("   Run Planning Phase? (Y/n): ").lower() != 'n':
+        action_refine_issue(state, project)
+        action_generate_spec(state, project)
+        action_generate_plan(state, project)
+
+    # 3. Coding (User)
+    print("\n🔹 Step 3: Coding Phase")
+    print("   🤖 AI Assist + 👤 Human Coding")
+    print("   - Use your IDE to implement the feature.")
+    print("   - Run 'Luma' > 'Code Review' periodically.")
+    
+    cont = input("\n   Have you finished coding and verified the feature? (y/N): ").lower()
+    if cont != 'y':
+        print("\n⏳ Pausing workflow. Come back when you're done!")
+        return
+
+    # 4. Review & Docs
+    print("\n🔹 Step 4: Quality & Documentation")
+    if input("   Run Code Review? (Y/n): ").lower() != 'n':
+        action_code_review(state, project)
+        
+    if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != 'n':
+        action_update_docs(state, project)
+
+    # 5. Archive Artifacts
+    print("\n🔹 Step 5: Archive Artifacts")
+    if input("   Move artifacts to docs/features/...? (Y/n): ").lower() != 'n':
+        action_archive_artifacts(state, project)
+
+    # 6. Create PR
+    print("\n🔹 Step 6: Create Pull Request")
+    if input("   Create PR now? (Y/n): ").lower() != 'n':
+        action_create_pr(state, project)
+        
+        # Poll for Merge?
+        if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
+            print(f"\n⏳ PR Created: {state.pr_url}")
+            print("   Please merge the PR on GitHub.")
+            input("   Press Enter AFTER you have merged the PR...")
+            
+            # Use the refresh check logic from main loop or just assume
+            from luma_core.github_project import check_pr_merged
+            pr_status = check_pr_merged(state.pr_url)
+            if pr_status["merged"]:
+                print("✅ PR Merged confirmed!")
+            else:
+                 print("⚠️ PR not detected as merged yet, but proceeding...")
+    
+    # 7. Update Roadmap & Next
+    print("\n🔹 Step 7: Finalize")
+    if input("   Update Roadmap? (Y/n): ").lower() != 'n':
+        action_update_roadmap(state, project)
+        
+    print("\n🎉 Workflow Completed! You can now select the next issue.")
+
+
+

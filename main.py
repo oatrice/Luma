@@ -76,6 +76,7 @@ MENU_ACTIONS = {
     "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE]},
     "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
+    "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
@@ -173,6 +174,10 @@ def main():
         
         elif choice.upper() == "U":
             actions.action_update_roadmap(state, project)
+
+        elif choice.upper() == "A":
+            actions.action_guided_workflow(state, project)
+            save_state(state, project["path"])
 
         elif choice.upper() == "K":
             actions.action_view_kanban(project)
