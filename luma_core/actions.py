@@ -1266,7 +1266,7 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
         
         if feature_dir and os.path.exists(feature_dir):
             print(f"   📂 Loading context from: {os.path.basename(feature_dir)}...")
-            docs_to_read = ["plan.md", "spec.md", "implementation_plan.md", f"plan_{agent_type}.md"]
+            docs_to_read = ["analysis.md", "plan.md", "spec.md", "implementation_plan.md", f"plan_{agent_type}.md"]
             
             for doc in docs_to_read:
                 doc_path = os.path.join(feature_dir, doc)
