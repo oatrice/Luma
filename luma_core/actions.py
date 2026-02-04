@@ -1171,6 +1171,10 @@ def action_guided_workflow(state: LumaState, project: dict):
     
     # 7. Update Roadmap & Next
     print("\n🔹 Step 7: Finalize")
+    
+    if input("   Update Project Documentation (README/Changelog)? (Y/n): ").lower() != 'n':
+        action_update_docs(state, project)
+
     if input("   Update Roadmap? (Y/n): ").lower() != 'n':
         action_update_roadmap(state, project)
         
