@@ -45,13 +45,20 @@ PROJECTS = {
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
     },
     "3": {
+        "name": "JarWise (Backend)",
+        "path": "/Users/oatrice/Software-projects/JarWise/backend",
+        "repo": "oatrice/JarWise-Backend",
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "4": {
         "name": "JarWise (Android)",
         "path": "/Users/oatrice/Software-projects/JarWise/Android",
         "repo": "oatrice/JarWise-Android",
         "kanban_number": 7,
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
     },
-    "4": {
+    "5": {
         "name": "Tetris Battle",
         "path": "/Users/oatrice/Software-projects/Tetris-Battle",
         "repo": "oatrice/Tetris-Battle",
