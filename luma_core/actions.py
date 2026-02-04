@@ -738,9 +738,109 @@ def action_generate_plan(state: LumaState, project: dict):
         "target_dir": project["path"]
     }
 
-    print("\n📐 Invoking Architect Agent (Spec Kit)...")
-    result = architect_agent(plan_state)
-    
     if result.get("plan_file"):
         print(f"\n✨ Plan created at: {result['plan_file']}")
+
+
+def action_update_roadmap(state: LumaState, project: dict):
+    """Update ROADMAP.md status for an issue"""
+    print(f"\n🗺️  Updating Roadmap for {project['name']}...")
+
+    # Locate ROADMAP.md
+    roadmap_paths = [
+        os.path.join(project["path"], "docs", "ROADMAP.md"),
+        os.path.join(project["path"], "ROADMAP.md")
+    ]
+    roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
+
+    if not roadmap_path:
+        print(f"❌ Roadmap not found in docs/ or root.")
+        return
+
+    # Read content
+    try:
+        with open(roadmap_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"❌ Failed to read roadmap: {e}")
+        return
+
+    # Interactive: Select Issue
+    issue_id = input("Enter Issue # to update (e.g. 65): ").strip().replace("#", "")
+    if not issue_id:
+        return
+
+    # Find the block
+    found_idx = -1
+    for i, line in enumerate(lines):
+        if f"**#{issue_id}" in line or f"#{issue_id} " in line:
+            found_idx = i
+            break
+
+    if found_idx == -1:
+        print(f"❌ Issue #{issue_id} not found in Roadmap.")
+        return
+
+    print(f"✅ Found issue at line {found_idx+1}: {lines[found_idx].strip()}")
+    
+    # Look for status line in next few lines
+    status_idx = -1
+    indent = "    - " # Default fallback indent
+    
+    for i in range(found_idx + 1, min(found_idx + 6, len(lines))):
+        stripped = lines[i].strip()
+        if stripped.startswith("- **Status:**") or stripped.startswith("- ✅ **Done**") or stripped.startswith("- 🟡 **In Progress**") or "Status:" in stripped or "✅ **Done**" in stripped:
+            status_idx = i
+            print(f"   Current: {stripped}")
+            # Capture existing indentation
+            indent = lines[i][:lines[i].find(stripped) + 2] # rough guess or just use standard
+            if lines[i].startswith("    -"): indent = "    - "
+            elif lines[i].startswith("\t-"): indent = "\t- "
+            break
+
+    # Ask for new status
+    print("\nSelect new status:")
+    print("  [1] ✅ Done")
+    print("  [2] 🟢 Ready")
+    print("  [3] 🟡 In Progress")
+    print("  [4] 🔴 Blocked")
+    
+    status_choice = input("Select [1-4]: ").strip()
+    
+    new_status_line = ""
+    
+    if status_choice == "1":
+        version = input("Enter Version (e.g. v1.8.0) [default: v1.8.0]: ").strip()
+        if not version: version = "v1.8.0"
+        note = input("Enter Completion Note: ").strip()
+        
+        new_status_line = f"{indent}✅ **Done** ({version})"
+        if note:
+             new_status_line += f" - {note}"
+             
+    elif status_choice == "2":
+        new_status_line = f"{indent}**Status:** 🟢 **Ready**"
+    elif status_choice == "3":
+        new_status_line = f"{indent}**Status:** 🟡 **In Progress**"
+    elif status_choice == "4":
+        new_status_line = f"{indent}**Status:** 🔴 **Blocked**"
+    else:
+        print("❌ Invalid selection")
+        return
+
+    # Update logic
+    if status_idx != -1:
+        lines[status_idx] = new_status_line + "\n"
+    else:
+        print("⚠️  Status line not found nearby. Appending new status line.")
+        lines.insert(found_idx + 2, new_status_line + "\n")
+
+    # Write back
+    try:
+        with open(roadmap_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        print(f"✅ Roadmap updated successfully!")
+    except Exception as e:
+        print(f"❌ Failed to write roadmap: {e}")
+
 
