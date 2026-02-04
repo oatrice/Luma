@@ -16,6 +16,7 @@ from luma_core.tools import (
 )
 from luma_core.config import PROJECTS
 from luma_core.preflight_checker import PreflightChecker
+from luma_core.agents.publisher import publisher_agent
 
 # =============================================================================
 # Menu Actions
@@ -362,7 +363,9 @@ def action_list_active_issues(project: dict):
 
 def action_create_pr(state: LumaState, project: dict):
     """Create Pull Request with Pre-flight Checks"""
-    if state.phase != WorkflowPhase.CODING:
+    # Allow if Coding OR (PR_Pending to sync other repos)
+    allowed_phases = [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]
+    if state.phase not in allowed_phases:
         print(f"❌ Cannot create PR in '{state.phase.value}' phase")
         print("💡 Start coding first by selecting an issue")
         return
@@ -446,6 +449,15 @@ def action_create_pr(state: LumaState, project: dict):
         except Exception as e:
             print(f"   ⚠️ Error checking repo {proj['name']}: {e}")
             continue
+
+        # Check for existing PR
+        from luma_core.github_client import get_open_pr
+        repo_name = proj.get("repo")
+        if repo_name:
+            existing = get_open_pr(repo_name, state.active_branch)
+            if existing:
+                 print(f"   ⏩ Skipping {proj['name']} (PR already exists: {existing['html_url']})")
+                 continue
 
         # 3. Proceed to Create PR for this repo
         print(f"   ✨ Creating PR for {proj['name']}...")
@@ -1202,7 +1214,7 @@ def action_guided_workflow(state: LumaState, project: dict):
     if input("   Move artifacts to docs/features/...? (Y/n): ").lower() != 'n':
         action_archive_artifacts(state, project)
 
-    # 6. Create PR
+    # 6. Create PR (Renamed for clarity as user requested)
     print("\n🔹 Step 6: Create Pull Request")
     if input("   Create PR now? (Y/n): ").lower() != 'n':
         action_create_pr(state, project)

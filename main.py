@@ -74,6 +74,7 @@ MENU_ACTIONS = {
     "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "6": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
     "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING]},
+    "P": {"label": "🚀 Create/Sync PRs",           "valid_phases": "ALL"},
     "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
@@ -167,6 +168,10 @@ def main():
         
         elif choice == "7":
             actions.action_update_docs(state, project)
+            
+        elif choice == "P": # Create/Sync PRs
+            actions.action_create_pr(state, project)
+            save_state(state, project["path"])
         
         elif choice == "8":
             actions.action_create_pr(state, project)
