@@ -944,6 +944,10 @@ def action_guided_workflow(state: LumaState, project: dict):
     # 3. Coding (User)
     print("\n🔹 Step 3: Coding Phase")
     print("   🤖 AI Assist + 👤 Human Coding")
+    
+    # Offer Multi-Agent Swarm
+    action_run_multi_agent_coding(state, project)
+    
     print("   - Use your IDE to implement the feature.")
     print("   - Run 'Luma' > 'Code Review' periodically.")
     
@@ -990,6 +994,190 @@ def action_guided_workflow(state: LumaState, project: dict):
         action_update_roadmap(state, project)
         
     print("\n🎉 Workflow Completed! You can now select the next issue.")
+
+
+def action_run_multi_agent_coding(state: LumaState, project: dict):
+    """Run sequential AI coding agents for different stacks."""
+    print("\n🤖 Multi-Agent Auto-Coding Swarm")
+    print("==================================")
+    print("Which agents would you like to compile?")
+    print("  [1] All (Frontend + Backend + Android)")
+    print("  [2] Frontend (Web)")
+    print("  [3] Backend (Go/Python)")
+    print("  [4] Android (Kotlin)")
+    print("  [5] 📝 Generate Prompts Only (for manual use)")
+    print("  [0] Skip (Manual Coding)")
+    
+    choice = input("\nSelect [0-5]: ").strip()
+    
+    if choice == "0":
+        return
+
+    # Define agents config
+    agents_to_run = []
+    generate_prompts_only = False
+    
+    if choice == "1":
+        agents_to_run = ["frontend", "backend", "android"]
+    elif choice == "2":
+        agents_to_run = ["frontend"]
+    elif choice == "3":
+        agents_to_run = ["backend"]
+    elif choice == "4":
+        agents_to_run = ["android"]
+    elif choice == "5":
+        agents_to_run = ["frontend", "backend", "android"]
+        generate_prompts_only = True
+    else:
+        print("❌ Invalid selection.")
+        return
+
+    # Import Coder
+    try:
+        from luma_core.agents.coder import coder_agent
+    except ImportError:
+        print("❌ Coder Agent not found.")
+        return
+
+    # Execution Loop
+    for agent_type in agents_to_run:
+        print(f"\n🚀 Preparing {agent_type.upper()} context...")
+        
+        # 1. Prepare Context based on type
+        # In a real system, we'd read from plan.md to get specific tasks per platform
+        # For now, we use a generic task + specific path scope
+        
+        sub_task = f"Implement {agent_type} components for Issue #{state.active_issue.number}: {state.active_issue.title}"
+        source_paths = []
+        
+        tech_stack = ""
+        if agent_type == "frontend":
+            tech_stack = "React/Vue/Web technologies. Focus on UI implementation."
+            if os.path.exists(os.path.join(project["path"], "Web")):
+                source_paths.append("Web/package.json")
+        elif agent_type == "backend":
+            tech_stack = "Go/Python. Implement API endpoints and business logic."
+            if os.path.exists(os.path.join(project["path"], "backend")):
+                source_paths.append("backend/go.mod")
+        elif agent_type == "android":
+            tech_stack = "Kotlin/Jetpack Compose. Implement Mobile UI and ViewModel."
+            if os.path.exists(os.path.join(project["path"], "view")): # Legacy or Luma specific
+                 pass
+        
+        sub_task += f" Use {tech_stack}"
+        
+        
+        # --- NEW: Context from Artifacts ---
+        artifact_context = ""
+        feature_dir = None
+        
+        # 1. Try to find feature dir
+        if state.context.get("last_feature_dir"):
+            feature_dir = state.context.get("last_feature_dir")
+        
+        if not feature_dir:
+             features_root = os.path.join(project["path"], "docs", "features")
+             if os.path.exists(features_root):
+                 for d in os.listdir(features_root):
+                    if d.startswith(f"{state.active_issue.number}_") or f"issue-{state.active_issue.number}" in d:
+                        feature_dir = os.path.join(features_root, d)
+                        break
+        
+        if feature_dir and os.path.exists(feature_dir):
+            print(f"   📂 Loading context from: {os.path.basename(feature_dir)}...")
+            docs_to_read = ["plan.md", "spec.md", "implementation_plan.md", f"plan_{agent_type}.md"]
+            
+            for doc in docs_to_read:
+                doc_path = os.path.join(feature_dir, doc)
+                if os.path.exists(doc_path):
+                    try:
+                        with open(doc_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                            artifact_context += f"\n\n## Reference: {doc}\n{content[:5000]}\n(truncated if too long)\n"
+                    except:
+                        pass
+        else:
+             print("   ⚠️ No feature directory found. Using generic context.")
+
+        if generate_prompts_only:
+             # Just generate the prompt text file
+             prompt_file = os.path.join(project["path"], f"prompt_{agent_type}.txt")
+             
+             prompt_content = f"""# Role: Senior {agent_type.capitalize()} Developer
+# Task: {sub_task}
+
+Please write the code for the following requirements.
+
+## Context
+Project: {project['name']}
+Issue: #{state.active_issue.number} {state.active_issue.title}
+Body:
+{state.active_issue.body or "No details provided."}
+
+## Architecture & Plans (AUTHORITATIVE)
+The following content is from the approved design documents. **You MUST follow this design.**
+{artifact_context}
+
+## Default Guidance (Use only if not specified in Plans)
+- Tech Stack: {tech_stack}
+- Follow Clean Architecture
+- Ensure TDD (Test Driven Development)
+
+**IMPORTANT CONFLICT RESOLUTION:**
+If the 'Architecture & Plans' section conflicts with the 'Default Guidance', **FOLLOW THE PLANS**.
+
+## Output Format
+Please provide the full code files wrapped in XML tags:
+<file path="path/to/file.ext">
+... code ...
+</file>
+
+## Language
+Please explain your solution and comments in Thai only.
+"""
+             with open(prompt_file, "w", encoding="utf-8") as f:
+                 f.write(prompt_content)
+             print(f"   📄 Generated prompt file: {os.path.basename(prompt_file)}")
+             continue
+
+        # Create scoped state
+        agent_state = {
+            "task": sub_task,
+            "source_files": source_paths,
+            "iterations": 0,
+            "test_errors": "",
+            "skip_coder": False
+        }
+        
+        # 2. Run Agent
+        try:
+            print(f"   🤖 Running {agent_type} agent...")
+            result = coder_agent(agent_state)
+            
+            # 3. Apply Changes (Simulation)
+            changes = result.get("changes", {})
+            if changes:
+                print(f"   📝 Agent proposed {len(changes)} file changes:")
+                for path in changes:
+                    print(f"      - {path}")
+                
+                # In fully auto mode, we might write them. 
+                # For safety in this CLI, we ask or just save a patch.
+                # Let's save a "patch" file for the user to review.
+                patch_file = os.path.join(project["path"], f"agent_{agent_type}_patch.xml")
+                with open(patch_file, "w") as f:
+                    f.write(result.get("code_content", ""))
+                print(f"   💾 Saved proposed changes to: {os.path.basename(patch_file)}")
+            else:
+                print("   🤷 Agent decided not to change any code.")
+                
+        except Exception as e:
+            print(f"   ⚠️ Agent Error: {e}")
+            
+    if generate_prompts_only:
+        print("\n✅ Prompts generated! You can now use 'prompt_*.txt' files with your preferred AI.")
+    else:
+        print("\n✅ Multi-Agent session finished. Review the 'agent_*_patch.xml' files.")
 
 
 
