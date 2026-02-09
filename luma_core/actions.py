@@ -43,8 +43,8 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     # Fetch all cards
     all_cards = fetch_kanban_cards(project["kanban_number"])
     
-    # Filter for Ready or In Progress
-    valid_statuses = ["Ready", "In Progress"]
+    # Filter for Ready, In Progress, or Todo
+    valid_statuses = ["Ready", "In Progress", "Todo"]
     selectable_issues = []
     
     for card in all_cards:
@@ -53,14 +53,19 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
             selectable_issues.append(card)
             
     if not selectable_issues:
-        print("📭 No 'Ready' or 'In Progress' issues found on Kanban.")
+        print("📭 No 'Ready', 'In Progress', or 'Todo' issues found on Kanban.")
         return False
     
-    # Sort: In Progress first, then Ready
+    # Sort: In Progress -> Ready -> Todo
     def sort_key(c):
-        # 0 = In Progress, 1 = Ready
-        prio = 0 if c.status.lower() == "in progress" else 1
-        return (prio, c.issue_number)
+        status = c.status.lower()
+        if status == "in progress":
+            return (0, c.issue_number)
+        elif status == "ready":
+            return (1, c.issue_number)
+        elif status == "todo":
+            return (2, c.issue_number)
+        return (3, c.issue_number)
         
     selectable_issues.sort(key=sort_key)
     
@@ -331,8 +336,8 @@ def action_list_active_issues(project: dict):
         print("✅ No active issues! All done.")
         return
 
-    # Sort Logic: In Progress -> Ready -> Backlog -> Others
-    priority = {"In Progress": 0, "Ready": 1, "Backlog": 2}
+    # Sort Logic: In Progress -> Ready -> Todo -> Backlog -> Others
+    priority = {"In Progress": 0, "Ready": 1, "Todo": 2, "Backlog": 3}
     
     def get_priority(card):
         return priority.get(card.status, 99)
@@ -351,6 +356,7 @@ def action_list_active_issues(project: dict):
         status_icon = ""
         if card.status == "In Progress": status_icon = "🔥 "
         elif card.status == "Ready": status_icon = "✅ "
+        elif card.status == "Todo": status_icon = "📝 "
         elif card.status == "Backlog": status_icon = "📥 "
         
         display_status = f"{status_icon}{card.status}"
