@@ -66,4 +66,44 @@ PROJECTS = {
         "kanban_number": 6,
         "kanban_id": "PVT_kwHOATfKEM4BKZK5",
     },
+    # ==========================================================================
+    # The Middle Way Project
+    # ==========================================================================
+    "6": {
+        "name": "TheMiddleWay-Root",
+        "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata",
+        "repo": "oatrice/TheMiddleWay-Metadata",
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+        "type": "monorepo_root",
+        "sibling_repos": ["7", "8", "9", "10"],  # Web, Android, iOS, Backend
+    },
+    "7": {
+        "name": "TheMiddleWay (Web)",
+        "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Web",
+        "repo": "oatrice/TheMiddleWay-Web",
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "8": {
+        "name": "TheMiddleWay (Android)",
+        "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Android",
+        "repo": "oatrice/TheMiddleWay-Android",
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "9": {
+        "name": "TheMiddleWay (iOS)",
+        "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/iOS",
+        "repo": "oatrice/TheMiddleWay-IOS",
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "10": {
+        "name": "TheMiddleWay (Backend)",
+        "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Backend",
+        "repo": "oatrice/TheMiddleWay-Backend",
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
 }
