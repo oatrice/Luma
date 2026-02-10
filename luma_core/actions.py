@@ -1256,14 +1256,15 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
     print("\n🤖 Multi-Agent Auto-Coding Swarm")
     print("==================================")
     print("Which agents would you like to compile?")
-    print("  [1] All (Frontend + Backend + Android)")
+    print("  [1] All (Frontend + Backend + Android + iOS)")
     print("  [2] Frontend (Web)")
     print("  [3] Backend (Go/Python)")
     print("  [4] Android (Kotlin)")
-    print("  [5] 📝 Generate Prompts Only (for manual use)")
+    print("  [5] iOS (Swift)")
+    print("  [6] 📝 Generate Prompts Only (for manual use)")
     print("  [0] Skip (Manual Coding)")
     
-    choice = input("\nSelect [0-5]: ").strip()
+    choice = input("\nSelect [0-6]: ").strip()
     
     if choice == "0":
         return
@@ -1273,7 +1274,7 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
     generate_prompts_only = False
     
     if choice == "1":
-        agents_to_run = ["frontend", "backend", "android"]
+        agents_to_run = ["frontend", "backend", "android", "ios"]
     elif choice == "2":
         agents_to_run = ["frontend"]
     elif choice == "3":
@@ -1281,7 +1282,9 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
     elif choice == "4":
         agents_to_run = ["android"]
     elif choice == "5":
-        agents_to_run = ["frontend", "backend", "android"]
+        agents_to_run = ["ios"]
+    elif choice == "6":
+        agents_to_run = ["frontend", "backend", "android", "ios"]
         generate_prompts_only = True
     else:
         print("❌ Invalid selection.")
@@ -1318,6 +1321,10 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
             tech_stack = "Kotlin/Jetpack Compose. Implement Mobile UI and ViewModel. IMPORTANT: Do NOT use ./gradlew directly. You MUST use scripts in ./Android/scripts/ (e.g. ./Android/scripts/run_tests.sh, ./Android/scripts/build.sh)."
             if os.path.exists(os.path.join(project["path"], "view")): # Legacy or Luma specific
                  pass
+        elif agent_type == "ios":
+            tech_stack = "Swift/SwiftUI. Implement iOS UI + MVVM. Use XCTest."
+            # Ideally look for xcodeproj but we don't have a specific file to append yet
+            pass
         
         sub_task += f" Use {tech_stack}"
         
