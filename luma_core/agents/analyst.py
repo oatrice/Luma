@@ -51,7 +51,7 @@ def analyst_agent(state: AgentState):
     Guidelines:
     - Be thorough and detailed.
     - If information is missing in the issue, make reasonable assumptions based on standard software practices, but note them.
-    - For 'Impact Analysis', consider a standard web/mobile app structure (React/Next.js frontend, Python/Node backend).
+    - For 'Impact Analysis', consider a standard cross-platform app structure (React/Next.js Web, Kotlin Android, Swift iOS, Python/Go Backend).
     - Maintain the exact markdown structure of the template.
     - IMPORTANT: In the 'Feature Information' table, you MUST include an 'Issue URL' row with a markdown link to the GitHub issue.
     - Use the current date for the 'Date' field.
