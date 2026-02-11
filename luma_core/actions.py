@@ -367,7 +367,7 @@ def action_list_active_issues(project: dict):
     print(f"Total Active: {len(active_cards)} issues")
 
 
-def action_create_pr(state: LumaState, project: dict):
+def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False):
     """Create Pull Request with Pre-flight Checks"""
     # Allow if Coding OR (PR_Pending to sync other repos)
     allowed_phases = [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]
@@ -408,10 +408,7 @@ def action_create_pr(state: LumaState, project: dict):
         print("\n❌ One or more pre-flight checks failed.")
         print("💡 Please fix the issues above and try again.")
         
-        override = input("⚠️ Force create PR anyways? (y/N): ").strip().lower()
-        if not override:
-            override = 'n'
-            
+        override = 'y' if auto_approve else input("⚠️ Force create PR anyways? (y/N): ").strip().lower()
         if override != 'y':
             # Revert to CODING
             transition_to(state, WorkflowPhase.CODING)
@@ -427,6 +424,20 @@ def action_create_pr(state: LumaState, project: dict):
                      target_projects.append(PROJECTS[sibling_key])
         except Exception:
             pass
+
+    # --- SCREENSHOT LOGIC ---
+    screenshot_md = ""
+    feature_dir = state.context.get("last_feature_dir")
+    screenshots_to_sync = []
+    
+    if feature_dir:
+        sc_dir = os.path.join(feature_dir, "screenshots")
+        if os.path.exists(sc_dir):
+            files = [f for f in os.listdir(sc_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+            if files:
+                print(f"   📸 Found {len(files)} screenshots to attach...")
+                for f in files:
+                    screenshots_to_sync.append(os.path.join(sc_dir, f))
 
     for proj in target_projects:
         print(f"\n🚀 Processing {proj['name']}...")
@@ -464,16 +475,59 @@ def action_create_pr(state: LumaState, project: dict):
             if existing:
                  print(f"   ⏩ Skipping {proj['name']} (PR already exists: {existing['html_url']})")
                  continue
+        
+        # --- SYNC SCREENSHOTS TO TARGET REPO ---
+        repo_screenshot_section = ""
+        if screenshots_to_sync:
+            try:
+                # 1. Create docs/screenshots/issue-N/ in target repo
+                issue_id = state.active_issue.number
+                target_sc_dir = os.path.join(proj["path"], "docs", "screenshots", f"issue-{issue_id}")
+                os.makedirs(target_sc_dir, exist_ok=True)
+                
+                repo_screenshot_section = "\n\n## 📸 Screenshots\n"
+                
+                import shutil
+                git_add_files = []
+                
+                for src_path in screenshots_to_sync:
+                    filename = os.path.basename(src_path)
+                    dst_path = os.path.join(target_sc_dir, filename)
+                    
+                    if not os.path.exists(dst_path) or os.path.getsize(src_path) != os.path.getsize(dst_path):
+                        shutil.copy2(src_path, dst_path)
+                        print(f"      - Copied {filename} to {proj['name']}")
+                    
+                    # Relative path for Markdown
+                    rel_path = f"docs/screenshots/issue-{issue_id}/{filename}"
+                    repo_screenshot_section += f"![{filename}]({rel_path})\n"
+                    git_add_files.append(rel_path)
+                
+                # 2. Git Add the screenshots
+                if git_add_files:
+                    subprocess.run(["git", "add"] + git_add_files, cwd=proj["path"], check=False)
+                    subprocess.run(["git", "commit", "-m", "docs: add screenshots"], cwd=proj["path"], check=False, capture_output=True)
+                    
+            except Exception as e:
+                print(f"   ⚠️ Failed to sync screenshots: {e}")
 
         # 3. Proceed to Create PR for this repo
+        if not auto_approve:
+            confirm = input(f"   ✨ Create PR for {proj['name']}? (Y/n): ").strip().lower()
+            if confirm == 'n': continue
+
         print(f"   ✨ Creating PR for {proj['name']}...")
         
         # Construct a temporary state for the publisher
+        # Append screenshots to body
+        issue_body = (state.active_issue.body or "") + repo_screenshot_section
+        
         pub_state = {
             "task": state.active_issue.title,
             "issue_data": {
                 "title": state.active_issue.title,
-                "number": state.active_issue.number
+                "number": state.active_issue.number,
+                "body": issue_body
             },
             "repo": proj["repo"],
             "target_dir": proj["path"],
@@ -495,7 +549,7 @@ def action_create_pr(state: LumaState, project: dict):
                  if ok:
                       print("   🔄 State updated to PR_PENDING")
         else:
-            print(f"   ⚠️ Publisher finished but no PR URL returned for {proj['name']}.")
+            print(f"   ⚠️ Publisher finished but no known PR URL.")
 
 
 def action_code_review(state: LumaState, project: dict):
@@ -1207,47 +1261,46 @@ def action_guided_workflow(state: LumaState, project: dict):
         print("\n⏳ Pausing workflow. Come back when you're done!")
         return
 
-    # 4. Review & Docs
-    print("\n🔹 Step 4: Quality & Documentation")
+    # 4. Review & Docs & Roadmap
+    print("\n🔹 Step 4: Quality, Documentation & Roadmap")
     if input("   Run Code Review? (Y/n): ").lower() != 'n':
         action_code_review(state, project)
         
     if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != 'n':
         action_update_docs(state, project)
 
+    if input("   Update Roadmap? (Y/n): ").lower() != 'n':
+        action_update_roadmap(state, project)
+
     # 5. Archive Artifacts
     print("\n🔹 Step 5: Archive Artifacts")
     if input("   Move artifacts to docs/features/...? (Y/n): ").lower() != 'n':
         action_archive_artifacts(state, project)
 
-    # 6. Create PR (Renamed for clarity as user requested)
+    # 6. Create PR (With Auto Option)
     print("\n🔹 Step 6: Create Pull Request")
-    if input("   Create PR now? (Y/n): ").lower() != 'n':
-        action_create_pr(state, project)
+    
+    # Check for "Yes to All" preference
+    auto_approve_pr = False
+    choice = input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ").strip().lower()
+    
+    if choice == 'a':
+        action_create_pr(state, project, auto_approve=True)
+    elif choice == 'y' or choice == '':
+        action_create_pr(state, project, auto_approve=False)
         
-        # Poll for Merge?
-        if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
-            print(f"\n⏳ PR Created: {state.pr_url}")
-            print("   Please merge the PR on GitHub.")
-            input("   Press Enter AFTER you have merged the PR...")
+    # Poll for Merge?
+    if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
+        print(f"\n⏳ PR Created: {state.pr_url}")
+        print("   Please merge the PR on GitHub.")
+        input("   Press Enter AFTER you have merged the PR...")
+        
+        # Use the refresh check logic from main loop or just assume
+        from luma_core.github_project import check_pr_merged
+        pr_status = check_pr_merged(state.pr_url)
+        if pr_status["merged"]:
+            print("✅ PR Merged confirmed!")
             
-            # Use the refresh check logic from main loop or just assume
-            from luma_core.github_project import check_pr_merged
-            pr_status = check_pr_merged(state.pr_url)
-            if pr_status["merged"]:
-                print("✅ PR Merged confirmed!")
-            else:
-                 print("⚠️ PR not detected as merged yet, but proceeding...")
-    
-    # 7. Update Roadmap & Next
-    print("\n🔹 Step 7: Finalize")
-    
-    if input("   Update Project Documentation (README/Changelog)? (Y/n): ").lower() != 'n':
-        action_update_docs(state, project)
-
-    if input("   Update Roadmap? (Y/n): ").lower() != 'n':
-        action_update_roadmap(state, project)
-        
     print("\n🎉 Workflow Completed! You can now select the next issue.")
 
 
