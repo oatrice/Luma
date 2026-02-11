@@ -1378,11 +1378,11 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
             if os.path.exists(os.path.join(project["path"], "Web")):
                 source_paths.append("Web/package.json")
         elif agent_type == "backend":
-            tech_stack = "Go/Python. Implement API endpoints and business logic."
+            tech_stack = "Go. Implement API endpoints and business logic."
             if os.path.exists(os.path.join(project["path"], "backend")):
                 source_paths.append("backend/go.mod")
         elif agent_type == "android":
-            tech_stack = "Kotlin/Jetpack Compose. Implement Mobile UI and ViewModel. IMPORTANT: Do NOT use ./gradlew directly. You MUST use scripts in ./Android/scripts/ (e.g. ./Android/scripts/run_tests.sh, ./Android/scripts/build.sh)."
+            tech_stack = "Kotlin/Jetpack Compose. Implement Mobile UI and ViewModel. You can use ./gradlew directly."
             if os.path.exists(os.path.join(project["path"], "view")): # Legacy or Luma specific
                  pass
         elif agent_type == "ios":
