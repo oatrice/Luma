@@ -498,10 +498,21 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                         shutil.copy2(src_path, dst_path)
                         print(f"      - Copied {filename} to {proj['name']}")
                     
-                    # Relative path for Markdown
+                    # Relative path for file operation
                     rel_path = f"docs/screenshots/issue-{issue_id}/{filename}"
-                    repo_screenshot_section += f"![{filename}]({rel_path})\n"
                     git_add_files.append(rel_path)
+                    
+                    # Markdown Link for PR Body (Must use Raw URL for new files to render in PR description)
+                    # format: https://raw.githubusercontent.com/{owner_repo}/{branch}/{path}
+                    if proj.get("repo") and state.active_branch:
+                        raw_url = f"https://raw.githubusercontent.com/{proj['repo']}/{state.active_branch}/{rel_path}"
+                        # Encoding spaces just in case, though filenames likely safe
+                        from urllib.parse import quote
+                        # We only encode the path part if needed, but simple f-string is usually fine for strict filenames
+                        repo_screenshot_section += f"![{filename}]({raw_url})\n"
+                    else:
+                        # Fallback if repo info missing
+                        repo_screenshot_section += f"![{filename}]({rel_path})\n"
                 
                 # 2. Git Add the screenshots
                 if git_add_files:
