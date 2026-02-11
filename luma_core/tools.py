@@ -1141,6 +1141,47 @@ def update_version_in_file(repo_path: str, new_version: str, version_file: str =
             return result
         except Exception as e:
             result["error"] = str(e)
+
+    # Try project.pbxproj (iOS)
+    # Search for *.xcodeproj recursively or in standard locations
+    import glob
+    # Recursively find .xcodeproj dirs
+    # This might be slow on huge repos so maybe restrict depth or specific paths
+    # For now, let's just check root and relevant subdirs
+    potential_dirs = [repo_path, os.path.join(repo_path, "Platforms", "iOS"), os.path.join(repo_path, "ios")]
+    project_files = []
+    
+    for d in potential_dirs:
+        if os.path.exists(d):
+            project_files.extend(glob.glob(os.path.join(d, "*.xcodeproj", "project.pbxproj")))
+
+    for pbxproj_path in project_files:
+        if os.path.exists(pbxproj_path):
+            try:
+                with open(pbxproj_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Regex for MARKETING_VERSION = 1.2.3;
+                pattern = r'(MARKETING_VERSION\s*=\s*)([\d.]+)(;)'
+                match = re.search(pattern, content)
+                
+                if match:
+                    result["old_version"] = match.group(2)
+                    new_content = re.sub(
+                        pattern,
+                        f'\\g<1>{new_version}\\g<3>',
+                        content
+                    )
+                    
+                    if new_content != content:
+                        with open(pbxproj_path, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+                        result["success"] = True
+                        result["file"] = os.path.basename(os.path.dirname(pbxproj_path)) # project.xcodeproj
+                        return result
+            except Exception as e:
+                # Continue checking other files if one fails
+                pass
     
     if not result["error"]:
         result["error"] = "No version file found (VERSION, package.json, or build.gradle)"
