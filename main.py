@@ -190,6 +190,13 @@ def main():
         elif choice.upper() == "R":
             state = load_state(project["path"])
             
+            # --- AUTO-FIX STUCK STATE ---
+            if state.phase == WorkflowPhase.PREFLIGHT and not state.pr_url:
+                print("⚠️ State was stuck in Pre-flight (interrupted?). Reverting to CODING.")
+                transition_to(state, WorkflowPhase.CODING)
+                save_state(state, project["path"])
+            # ----------------------------
+            
             # Auto-detect merged PR
             if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
                 from luma_core.github_project import check_pr_merged, sync_kanban_on_action

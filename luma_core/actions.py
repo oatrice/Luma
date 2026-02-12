@@ -369,8 +369,8 @@ def action_list_active_issues(project: dict):
 
 def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False):
     """Create Pull Request with Pre-flight Checks"""
-    # Allow if Coding OR (PR_Pending to sync other repos)
-    allowed_phases = [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]
+    # Allow if Coding OR (PR_Pending to sync other repos) OR Preflight (Retry)
+    allowed_phases = [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING, WorkflowPhase.PREFLIGHT]
     if state.phase not in allowed_phases:
         print(f"❌ Cannot create PR in '{state.phase.value}' phase")
         print("💡 Start coding first by selecting an issue")
@@ -417,7 +417,13 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
     # 3. Ask for Mode if not auto-approved already
     if not auto_approve:
         print("\n🤖 PR Creation Mode:")
-        mode = input("   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   Select: ").strip().lower()
+        mode = input("   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   [n] Cancel / Back to Coding\n   Select: ").strip().lower()
+        
+        if mode == 'n':
+            print("❌ Operation cancelled.")
+            transition_to(state, WorkflowPhase.CODING)
+            return
+
         if mode == 'a':
             print("   ✅ Auto-Approve enabled for all repos.")
             auto_approve = True

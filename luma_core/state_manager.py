@@ -57,7 +57,7 @@ VALID_TRANSITIONS = {
     WorkflowPhase.IDLE: [WorkflowPhase.SELECTING],
     WorkflowPhase.SELECTING: [WorkflowPhase.IDLE, WorkflowPhase.CODING],
     WorkflowPhase.CODING: [WorkflowPhase.IDLE, WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],  # Allow switching issues while coding
-    WorkflowPhase.PREFLIGHT: [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING],
+    WorkflowPhase.PREFLIGHT: [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING, WorkflowPhase.PREFLIGHT],
     WorkflowPhase.PR_PENDING: [WorkflowPhase.IDLE, WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT], # Allow re-checks
 }
 
