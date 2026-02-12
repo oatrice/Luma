@@ -414,6 +414,14 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             transition_to(state, WorkflowPhase.CODING)
             return
 
+    # 3. Ask for Mode if not auto-approved already
+    if not auto_approve:
+        print("\n🤖 PR Creation Mode:")
+        mode = input("   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   Select: ").strip().lower()
+        if mode == 'a':
+            print("   ✅ Auto-Approve enabled for all repos.")
+            auto_approve = True
+
     # Determine target repos (Multi-Repo Support)
     target_projects = [project]
     if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
