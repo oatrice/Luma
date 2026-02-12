@@ -115,11 +115,35 @@ def main():
     stored_project = global_config.get("last_project", "1")
     
     # Initialize - use stored project if no CLI arg provided
-    if args.project == "1" and stored_project in PROJECTS:
+    
+    current_cwd = os.getcwd()
+    # Migration: Support old format
+    if "last_project" in global_config and "last_projects_by_path" not in global_config:
+        global_config["last_projects_by_path"] = {}
+        # We don't know the path for the old single value, so just ignore or set default
+    
+    project_map = global_config.get("last_projects_by_path", {})
+    stored_project = project_map.get(current_cwd)
+    
+    # Priority: CLI Arg > CWD Map > Default "1"
+    if args.project != "1":
+        project_key = args.project
+    elif stored_project and stored_project in PROJECTS:
         project_key = stored_project
     else:
-        project_key = args.project if args.project in PROJECTS else "1"
+        project_key = "1"
+        
+    # Validation
+    if project_key not in PROJECTS:
+        project_key = "1"
+
     project = PROJECTS[project_key]
+    
+    # Save initial mapping if not exists
+    if current_cwd not in project_map or project_map[current_cwd] != project_key:
+        project_map[current_cwd] = project_key
+        global_config["last_projects_by_path"] = project_map
+        save_global_config(global_config)
     
     # Load state
     state = load_state(project["path"])
@@ -235,8 +259,12 @@ def main():
                 project = PROJECTS[project_key]
                 state = load_state(project["path"])
                 state.project_key = project_key
-                # Save last project to global config
-                global_config["last_project"] = project_key
+                
+                # Update map based on current CWD
+                if "last_projects_by_path" not in global_config:
+                    global_config["last_projects_by_path"] = {}
+                
+                global_config["last_projects_by_path"][current_cwd] = project_key
                 save_global_config(global_config)
         
         else:
