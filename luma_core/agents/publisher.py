@@ -183,13 +183,25 @@ INSTRUCTIONS:
         f.write(prompt)
         
     print(f"\n📝 Draft Prompt saved to: {draft_path}")
-    print("✋ Waiting for approval... Please review the prompt file.")
-    print("👉 Options: [y] Auto-Generate, [m] Use Manual Body, [n] Cancel")
     
     manual_body_path = os.path.join(target_dir, "draft_pr_body.md")
     
-    while True:
+    # Check auto-approve flag from state
+    auto_approve = state.get('auto_approve', False)
+    
+    # Initialize choice
+    if auto_approve:
+        print("🤖 Auto-Approve enabled: Skipping prompt review...")
+        choice = 'y'
+    else:
+        print("✋ Waiting for approval... Please review the prompt file.")
+        print("👉 Options: [y] Auto-Generate, [m] Use Manual Body, [n] Cancel")
         choice = input("👉 Select Check: ").strip().lower()
+    
+    while True:
+        if not choice:
+            choice = input("👉 Select Check: ").strip().lower()
+
         if choice == 'y':
             # E. Generate Auto
             print("🤖 Generating PR Body with AI...")
@@ -198,7 +210,6 @@ INSTRUCTIONS:
                 # Extract content from response first
                 generated_body = response.content
                 if isinstance(generated_body, list):
-                    # Handle case where content is a list of blocks
                     generated_body = " ".join([str(item) for item in generated_body])
                 elif not isinstance(generated_body, str):
                      generated_body = str(generated_body)
@@ -210,22 +221,35 @@ INSTRUCTIONS:
                     f.write(generated_body)
                 
                 print(f"📝 Generated content saved to: {manual_body_path}")
-                print("💡 You can review or edit this file now.")
                 
-                confirm = input("👉 Submit this PR description? (y/N): ").strip().lower()
+                if auto_approve:
+                    print("🤖 Auto-Approve enabled: Submitting PR...")
+                    confirm = 'y'
+                else:
+                    print("💡 You can review or edit this file now.")
+                    confirm = input("👉 Submit this PR description? (y/N): ").strip().lower()
+
                 if confirm == 'y':
                     # Reload in case user edited it
                     with open(manual_body_path, "r") as f:
                         body = f.read()
                     break
                 else:
+                    if auto_approve:
+                         print("🔄 Auto-Approve cancelled/failed. Stopping.")
+                         return {}
                     print("🔄 Cancelled submission. Returning to menu (Select 'm' to use draft later).")
+                    choice = '' # Reset to ask again
                     continue
 
             except Exception as e:
                 print(f"❌ AI Generation Failed: {e}")
+                if auto_approve:
+                    print("🔄 Auto-Approve failed on generation. Stopping.")
+                    return {}
                 print("🔄 Sending you back to menu to retry or use manual input...")
-                continue # Do not break, let user decide what to do next
+                choice = ''
+                continue 
 
             
         elif choice == 'm':
@@ -237,16 +261,22 @@ INSTRUCTIONS:
                         body_content = f.read()
                     print("✅ Loaded manual PR body.")
                     
-                    confirm = input("👉 Submit this manual PR description? (y/N): ").strip().lower()
+                    if auto_approve:
+                        confirm = 'y'
+                    else:
+                        confirm = input("👉 Submit this manual PR description? (y/N): ").strip().lower()
+                    
                     if confirm == 'y':
                         body = body_content
                         break
                     else:
                         print("🔄 Cancelled submission. You can edit the file and try again.")
+                        choice = ''
                         continue
                 except Exception as e:
                     print(f"❌ Failed to read manual body: {e}")
                     print("Falling back to Auto-Generate? (y/n)")
+                    choice = ''
                     continue
             else:
                 # Create empty template if not exists
@@ -254,14 +284,15 @@ INSTRUCTIONS:
                     f.write(f"# {state['task']}\n\n<!-- Paste your generated PR description here -->\n")
                 print(f"⚠️ File not found. Created template at: {manual_body_path}")
                 print(f"👉 Please edit the file and select 'm' again.")
+                choice = ''
                 continue
                 
-        elif choice == 'n' or choice == '':
+        elif choice == 'n':
             print("❌ Operation cancelled by user.")
             return {}
         else:
             print("Invalid input. Please enter 'y', 'm', or 'n'.")
-
+            choice = ''
     # Add Test Suggestions appended
     if state.get("test_suggestions"):
         body += f"\n\n## 🧪 Suggested Test Cases\n{state['test_suggestions']}"
