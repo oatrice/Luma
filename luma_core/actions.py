@@ -542,7 +542,8 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             },
             "repo": proj["repo"],
             "target_dir": proj["path"],
-            "test_suggestions": ""
+            "test_suggestions": "",
+            "auto_approve": auto_approve
         }
         
         print(f"   📤 Invoking Publisher Agent for {proj['name']}...")
