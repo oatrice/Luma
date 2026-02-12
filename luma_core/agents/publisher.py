@@ -154,6 +154,48 @@ def publisher_agent(state: AgentState):
     if os.path.exists(template_path):
         with open(template_path, "r") as f:
             template_content = f.read()
+    # B2. Check for Screenshots
+    import glob
+    feature_id = str(state.get('issue_data', {}).get('number', ''))
+    screenshots_info = ""
+    
+    if feature_id:
+        # Search for docs/features/*{feature_id}*
+        search_pattern = os.path.join(target_dir, "docs", "features", f"*{feature_id}*")
+        matches = glob.glob(search_pattern)
+        
+        if matches:
+            feature_path = matches[0]
+            screenshots_dir = os.path.join(feature_path, "screenshots")
+            if not os.path.exists(screenshots_dir):
+                 try:
+                     os.makedirs(screenshots_dir, exist_ok=True)
+                 except: pass
+            
+            # Check for files
+            def get_images():
+                pngs = glob.glob(os.path.join(screenshots_dir, "*.png"))
+                jpgs = glob.glob(os.path.join(screenshots_dir, "*.jpg"))
+                jpegs = glob.glob(os.path.join(screenshots_dir, "*.jpeg"))
+                return pngs + jpgs + jpegs
+
+            all_screens = get_images()
+            
+            # Interactive wait if empty
+            if not all_screens and not state.get('auto_approve', False):
+                print(f"\n📸 No screenshots found in: {screenshots_dir}")
+                print("   Please add screenshots now to help the LLM write a better PR description.")
+                inp = input("   Press Enter after adding screenshots (or 's' to skip)...").strip().lower()
+                if inp != 's':
+                    all_screens = get_images()
+            
+            if all_screens:
+                screenshots_info = "\nSCREENSHOTS_AVAILABLE:\n"
+                screenshots_info += "The following screenshots are available. Please EMBED them in the PR description using markdown like `![Description](relative/path/to/image.png)` or `<img src=\"relative/path/to/image.png\" width=\"300\" />`. Pick the most relevant ones.\n"
+                for s in all_screens:
+                    rel_path = os.path.relpath(s, target_dir)
+                    screenshots_info += f"- {rel_path}\n"
+
 
     # C. Construct Prompt
     prompt = f"""You are an AI assistant helping to create a Pull Request description.
@@ -163,6 +205,7 @@ ISSUE: {json.dumps(state.get('issue_data', {}), indent=2)}
 
 GIT CONTEXT:
 {git_stats}
+{screenshots_info}
 
 PR TEMPLATE:
 {template_content}
