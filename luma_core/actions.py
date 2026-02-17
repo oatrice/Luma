@@ -758,7 +758,6 @@ def action_refine_issue(state: LumaState, project: dict):
     
     if result.get("analysis_file"):
         print(f"\n✨ Analysis complete! Document saved to: {result['analysis_file']}")
-        input("Press Enter to continue...")
     else:
         print("\n⚠️ Analysis failed or produced no output.")
 

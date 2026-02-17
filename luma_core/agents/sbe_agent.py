@@ -162,13 +162,12 @@ def _save_sbe_file(content: str, issue_data: dict, target_dir: str) -> str:
         
         feature_dir = os.path.join(features_root, f"{next_index}_issue-{issue_number}_{slug}")
     
-    # Create specs subdirectory
-    specs_dir = os.path.join(feature_dir, "specs")
-    os.makedirs(specs_dir, exist_ok=True)
+    # Create feature directory if needed
+    os.makedirs(feature_dir, exist_ok=True)
     
     # Generate filename
-    filename = f"sbe_issue-{issue_number}.md"
-    filepath = os.path.join(specs_dir, filename)
+    filename = "sbe.md"
+    filepath = os.path.join(feature_dir, filename)
     
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
