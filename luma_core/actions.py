@@ -674,6 +674,13 @@ def action_code_review(state: LumaState, project: dict):
                 
             print(f"\n   ✅ Review Complete for {proj['name']}.")
             
+            # Print the prompt for the user to copy and paste to the AI assistant
+            print("\n" + "="*60)
+            print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
+            print("="*60)
+            print(f"เช็ค code_review.md ใน {proj['name']} repo")
+            print("="*60 + "\n")
+            
         except Exception as e:
             print(f"   ❌ Error during code review for {proj['name']}: {e}")
 
