@@ -216,7 +216,7 @@ INSTRUCTIONS:
 3. If no template, use a standard structure: Summary, Changes, Impact.
 4. Focus on 'Why' and 'What'.
 5. Do not include 'Here is the PR description' preamble. Just the body.
-6. IMPORTANT: Always use FULL URLs for links to issues and other PRs (e.g., https://github.com/owner/repo/issues/123), do NOT use short syntax (e.g., #123) to ensuring proper linking across platforms.
+6. IMPORTANT: Always use the exact FULL URL for closing issues. You must write `Closes {state.get('issue_data', {}).get('url', f"https://github.com/{state.get('repo')}/issues/{state.get('issue_data', {}).get('number')}")}`. Do NOT use short syntax (e.g., #123) and do not invent an owner/repo.
 """
 
     # D. Save Draft & Wait for Approval
@@ -233,9 +233,14 @@ INSTRUCTIONS:
     auto_approve = state.get('auto_approve', False)
     
     # Initialize choice
+    choice = ''
     if auto_approve:
-        print("🤖 Auto-Approve enabled: Skipping prompt review...")
-        choice = 'y'
+        if os.path.exists(manual_body_path) and os.path.getsize(manual_body_path) > 0:
+            print("🤖 Auto-Approve enabled & Draft Body found: Using manual PR body...")
+            choice = 'm'
+        else:
+            print("🤖 Auto-Approve enabled: Skipping prompt review and generating new PR body...")
+            choice = 'y'
     else:
         print("✋ Waiting for approval... Please review the prompt file.")
         print("👉 Options: [y] Auto-Generate, [m] Use Manual Body, [n] Cancel")
