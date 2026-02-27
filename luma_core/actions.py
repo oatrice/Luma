@@ -552,7 +552,8 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "issue_data": {
                 "title": state.active_issue.title,
                 "number": state.active_issue.number,
-                "body": issue_body
+                "body": issue_body,
+                "url": getattr(state.active_issue, 'html_url', f"https://github.com/oatrice/TheMiddleWay-Metadata/issues/{state.active_issue.number}")
             },
             "repo": proj["repo"],
             "target_dir": proj["path"],
@@ -1100,8 +1101,17 @@ def action_archive_artifacts(state: LumaState, project: dict):
     else:
         print(f"   📂 Target: {os.path.basename(feature_dir)}")
 
-    # Files to move
-    # We look for these in the project root
+    # Automatically locate the latest Gemini Antigravity Brain
+    brain_dir = os.path.expanduser("~/.gemini/antigravity/brain")
+    search_dirs = [project["path"]]
+    
+    if os.path.exists(brain_dir):
+        dirs = [os.path.join(brain_dir, d) for d in os.listdir(brain_dir) if os.path.isdir(os.path.join(brain_dir, d)) and not d.startswith('.')]
+        if dirs:
+            latest_brain = max(dirs, key=os.path.getmtime)
+            print(f"   🧠 Syncing from Antigravity Brain: {os.path.basename(latest_brain)[:8]}...")
+            search_dirs.append(latest_brain)
+
     artifacts = [
         "analysis.md", "spec.md", "plan.md", "task.md", "walkthrough.md",
         "implementation_plan.md", "code_review.md" 
@@ -1112,29 +1122,31 @@ def action_archive_artifacts(state: LumaState, project: dict):
     
     moved_count = 0
     
-    # Scan root for exact matches and checking for prefix variations if needed
-    for filename in os.listdir(project["path"]):
-        # Check explicit list or pattern
-        is_match = filename in artifacts
-        
-        # Check variations: plan_*.md, walkthrough_*.md
-        if not is_match:
-            if filename.startswith("plan_") and filename.endswith(".md"): is_match = True
-            if filename.startswith("walkthrough_") and filename.endswith(".md"): is_match = True
-        
-        if is_match:
-            src = os.path.join(project["path"], filename)
-            dst = os.path.join(feature_dir, filename)
+    for sdir in search_dirs:
+        if not os.path.exists(sdir): continue
+        for filename in os.listdir(sdir):
+            is_match = filename in artifacts
+            if not is_match:
+                if filename.startswith("plan_") and filename.endswith(".md"): is_match = True
+                if filename.startswith("walkthrough_") and filename.endswith(".md"): is_match = True
             
-            try:
-                shutil.move(src, dst)
-                print(f"   ➡️  Moved {filename}")
-                moved_count += 1
-            except Exception as e:
-                print(f"   ⚠️  Failed to move {filename}: {e}")
+            if is_match:
+                src = os.path.join(sdir, filename)
+                dst = os.path.join(feature_dir, filename)
+                try:
+                    # we use copy2 for gemini workspace so we don't accidentally wreck the agent's ability to read its own files
+                    if sdir != project["path"]:
+                        shutil.copy2(src, dst)
+                        print(f"   ➡️  Copied {filename} (from Brain)")
+                    else:
+                        shutil.move(src, dst)
+                        print(f"   ➡️  Moved {filename}")
+                    moved_count += 1
+                except Exception as e:
+                    print(f"   ⚠️  Failed to process {filename}: {e}")
 
     if moved_count == 0:
-        print("   (No artifacts found in root to move)")
+        print("   (No artifacts found to archive)")
     else:
         print(f"✅ Archived {moved_count} files.")
 
