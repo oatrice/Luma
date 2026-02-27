@@ -679,6 +679,7 @@ def action_code_review(state: LumaState, project: dict):
             print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
             print("="*60)
             print(f"เช็ค code_review.md ใน {proj['name']} repo")
+            print(f"หรือถ้าต้องการเปรียบเทียบ: 'เทียบเหตุการณ์ก่อนแก้ไข และหลังแก้ไขตาม code_review.md ใน {proj['name']} repo'")
             print("="*60 + "\n")
             
         except Exception as e:
