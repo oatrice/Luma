@@ -14,8 +14,8 @@ flowchart TB
         SM[State Manager]
         GP[GitHub Project Sync]
         PC[Pre-flight Checker]
-        UI[Terminal UI (ui.py)]
-        ACT[Actions Logic (actions.py)]
+        UI["Terminal UI (ui.py)"]
+        ACT["Actions Logic (actions.py)"]
     end
     
     SM <--> LS[.luma_state.json]

@@ -1301,6 +1301,19 @@ def action_guided_workflow(state: LumaState, project: dict):
     print("   - Use your IDE to implement the feature.")
     print("   - Run 'Luma' > 'Code Review' periodically.")
     
+    rel_feat_dir = "docs/features/..."
+    if feature_dir:
+        try:
+            rel_feat_dir = os.path.relpath(feature_dir, project.get("path", "."))
+        except:
+            pass
+            
+    print("\n   💡 [AI Prompt] Copy this text to your preferred AI:")
+    print("   " + "-"*75)
+    print(f"   อ่านไฟล์ทั้งหมดใน {rel_feat_dir} และไฟล์ prompt_*.txt")
+    print("   มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement")
+    print("   " + "-"*75)
+    
     cont = input("\n   Have you finished coding and verified the feature? (y/N): ").lower()
     if cont != 'y':
         print("\n⏳ Pausing workflow. Come back when you're done!")
