@@ -16,3 +16,8 @@ htmlcov/
 # IDE
 .vscode/
 .idea/
+.luma_global.json
+test_out.txt
+*.resolve
+dummy_task.md
+.luma_state.json

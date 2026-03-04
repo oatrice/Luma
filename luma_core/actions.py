@@ -679,8 +679,7 @@ def action_code_review(state: LumaState, project: dict):
             print("\n" + "="*60)
             print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
             print("="*60)
-            print(f"เช็ค code_review.md ใน {proj['name']} repo")
-            print(f"หรือถ้าต้องการเปรียบเทียบ: 'เทียบเหตุการณ์ก่อนแก้ไข และหลังแก้ไขตาม code_review.md ใน {proj['name']} repo'")
+            print("นำ code review จาก terminal และ code_review.md ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย")
             print("="*60 + "\n")
             
         except Exception as e:
@@ -782,6 +781,83 @@ def action_switch_project(state: LumaState) -> str:
         return choice
     
     return None
+
+def action_settings():
+    """Settings menu to configure LLM Provider and Agent CLI"""
+    import os
+    import json
+    from luma_core.config import GLOBAL_CONFIG_FILE, LLM_PROVIDER, AGENT_CLI
+    
+    print("\n⚙️  Settings")
+    print("==========")
+    
+    # Load current config
+    current_config = {}
+    if os.path.exists(GLOBAL_CONFIG_FILE):
+        try:
+            with open(GLOBAL_CONFIG_FILE, "r") as f:
+                current_config = json.load(f)
+        except Exception:
+            pass
+            
+    current_llm = current_config.get("LLM_PROVIDER", LLM_PROVIDER)
+    current_cli = current_config.get("AGENT_CLI", AGENT_CLI)
+    
+    while True:
+        print(f"\nCurrent Configuration:")
+        print(f"  [1] LLM Provider: {current_llm}")
+        print(f"  [2] Agent CLI:    {current_cli}")
+        print(f"  [3] 🔙 Back")
+        
+        choice = input("\nSelect setting to change [1-3]: ").strip()
+        
+        if choice == "1":
+            print("\nSelect LLM Provider:")
+            print("  [1] gemini (API)")
+            print("  [2] openrouter")
+            print("  [3] gemini_cli (Local CLI)")
+            
+            p_choice = input("Select [1-3]: ").strip()
+            if p_choice == "1":
+                current_llm = "gemini"
+            elif p_choice == "2":
+                current_llm = "openrouter"
+            elif p_choice == "3":
+                current_llm = "gemini_cli"
+                
+        elif choice == "2":
+            print("\nSelect Agent CLI:")
+            print("  [1] gemini_cli")
+            print("  [2] opencode")
+            
+            c_choice = input("Select [1-2]: ").strip()
+            if c_choice == "1":
+                current_cli = "gemini_cli"
+            elif c_choice == "2":
+                current_cli = "opencode"
+                
+        elif choice == "3" or choice == "":
+            break
+        else:
+            print("❌ Invalid option")
+            
+    # Save back to config
+    current_config["LLM_PROVIDER"] = current_llm
+    current_config["AGENT_CLI"] = current_cli
+    
+    try:
+        with open(GLOBAL_CONFIG_FILE, "w") as f:
+            json.dump(current_config, f, indent=2)
+            
+        # Hot-reload config module so get_llm picks up the change immediately
+        import importlib
+        import luma_core.config
+        importlib.reload(luma_core.config)
+            
+        print("\n✅ Settings saved!")
+    except Exception as e:
+        print(f"\n❌ Failed to save settings: {e}")
+
 
 
 def action_generate_sbe(state: LumaState, project: dict):
@@ -990,10 +1066,25 @@ def action_update_roadmap(state: LumaState, project: dict):
     if not issue_id:
         return
 
+    # Verify via gh cli
+    print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
+    import subprocess
+    try:
+        gh_res = subprocess.run(
+            ["gh", "issue", "view", issue_id, "--json", "title,state", "-t", "{{.title}} ({{.state}})"],
+            cwd=project["path"], capture_output=True, text=True
+        )
+        if gh_res.returncode == 0:
+            print(f"   ✅ Found: {gh_res.stdout.strip()}")
+        else:
+            print(f"   ⚠️ Could not verify issue via gh: {gh_res.stderr.strip()}")
+    except Exception as e:
+        print(f"   ⚠️ GitHub CLI check failed: {e}")
+
     # Find the block
     found_idx = -1
     for i, line in enumerate(lines):
-        if f"**#{issue_id}" in line or f"#{issue_id} " in line:
+        if f"**#{issue_id}" in line or f"#{issue_id} " in line or f"[#{issue_id}]" in line:
             found_idx = i
             break
 
@@ -1003,53 +1094,90 @@ def action_update_roadmap(state: LumaState, project: dict):
 
     print(f"✅ Found issue at line {found_idx+1}: {lines[found_idx].strip()}")
     
-    # Look for status line in next few lines
+    # Check if this is a table row (starts with |)
+    is_table_row = lines[found_idx].strip().startswith("|")
+    
     status_idx = -1
     indent = "    - " # Default fallback indent
     
-    for i in range(found_idx + 1, min(found_idx + 6, len(lines))):
-        stripped = lines[i].strip()
-        if stripped.startswith("- **Status:**") or stripped.startswith("- ✅ **Done**") or stripped.startswith("- 🟡 **In Progress**") or "Status:" in stripped or "✅ **Done**" in stripped:
-            status_idx = i
-            print(f"   Current: {stripped}")
-            # Capture existing indentation
-            indent = lines[i][:lines[i].find(stripped) + 2] # rough guess or just use standard
-            if lines[i].startswith("    -"): indent = "    - "
-            elif lines[i].startswith("\t-"): indent = "\t- "
-            break
+    if is_table_row:
+        status_idx = found_idx
+        # In a markdown table, status is likely the last or second to last column
+        print(f"   Current row: {lines[found_idx].strip()}")
+    else:
+        # Look for status line in next few lines (list format)
+        for i in range(found_idx + 1, min(found_idx + 6, len(lines))):
+            stripped = lines[i].strip()
+            if stripped.startswith("- **Status:**") or stripped.startswith("- ✅ **Done**") or stripped.startswith("- 🟡 **In Progress**") or "Status:" in stripped or "✅ **Done**" in stripped:
+                status_idx = i
+                print(f"   Current: {stripped}")
+                # Capture existing indentation
+                indent = lines[i][:lines[i].find(stripped) + 2] # rough guess or just use standard
+                if lines[i].startswith("    -"): indent = "    - "
+                elif lines[i].startswith("\t-"): indent = "\t- "
+                break
 
     # Ask for new status
     print("\nSelect new status:")
-    print("  [1] ✅ Done")
+    print("  [1] ✅ Done / Complete")
     print("  [2] 🟢 Ready")
-    print("  [3] 🟡 In Progress")
+    print("  [3] 🟡 In Progress / Todo")
     print("  [4] 🔴 Blocked")
     
     status_choice = input("Select [1-4]: ").strip()
     
     new_status_line = ""
+    new_table_status = ""
     
     if status_choice == "1":
-        version = input("Enter Version (e.g. v1.8.0) [default: v1.8.0]: ").strip()
-        if not version: version = "v1.8.0"
-        note = input("Enter Completion Note: ").strip()
+        # Version prompt for 'Done'
+        version = input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
+        note = input("Enter Completion Note (Enter to skip): ").strip()
         
-        new_status_line = f"{indent}✅ **Done** ({version})"
-        if note:
-             new_status_line += f" - {note}"
-             
+        status_prefix = "✅ Complete" if is_table_row else "✅ **Done**"
+        
+        if version and note:
+            new_table_status = f"{status_prefix} ({version}) - {note}"
+        elif version:
+            new_table_status = f"{status_prefix} ({version})"
+        elif note:
+            new_table_status = f"{status_prefix} - {note}"
+        else:
+            new_table_status = f"{status_prefix}"
+            
+        new_status_line = f"{indent}✅ **Done**" + (f" ({version})" if version else "") + (f" - {note}" if note else "")
+            
     elif status_choice == "2":
+        new_table_status = "🟢 Ready"
         new_status_line = f"{indent}**Status:** 🟢 **Ready**"
     elif status_choice == "3":
+        new_table_status = "🔲 Todo" if is_table_row else "🟡 In Progress"
         new_status_line = f"{indent}**Status:** 🟡 **In Progress**"
     elif status_choice == "4":
+        new_table_status = "🔴 Blocked"
         new_status_line = f"{indent}**Status:** 🔴 **Blocked**"
     else:
         print("❌ Invalid selection")
         return
 
     # Update logic
-    if status_idx != -1:
+    if is_table_row:
+        # Split by | and update the last column (or second to last if line ends with |)
+        parts = lines[found_idx].split("|")
+        
+        # Determine the status column index
+        # Usually format is: | Priority | ID | Title | Status |
+        # So it's typically the 4th column (index 4) if it starts and ends with |
+        status_col_index = -2 if lines[found_idx].rstrip().endswith("|") else -1
+        
+        if len(parts) >= 3: # To handle basic | ID | Title | Status |
+            parts[status_col_index] = f" {new_table_status} "
+            lines[found_idx] = "|".join(parts)
+            if not lines[found_idx].endswith("\n"):
+                lines[found_idx] += "\n"
+        else:
+             print("⚠️  Row does not seem to have the standard formatting.")
+    elif status_idx != -1:
         lines[status_idx] = new_status_line + "\n"
     else:
         print("⚠️  Status line not found nearby. Appending new status line.")
