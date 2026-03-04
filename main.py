@@ -59,12 +59,20 @@ def load_global_config():
 
 
 def save_global_config(config):
-    """Save global config"""
+    """Save global config, preserving existing keys like LLM_PROVIDER"""
     try:
+        current_config = {}
+        if os.path.exists(GLOBAL_CONFIG_FILE):
+             with open(GLOBAL_CONFIG_FILE, "r") as f:
+                  current_config = json.load(f)
+        
+        # Merge new config into current
+        current_config.update(config)
+        
         with open(GLOBAL_CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=2)
-    except:
-        pass
+            json.dump(current_config, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Failed to save global config: {e}")
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
@@ -81,6 +89,7 @@ MENU_ACTIONS = {
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
+    "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
     "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
 }
 
@@ -152,6 +161,17 @@ def main():
     print("\n🚀 Starting Luma V2 Workflow Guardian...")
     
     while True:
+        # Check and print Gemini CLI LLM session metrics from the previous action
+        try:
+            import luma_core.llm
+            if getattr(luma_core.llm, '_session_gemini_cli_time', 0.0) > 0:
+                print(f"\n📊 [Session Usage] Gemini CLI Timeout Spent: {luma_core.llm._session_gemini_cli_time:.2f}s | Est. Tokens: {luma_core.llm._session_gemini_cli_tokens}")
+                # Reset metrics for next action
+                luma_core.llm._session_gemini_cli_time = 0.0
+                luma_core.llm._session_gemini_cli_tokens = 0
+        except Exception:
+            pass
+
         # Display UI
         ui.display_header(state, project)
         
@@ -267,6 +287,9 @@ def main():
                 global_config["last_projects_by_path"][current_cwd] = project_key
                 save_global_config(global_config)
         
+        elif choice.upper() == "O":
+            actions.action_settings()
+            
         else:
             print("❌ Invalid option")
         

@@ -4,9 +4,24 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+import json
+
 # --- Config ---
-# Select Provider: "gemini" or "openrouter"
-LLM_PROVIDER = "gemini" 
+GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json")
+
+# Default values
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini_cli")
+AGENT_CLI = os.getenv("AGENT_CLI", "gemini_cli")
+
+# Load overrides from global config
+if os.path.exists(GLOBAL_CONFIG_FILE):
+    try:
+        with open(GLOBAL_CONFIG_FILE, "r") as f:
+            _global_cfg = json.load(f)
+            LLM_PROVIDER = _global_cfg.get("LLM_PROVIDER", LLM_PROVIDER)
+            AGENT_CLI = _global_cfg.get("AGENT_CLI", AGENT_CLI)
+    except Exception:
+        pass
 
 # OpenRouter Configuration
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

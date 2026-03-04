@@ -4,5 +4,7 @@
     "/Users/oatrice/Software-projects/Luma": "6",
     "/Users/oatrice/Software-projects/The Middle Way -Metadata": "6",
     "/Users/oatrice/Software-projects/JarWise": "1"
-  }
+  },
+  "LLM_PROVIDER": "gemini_cli",
+  "AGENT_CLI": "gemini_cli"
 }
