@@ -8,9 +8,17 @@ def test_get_llm_returns_gemini_cli_model():
         llm = get_llm()
         assert isinstance(llm, GeminiCLIModel)
 
+@patch("subprocess.run")
 @patch("subprocess.Popen")
-def test_gemini_cli_model_invoke(mock_subprocess_popen):
+def test_gemini_cli_model_invoke(mock_subprocess_popen, mock_subprocess_run):
     from unittest.mock import MagicMock
+    
+    # Mock subprocess.run for --list-sessions
+    mock_run_result = MagicMock()
+    mock_run_result.returncode = 0
+    mock_run_result.stdout = "Available sessions for this project (0):"
+    mock_subprocess_run.return_value = mock_run_result
+
     # Mock subprocess return value
     mock_process = MagicMock()
     # Mock communicate to return stdout and stderr

@@ -15,6 +15,7 @@ from . import config
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
 _session_gemini_cli_tokens = 0
+_current_gemini_session_id = None
 class GeminiCLIModel(BaseChatModel):
     """LangChain wrapper for the gemini commands using subprocess"""
     
@@ -43,12 +44,59 @@ class GeminiCLIModel(BaseChatModel):
         # Call gemini cli using STDIN to avoid OS ARG_MAX limits for large code payloads
         start_time = time.time()
         
+        global _current_gemini_session_id
+        
+        # Determine if we should prompt the user for a session on first run
+        if _current_gemini_session_id is None:
+            try:
+                import re
+                out = subprocess.run(["gemini", "--list-sessions"], capture_output=True, text=True)
+                if out.returncode == 0 and "Available sessions" in out.stdout:
+                    lines = out.stdout.strip().split("\n")
+                    
+                    # Extract sessions looking like: 1. Title... (1 day ago) [uuid]
+                    sessions = []
+                    for line in lines:
+                        match = re.search(r"(\d+)\.\s+(.*?)\s+\[([a-f0-9\-]{36})\]", line)
+                        if match:
+                            sessions.append({
+                                "index": match.group(1),
+                                "title": match.group(2)[:60] + "..." if len(match.group(2)) > 60 else match.group(2),
+                                "id": match.group(3)
+                            })
+                            
+                    if sessions:
+                        print("\n" + "="*50)
+                        print("🤖 [Gemini CLI] Found active sessions for this repo.")
+                        print("We should maintain context. Which session should I join?")
+                        print("="*50)
+                        print("  [0] 🆕 Start a NEW fresh session (Default)")
+                        for s in sessions[:5]: # Show top 5 max
+                            print(f"  [{s['index']}] 📂 {s['title']}")
+                            
+                        choice = input(f"\nSelect session [0-{min(5, len(sessions))}]: ").strip()
+                        if choice and choice != "0":
+                            for s in sessions:
+                                if s["index"] == choice:
+                                    _current_gemini_session_id = s["id"]
+                                    print(f"🔗 Joined session: {_current_gemini_session_id}")
+                                    break
+                        else:
+                            print("🆕 Starting a new session.")
+                            # We leave _current_gemini_session_id as None, it will get populated after the first request
+            except Exception as e:
+                print(f"⚠️ Could not list Gemini sessions: {e}")
+
         try:
             print(f"🐛 DEBUG [GeminiCLIModel]: Generating response using model {self.model} (Payload length: {len(prompt)} chars)")
             
+            cmd = ["gemini", "-m", self.model]
+            if _current_gemini_session_id:
+                cmd.extend(["-r", _current_gemini_session_id])
+                
             # Use Popen to pipe prompt via stdin
             process = subprocess.Popen(
-                ["gemini", "-m", self.model],
+                cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -60,9 +108,25 @@ class GeminiCLIModel(BaseChatModel):
             
             if process.returncode != 0:
                 print(f"⚠️ Gemini CLI Error Output: {stderr}")
+                # Reset session ID if it was invalid
+                if "No previous sessions found" in stderr and _current_gemini_session_id:
+                     _current_gemini_session_id = None
+                     
                 output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
             else:
                 output = stdout.strip()
+                
+            # If we don't have a session ID yet, fetch the one we just created
+            if not _current_gemini_session_id and process.returncode == 0:
+                try:
+                    import re
+                    out = subprocess.run(["gemini", "--list-sessions"], capture_output=True, text=True)
+                    match = re.search(r"1\..*?\[([a-f0-9\-]+)\]", out.stdout)
+                    if match:
+                        _current_gemini_session_id = match.group(1)
+                        print(f"🐛 DEBUG [GeminiCLIModel]: Bound to persistent session {_current_gemini_session_id}")
+                except Exception:
+                    pass
                 
         except subprocess.TimeoutExpired:
             process.kill()
