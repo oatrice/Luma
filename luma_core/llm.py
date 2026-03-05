@@ -161,8 +161,13 @@ class GeminiCLIModel(BaseChatModel):
         # If we exhausted retries and it's an error, export prompt
         if "Error:" in output or "Error calling Gemini CLI" in output:
             timestamp = int(time.time())
-            export_path = f"luma_failed_prompt_{timestamp}.md"
-            print(f"❌ Gemini CLI failed after retries. Exporting prompt to {os.path.abspath(export_path)} for external AI.")
+            
+            # Try to save to docs/ai_brain within the current project
+            export_dir = os.path.abspath(os.path.join(os.getcwd(), "docs", "ai_brain"))
+            os.makedirs(export_dir, exist_ok=True)
+            export_path = os.path.join(export_dir, f"luma_failed_prompt_{timestamp}.md")
+            
+            print(f"❌ Gemini CLI failed after retries. Exporting prompt to {export_path} for external AI.")
             try:
                 with open(export_path, "w") as f:
                     f.write(prompt)
