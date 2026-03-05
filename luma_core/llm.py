@@ -96,54 +96,79 @@ class GeminiCLIModel(BaseChatModel):
             except Exception as e:
                 print(f"⚠️ Could not list Gemini sessions: {e}")
 
-        try:
-            print(f"🐛 DEBUG [GeminiCLIModel]: Generating response using model {self.model} (Payload length: {len(prompt)} chars)")
-            
-            cmd = ["gemini", "-m", self.model]
-            if _current_gemini_session_id:
-                cmd.extend(["-r", _current_gemini_session_id])
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                print(f"🐛 DEBUG [GeminiCLIModel]: Generating response using model {self.model} (Payload length: {len(prompt)} chars, Attempt {attempt+1}/{max_retries})")
                 
-            # Use Popen to pipe prompt via stdin
-            process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            # Send prompt and wait for completion (timeout 3 minutes)
-            stdout, stderr = process.communicate(input=prompt, timeout=180)
-            
-            if process.returncode != 0:
-                print(f"⚠️ Gemini CLI Error Output: {stderr}")
-                # Reset session ID if it was invalid
-                if "No previous sessions found" in stderr and _current_gemini_session_id:
-                     _current_gemini_session_id = None
-                     
-                output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
-            else:
-                output = stdout.strip()
+                cmd = ["gemini", "-m", self.model]
+                if _current_gemini_session_id:
+                    cmd.extend(["-r", _current_gemini_session_id])
+                    
+                # Use Popen to pipe prompt via stdin
+                process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
                 
-            # If we don't have a session ID yet, fetch the one we just created
-            if not _current_gemini_session_id and process.returncode == 0:
-                try:
-                    import re
-                    out = subprocess.run(["gemini", "--list-sessions"], capture_output=True, text=True)
-                    match = re.search(r"1\..*?\[([a-f0-9\-]+)\]", out.stdout)
-                    if match:
-                        _current_gemini_session_id = match.group(1)
-                        print(f"🐛 DEBUG [GeminiCLIModel]: Bound to persistent session {_current_gemini_session_id}")
-                except Exception:
-                    pass
+                # Send prompt and wait for completion (timeout 5 minutes)
+                stdout, stderr = process.communicate(input=prompt, timeout=300)
                 
-        except subprocess.TimeoutExpired:
-            process.kill()
-            print("⚠️ Gemini CLI Timeout Expired (180s)")
-            output = "Error: Gemini CLI timed out after 3 minutes."
-        except Exception as e:
-            print(f"⚠️ Gemini CLI Exception: {str(e)}")
-            output = f"Error: {str(e)}"
+                if process.returncode != 0:
+                    print(f"⚠️ Gemini CLI Error Output: {stderr}")
+                    # Reset session ID if it was invalid
+                    if "No previous sessions found" in stderr and _current_gemini_session_id:
+                         _current_gemini_session_id = None
+                         
+                    output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
+                    if attempt < max_retries - 1:
+                        print(f"🔄 Retrying... ({attempt+1}/{max_retries})")
+                        time.sleep(2)
+                        continue
+                else:
+                    output = stdout.strip()
+                    
+                # If we don't have a session ID yet, fetch the one we just created
+                if not _current_gemini_session_id and process.returncode == 0:
+                    try:
+                        import re
+                        out = subprocess.run(["gemini", "--list-sessions"], capture_output=True, text=True)
+                        match = re.search(r"1\..*?\[([a-f0-9\-]+)\]", out.stdout)
+                        if match:
+                            _current_gemini_session_id = match.group(1)
+                            print(f"🐛 DEBUG [GeminiCLIModel]: Bound to persistent session {_current_gemini_session_id}")
+                    except Exception:
+                        pass
+                
+                break # Exit retry loop on success or non-retryable error
+                    
+            except subprocess.TimeoutExpired:
+                process.kill()
+                print(f"⚠️ Gemini CLI Timeout Expired (300s) - Attempt {attempt+1}/{max_retries}")
+                output = "Error: Gemini CLI timed out after 5 minutes."
+                if attempt < max_retries - 1:
+                    print(f"🔄 Retrying due to timeout...")
+                    time.sleep(2)
+                    continue
+            except Exception as e:
+                print(f"⚠️ Gemini CLI Exception: {str(e)}")
+                output = f"Error: {str(e)}"
+                break # Don't retry on random exceptions
+        
+        # If we exhausted retries and it's an error, export prompt
+        if "Error:" in output or "Error calling Gemini CLI" in output:
+            timestamp = int(time.time())
+            export_path = f"luma_failed_prompt_{timestamp}.md"
+            print(f"❌ Gemini CLI failed after retries. Exporting prompt to {os.path.abspath(export_path)} for external AI.")
+            try:
+                with open(export_path, "w") as f:
+                    f.write(prompt)
+                output += f"\n\n[SYSTEM] Gemini CLI failed to process the request. The prompt has been saved to: {export_path}. Please use an external AI to process it."
+            except Exception as e:
+                print(f"⚠️ Failed to export prompt: {e}")
             
         end_time = time.time()
         duration = end_time - start_time
