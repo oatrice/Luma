@@ -162,8 +162,24 @@ class GeminiCLIModel(BaseChatModel):
         if "Error:" in output or "Error calling Gemini CLI" in output:
             timestamp = int(time.time())
             
-            # Try to save to docs/ai_brain within the current project
-            export_dir = os.path.abspath(os.path.join(os.getcwd(), "docs", "ai_brain"))
+            # Try to save to docs/features/.../ai_brain within the current project
+            export_dir = None
+            try:
+                from luma_core.state_manager import load_state
+                state = load_state(os.getcwd())
+                if state and state.active_issue:
+                    features_root = os.path.join(os.getcwd(), "docs", "features")
+                    if os.path.exists(features_root):
+                        for d in os.listdir(features_root):
+                            if d.startswith(f"{state.active_issue.number}_") or f"issue-{state.active_issue.number}" in d:
+                                export_dir = os.path.join(features_root, d, "ai_brain")
+                                break
+            except Exception as e:
+                print(f"⚠️ Could not resolve feature dir for export: {e}")
+                
+            if not export_dir:
+                export_dir = os.path.abspath(os.path.join(os.getcwd(), "docs", "ai_brain"))
+                
             os.makedirs(export_dir, exist_ok=True)
             export_path = os.path.join(export_dir, f"luma_failed_prompt_{timestamp}.md")
             
