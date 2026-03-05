@@ -492,6 +492,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         
         # --- SYNC SCREENSHOTS TO TARGET REPO ---
         repo_screenshot_section = ""
+        ai_brain_section = ""
         if screenshots_to_sync:
             try:
                 # 1. Create docs/screenshots/issue-N/ in target repo
@@ -536,6 +537,28 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             except Exception as e:
                 print(f"   ⚠️ Failed to sync screenshots: {e}")
 
+        # --- SYNC AI BRAIN ARTIFACTS ---
+        try:
+            from luma_core.ai_brain_sync import AntigravityBrain
+            print("   🔄 Syncing AI Agent Brain Artifacts...")
+            synced_docs = AntigravityBrain.sync_to_repo(proj["path"], state.active_issue.number)
+            
+            if synced_docs:
+                subprocess.run(["git", "add"] + synced_docs, cwd=proj["path"], check=False)
+                subprocess.run(["git", "commit", "-m", "docs: sync AI brain artifacts"], cwd=proj["path"], check=False, capture_output=True)
+                print(f"   ✅ Merged AI Brain Context to {proj['name']}")
+                
+                ai_brain_section = "\n\n## 🧠 AI Brain Context\n"
+                for doc in synced_docs:
+                    filename = os.path.basename(doc)
+                    if proj.get("repo") and state.active_branch:
+                        raw_url = f"https://raw.githubusercontent.com/{proj['repo']}/{state.active_branch}/{doc}"
+                        ai_brain_section += f"- [{filename}]({raw_url})\n"
+                    else:
+                        ai_brain_section += f"- [{filename}]({doc})\n"
+        except Exception as e:
+            print(f"   ⚠️ Failed to sync AI brain artifacts: {e}")
+
         # 3. Proceed to Create PR for this repo
         if not auto_approve:
             confirm = input(f"   ✨ Create PR for {proj['name']}? (Y/n): ").strip().lower()
@@ -544,8 +567,8 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         print(f"   ✨ Creating PR for {proj['name']}...")
         
         # Construct a temporary state for the publisher
-        # Append screenshots to body
-        issue_body = (state.active_issue.body or "") + repo_screenshot_section
+        # Append screenshots and AI brain context to body
+        issue_body = (state.active_issue.body or "") + repo_screenshot_section + ai_brain_section
         
         pub_state = {
             "task": state.active_issue.title,
@@ -578,6 +601,31 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         else:
             print(f"   ⚠️ Publisher finished but no known PR URL.")
 
+def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
+    """Manually trigger AI Brain Sync to the project directory."""
+    if not state.active_issue:
+        print("❌ No active issue selected. Please select an issue first.")
+        return False
+        
+    print(f"\n🧠 Syncing AI Agent Brain Artifacts for {project['name']}...")
+    try:
+        from luma_core.ai_brain_sync import AntigravityBrain
+        synced_docs = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number)
+        
+        if synced_docs:
+            import subprocess
+            subprocess.run(["git", "add"] + synced_docs, cwd=project["path"], check=False)
+            subprocess.run(["git", "commit", "-m", "docs: manually sync AI brain artifacts"], cwd=project["path"], check=False, capture_output=True)
+            print(f"✅ Successfully synced {len(synced_docs)} files from AI Brain.")
+            for doc in synced_docs:
+                print(f"  - {doc}")
+            return True
+        else:
+            print("⚠️ No valid AI Brain session or artifacts found to sync.")
+            return False
+    except Exception as e:
+        print(f"⚠️ Failed to sync AI brain artifacts: {e}")
+        return False
 
 def action_code_review(state: LumaState, project: dict):
     """Run local code review agent"""
