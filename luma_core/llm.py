@@ -66,21 +66,30 @@ class GeminiCLIModel(BaseChatModel):
                             })
                             
                     if sessions:
+                        # Show most recent sessions first
+                        sessions.reverse()
+                        display_limit = min(8, len(sessions))
+                        display_sessions = sessions[:display_limit]
+                        
                         print("\n" + "="*50)
                         print("🤖 [Gemini CLI] Found active sessions for this repo.")
                         print("We should maintain context. Which session should I join?")
                         print("="*50)
                         print("  [0] 🆕 Start a NEW fresh session (Default)")
-                        for s in sessions[:5]: # Show top 5 max
-                            print(f"  [{s['index']}] 📂 {s['title']}")
+                        for i, s in enumerate(display_sessions, 1):
+                            print(f"  [{i}] 📂 {s['title']}")
                             
-                        choice = input(f"\nSelect session [0-{min(5, len(sessions))}]: ").strip()
+                        choice = input(f"\nSelect session [0-{display_limit}]: ").strip()
                         if choice and choice != "0":
-                            for s in sessions:
-                                if s["index"] == choice:
-                                    _current_gemini_session_id = s["id"]
+                            try:
+                                idx = int(choice) - 1
+                                if 0 <= idx < display_limit:
+                                    _current_gemini_session_id = display_sessions[idx]["id"]
                                     print(f"🔗 Joined session: {_current_gemini_session_id}")
-                                    break
+                                else:
+                                    print("⚠️ Invalid selection. Starting a new session.")
+                            except ValueError:
+                                print("⚠️ Invalid input. Starting a new session.")
                         else:
                             print("🆕 Starting a new session.")
                             # We leave _current_gemini_session_id as None, it will get populated after the first request
