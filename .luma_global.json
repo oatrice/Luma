@@ -4,17 +4,9 @@
     "/Users/oatrice/Software-projects/Luma": "6",
     "/Users/oatrice/Software-projects/The Middle Way -Metadata": "6",
     "/Users/oatrice/Software-projects/JarWise": "1",
-    "/Users/oatrice/Software-projects/Akasa": "1772808014"
+    "/Users/oatrice/Software-projects/Akasa": "11"
   },
   "LLM_PROVIDER": "gemini_cli",
   "AGENT_CLI": "gemini_cli",
-  "custom_projects": {
-    "1772808014": {
-      "name": "New Akasa",
-      "path": "/Users/oatrice/Software-projects/Akasa",
-      "repo": "oatrice/Akasa",
-      "kanban_number": 1,
-      "kanban_id": ""
-    }
-  }
+  "custom_projects": {}
 }
