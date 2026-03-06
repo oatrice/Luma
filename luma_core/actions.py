@@ -1387,7 +1387,27 @@ def action_archive_artifacts(state: LumaState, project: dict):
     if os.path.exists(brain_dir):
         dirs = [os.path.join(brain_dir, d) for d in os.listdir(brain_dir) if os.path.isdir(os.path.join(brain_dir, d)) and not d.startswith('.')]
         if dirs:
-            latest_brain = max(dirs, key=os.path.getmtime)
+            from datetime import datetime
+            # Sort by modification time, newest first
+            dirs.sort(key=os.path.getmtime, reverse=True)
+            # Show up to 5 most recent sessions
+            recent = dirs[:5]
+            print("   🧠 Available Antigravity Brain sessions:")
+            for i, d in enumerate(recent):
+                mtime = datetime.fromtimestamp(os.path.getmtime(d)).strftime("%Y-%m-%d %H:%M")
+                sid = os.path.basename(d)
+                # Check which artifacts exist in this session
+                artifact_names = [f for f in os.listdir(d) if f.endswith('.md') and not f.startswith('.')]
+                artifact_hint = f" ({len(artifact_names)} .md files)" if artifact_names else ""
+                print(f"      {i+1}) {sid[:8]}... [{mtime}]{artifact_hint}")
+            choice = input(f"   Select session [1-{len(recent)}] (default=1): ").strip()
+            try:
+                idx = int(choice) - 1 if choice else 0
+                if idx < 0 or idx >= len(recent):
+                    idx = 0
+            except ValueError:
+                idx = 0
+            latest_brain = recent[idx]
             print(f"   🧠 Syncing from Antigravity Brain: {os.path.basename(latest_brain)[:8]}...")
             search_dirs.append(latest_brain)
 
