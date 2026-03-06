@@ -51,7 +51,6 @@ PROJECTS = {
         "kanban_number": 7,
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
         "type": "monorepo_root",
-        "sibling_repos": ["2", "3", "4"],  # Web, Backend, Android
     },
     "2": {
         "name": "JarWise (Web)",
@@ -91,7 +90,6 @@ PROJECTS = {
         "kanban_number": 8,
         "kanban_id": "PVT_kwHOATfKEM4BOWVD",
         "type": "monorepo_root",
-        "sibling_repos": ["7", "8", "9", "10"],  # Web, Android, iOS, Backend
     },
     "7": {
         "name": "TheMiddleWay (Web)",
@@ -121,4 +119,28 @@ PROJECTS = {
         "kanban_number": 8,
         "kanban_id": "PVT_kwHOATfKEM4BOWVD",
     },
+    # ==========================================================================
+    # Default Custom Projects
+    # ==========================================================================
+    "11": {
+        "name": "Akasa",
+        "path": "/Users/oatrice/Software-projects/Akasa",
+        "repo": "oatrice/Akasa",
+        "kanban_number": 1,
+        "kanban_id": "", # Update this later if needed
+    }
 }
+
+# --- Load Custom Projects from Global Config ---
+try:
+    if os.path.exists(GLOBAL_CONFIG_FILE):
+        with open(GLOBAL_CONFIG_FILE, "r") as f:
+            _cfg = json.load(f)
+            custom_projects_data = _cfg.get("custom_projects", {})
+            # Merge custom projects into PROJECTS dictionary
+            # Custom projects might overwrite existing keys if not careful, 
+            # ideally keys are unique or sequential.
+            for key, val in custom_projects_data.items():
+                PROJECTS[key] = val
+except Exception:
+    pass
