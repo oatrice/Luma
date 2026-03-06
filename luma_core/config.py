@@ -51,6 +51,7 @@ PROJECTS = {
         "kanban_number": 7,
         "kanban_id": "PVT_kwHOATfKEM4BMuLi",
         "type": "monorepo_root",
+        "sibling_repos": ["2", "3", "4"],  # Web, Backend, Android
     },
     "2": {
         "name": "JarWise (Web)",
@@ -90,6 +91,7 @@ PROJECTS = {
         "kanban_number": 8,
         "kanban_id": "PVT_kwHOATfKEM4BOWVD",
         "type": "monorepo_root",
+        "sibling_repos": ["7", "8", "9", "10"],  # Web, Android, iOS, Backend
     },
     "7": {
         "name": "TheMiddleWay (Web)",

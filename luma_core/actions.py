@@ -123,6 +123,33 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                 else:
                     print(f"⚠️ Git: {create_result.stderr.strip()}")
             
+            # Also ensure sibling repos are on the correct branch
+            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+                from luma_core.config import PROJECTS
+                print(f"🔄 Syncing sibling repos...")
+                for sibling_key in project.get("sibling_repos", []):
+                    sibling = PROJECTS.get(sibling_key)
+                    if sibling and os.path.exists(sibling["path"]):
+                        sib_result = subprocess.run(
+                            ["git", "checkout", state.active_branch],
+                            cwd=sibling["path"],
+                            capture_output=True,
+                            text=True
+                        )
+                        if sib_result.returncode == 0:
+                            print(f"   ✅ {sibling['name']}: Switched to branch")
+                        else:
+                            # Try to create the branch
+                            create_sib = subprocess.run(
+                                ["git", "checkout", "-b", state.active_branch],
+                                cwd=sibling["path"],
+                                capture_output=True,
+                                text=True
+                            )
+                            if create_sib.returncode == 0:
+                                print(f"   ✅ {sibling['name']}: Branch created")
+                            else:
+                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
 
         except Exception as e:
             print(f"⚠️ Git error: {e}")
@@ -220,7 +247,34 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                 else:
                     print(f"⚠️ Git error: {result.stderr.strip()}")
             
-
+            # Create branches in sibling repos (Web, Backend, Android)
+            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+                from luma_core.config import PROJECTS
+                print(f"\n🔄 Creating branches in sibling repos...")
+                for sibling_key in project.get("sibling_repos", []):
+                    sibling = PROJECTS.get(sibling_key)
+                    if sibling and os.path.exists(sibling["path"]):
+                        sib_result = subprocess.run(
+                            ["git", "checkout", "-b", branch_name],
+                            cwd=sibling["path"],
+                            capture_output=True,
+                            text=True
+                        )
+                        if sib_result.returncode == 0:
+                            print(f"   ✅ {sibling['name']}: Branch created")
+                        else:
+                            # Try to switch to existing branch
+                            switch_sib = subprocess.run(
+                                ["git", "checkout", branch_name],
+                                cwd=sibling["path"],
+                                capture_output=True,
+                                text=True
+                            )
+                            if switch_sib.returncode == 0:
+                                print(f"   ✅ {sibling['name']}: Switched to existing branch")
+                            else:
+                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
+                                
         except Exception as e:
             print(f"⚠️ Failed to create branch: {e}")
         
@@ -376,6 +430,14 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
     # Determine target repos (Multi-Repo Support)
     target_projects = [project]
+    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
+        try:
+             for sibling_key in project.get("sibling_repos", []):
+                 if sibling_key in PROJECTS:
+                     target_projects.append(PROJECTS[sibling_key])
+        except Exception:
+            pass
 
     # --- SCREENSHOT LOGIC ---
     screenshot_md = ""
@@ -604,6 +666,14 @@ def action_code_review(state: LumaState, project: dict):
     
     # Determine target repos (Multi-Repo Support)
     target_projects = [project]
+    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
+        try:
+             for sibling_key in project.get("sibling_repos", []):
+                 if str(sibling_key) in PROJECTS:
+                     target_projects.append(PROJECTS[str(sibling_key)])
+        except Exception:
+            pass
 
     for proj in target_projects:
         print(f"\n🚀 Reviewing {proj['name']}...")
@@ -703,7 +773,25 @@ def action_update_docs(state: LumaState, project: dict):
     print(f"   Project: {project['name']}")
     
     # 1. Determine Scope (Single vs Multi-Repo)
+    # Check for explicit multi-repo flag in project config
+    is_multi_repo = project.get("type") == "monorepo_root"
     target_repos = [project]
+    
+    if is_multi_repo:
+        print("   Mode: Multi-Repo (JarWise)")
+        # Dynamically load sibling repos
+        try:
+            for sibling_key in project.get("sibling_repos", []):
+                # Ensure key is string
+                if str(sibling_key) in PROJECTS:
+                    target_repos.append(PROJECTS[str(sibling_key)])
+                    print(f"   ➕ Added sibling: {PROJECTS[str(sibling_key)]['name']}")
+                else:
+                    print(f"   ⚠️ Sibling key '{sibling_key}' not found in PROJECTS config.")
+        except Exception as e:
+            print(f"⚠️ Failed to load sibling repos: {e}") 
+            import traceback
+            traceback.print_exc() 
     
     print("\n🚀 Ready to update:")
     for repo in target_repos:
@@ -764,8 +852,16 @@ def action_refine_issue(state: LumaState, project: dict):
 
 def action_switch_project(state: LumaState) -> str:
     """Switch to different project"""
+    # Collect all sibling repo keys to hide from menu
+    sibling_keys = set()
+    for key, proj in PROJECTS.items():
+        for sib_key in proj.get("sibling_repos", []):
+            sibling_keys.add(str(sib_key))
+    
     print("\n🔀 Select Project:")
     for key, proj in PROJECTS.items():
+        if key in sibling_keys:
+            continue  # Hide sibling repos from menu
         print(f"  [{key}] {proj['name']}")
     
     print("  [+] Add New Project")
