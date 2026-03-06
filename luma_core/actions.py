@@ -651,12 +651,10 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
         synced_docs = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
         
         if synced_docs:
-            import subprocess
-            subprocess.run(["git", "add"] + synced_docs, cwd=project["path"], check=False)
-            subprocess.run(["git", "commit", "-m", "docs: manually sync AI brain artifacts"], cwd=project["path"], check=False, capture_output=True)
             print(f"✅ Successfully synced {len(synced_docs)} files from AI Brain.")
             for doc in synced_docs:
                 print(f"  - {doc}")
+            print(f"💡 The files have been copied to the project. You can review and commit them manually.")
             return True
         else:
             print("⚠️ No new artifacts to sync (content unchanged or empty).")
