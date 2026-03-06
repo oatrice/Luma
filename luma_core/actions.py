@@ -541,7 +541,8 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         try:
             from luma_core.ai_brain_sync import AntigravityBrain
             print("   🔄 Syncing AI Agent Brain Artifacts...")
-            synced_docs = AntigravityBrain.sync_to_repo(proj["path"], state.active_issue.number)
+            brain_session = state.context.get("selected_brain_session")
+            synced_docs = AntigravityBrain.sync_to_repo(proj["path"], state.active_issue.number, session_path=brain_session)
             
             if synced_docs:
                 subprocess.run(["git", "add"] + synced_docs, cwd=proj["path"], check=False)
@@ -576,9 +577,10 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                 "title": state.active_issue.title,
                 "number": state.active_issue.number,
                 "body": issue_body,
-                "url": getattr(state.active_issue, 'html_url', f"https://github.com/oatrice/TheMiddleWay-Metadata/issues/{state.active_issue.number}")
+                "url": getattr(state.active_issue, 'html_url', f"https://github.com/{project['repo']}/issues/{state.active_issue.number}")
             },
             "repo": proj["repo"],
+            "issue_source_repo": project["repo"],
             "target_dir": proj["path"],
             "test_suggestions": "",
             "auto_approve": auto_approve
@@ -646,6 +648,8 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
                 return False
         
         synced_docs = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
+        # Store selected session for reuse during PR creation
+        state.context["selected_brain_session"] = selected_path
         
         if synced_docs:
             print(f"✅ Successfully synced {len(synced_docs)} files from AI Brain.")
@@ -1410,6 +1414,8 @@ def action_archive_artifacts(state: LumaState, project: dict):
             latest_brain = recent[idx]
             print(f"   🧠 Syncing from Antigravity Brain: {os.path.basename(latest_brain)[:8]}...")
             search_dirs.append(latest_brain)
+            # Store selected session for reuse during PR creation
+            state.context["selected_brain_session"] = latest_brain
 
     artifacts = [
         "analysis.md", "spec.md", "plan.md", "task.md", "walkthrough.md",
