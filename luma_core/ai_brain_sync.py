@@ -102,12 +102,17 @@ class AntigravityBrain:
         os.makedirs(target_dir, exist_ok=True)
 
         synced_files = []
-        for artifact in cls.ARTIFACTS:
-            src = os.path.join(session_path, artifact)
-            if os.path.exists(src):
-                dst = cls._versioned_copy(src, target_dir, artifact)
-                if dst:
-                    rel_path = os.path.relpath(dst, project_dir)
-                    synced_files.append(rel_path)
+        for entry in os.listdir(session_path):
+            # Skip hidden files/dirs
+            if entry.startswith("."):
+                continue
+            src = os.path.join(session_path, entry)
+            # Skip subdirectories — only sync files
+            if not os.path.isfile(src):
+                continue
+            dst = cls._versioned_copy(src, target_dir, entry)
+            if dst:
+                rel_path = os.path.relpath(dst, project_dir)
+                synced_files.append(rel_path)
 
         return synced_files

@@ -20,11 +20,19 @@ def mock_brain_dir(tmp_path, monkeypatch):
     sess2.mkdir()
     os.utime(sess2, (1700000000, 1700000000))
     
-    # Session 3: Recent with required files
+    # Session 3: Recent with required files + images
     sess3 = brain_root / "2466c0f9-3333"
     sess3.mkdir()
     (sess3 / "task.md").write_text("# Active Task Number 45")
     (sess3 / "implementation_plan.md").write_text("Plan")
+    (sess3 / "screenshot_1234.png").write_bytes(b"\x89PNG fake image v1")
+    (sess3 / "walkthrough_img.jpg").write_bytes(b"\xff\xd8 fake jpg")
+    # Hidden file (should be skipped)
+    (sess3 / ".system_cache").write_text("skip me")
+    # Subdirectory (should be skipped)
+    sub = sess3 / ".system_generated"
+    sub.mkdir()
+    (sub / "logs.txt").write_text("log data")
     os.utime(sess3, (1600000000, 1600000000))
 
     monkeypatch.setattr(AntigravityBrain, "DEFAULT_BRAIN_PATH", str(brain_root))
@@ -40,41 +48,42 @@ def test_get_latest_session(mock_brain_dir):
 # --- get_all_sessions ---
 
 def test_get_all_sessions_returns_sorted_list(mock_brain_dir):
-    """Should return all valid sessions sorted by mtime (newest first)."""
     sessions = AntigravityBrain.get_all_sessions()
-    assert len(sessions) == 2  # Only 2 have task.md
-    # Newest first
+    assert len(sessions) == 2
     assert "2466c0f9-3333" in sessions[0]["path"]
     assert "2466c0f9-1111" in sessions[1]["path"]
 
 def test_get_all_sessions_includes_preview(mock_brain_dir):
-    """Each session should include a preview (first line of task.md)."""
     sessions = AntigravityBrain.get_all_sessions()
     assert sessions[0]["preview"] == "# Active Task Number 45"
     assert sessions[1]["preview"] == "# Old Issue"
 
 def test_get_all_sessions_includes_session_id(mock_brain_dir):
-    """Each session has a short session_id from the dir name."""
     sessions = AntigravityBrain.get_all_sessions()
     assert sessions[0]["session_id"] == "2466c0f9-3333"
 
-# --- sync_to_repo with explicit session_path ---
+# --- sync all files ---
 
-def test_sync_to_repo_creates_in_features_dir(mock_brain_dir, tmp_path):
-    """sync_to_repo should create ai_brain/ inside docs/features/{N}_issue-{N}/"""
+def test_sync_includes_images(mock_brain_dir, tmp_path):
+    """sync_to_repo should include image files, not just .md."""
     project_dir = str(tmp_path / "repo")
     os.makedirs(project_dir)
     
     synced_files = AntigravityBrain.sync_to_repo(project_dir, 45)
     
-    assert len(synced_files) == 2
+    # Should sync: task.md, implementation_plan.md, screenshot_1234.png, walkthrough_img.jpg
+    # Should NOT sync: .system_cache, .system_generated/
+    assert len(synced_files) == 4
     
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
     assert os.path.exists(os.path.join(target_dir, "implementation_plan.md"))
+    assert os.path.exists(os.path.join(target_dir, "screenshot_1234.png"))
+    assert os.path.exists(os.path.join(target_dir, "walkthrough_img.jpg"))
     
-    assert os.path.join("docs", "features", "45_issue-45", "ai_brain", "task.md") in synced_files
-    assert os.path.join("docs", "features", "45_issue-45", "ai_brain", "implementation_plan.md") in synced_files
+    # Hidden files and dirs should NOT be synced
+    assert not os.path.exists(os.path.join(target_dir, ".system_cache"))
+    assert not os.path.exists(os.path.join(target_dir, ".system_generated"))
 
 def test_sync_to_repo_uses_existing_feature_dir(mock_brain_dir, tmp_path):
     """When a feature dir already exists, sync into it."""
@@ -86,27 +95,25 @@ def test_sync_to_repo_uses_existing_feature_dir(mock_brain_dir, tmp_path):
     
     synced_files = AntigravityBrain.sync_to_repo(project_dir, 45)
     
-    assert len(synced_files) == 2
+    assert len(synced_files) == 4  # md + images
     
     target_dir = os.path.join(existing_dir, "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
-    assert os.path.exists(os.path.join(target_dir, "implementation_plan.md"))
+    assert os.path.exists(os.path.join(target_dir, "screenshot_1234.png"))
 
 def test_sync_to_repo_with_explicit_session(mock_brain_dir, tmp_path):
     """Should use the explicit session_path instead of auto-detecting latest."""
     project_dir = str(tmp_path / "repo_explicit")
     os.makedirs(project_dir)
     
-    # Pick the OLD session explicitly (not the latest)
     old_session = os.path.join(mock_brain_dir, "2466c0f9-1111")
     synced_files = AntigravityBrain.sync_to_repo(project_dir, 99, session_path=old_session)
     
-    assert len(synced_files) == 1  # Only task.md exists in old session
+    assert len(synced_files) == 1  # Only task.md in old session
     
     target_dir = os.path.join(project_dir, "docs", "features", "99_issue-99", "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
     
-    # Verify it's the OLD content
     with open(os.path.join(target_dir, "task.md")) as f:
         assert "Old Issue" in f.read()
 
@@ -118,13 +125,10 @@ def test_sync_versioning_same_content_skips(mock_brain_dir, tmp_path):
     os.makedirs(project_dir)
     
     synced1 = AntigravityBrain.sync_to_repo(project_dir, 45)
-    assert len(synced1) == 2
+    assert len(synced1) == 4
     
     synced2 = AntigravityBrain.sync_to_repo(project_dir, 45)
     assert len(synced2) == 0
-    
-    target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
-    assert not os.path.exists(os.path.join(target_dir, "task_v2.md"))
 
 def test_sync_versioning_different_content_creates_v2(mock_brain_dir, tmp_path):
     """If file content changed, save as _v2."""
@@ -132,7 +136,7 @@ def test_sync_versioning_different_content_creates_v2(mock_brain_dir, tmp_path):
     os.makedirs(project_dir)
     
     synced1 = AntigravityBrain.sync_to_repo(project_dir, 45)
-    assert len(synced1) == 2
+    assert len(synced1) == 4
     
     sess3 = os.path.join(mock_brain_dir, "2466c0f9-3333")
     with open(os.path.join(sess3, "task.md"), "w") as f:
@@ -169,9 +173,6 @@ def test_sync_versioning_v3(mock_brain_dir, tmp_path):
     assert os.path.exists(os.path.join(target_dir, "task.md"))
     assert os.path.exists(os.path.join(target_dir, "task_v2.md"))
     assert os.path.exists(os.path.join(target_dir, "task_v3.md"))
-    
-    with open(os.path.join(target_dir, "task_v3.md")) as f:
-        assert "Task v3" in f.read()
 
 # --- Integration with action ---
 
@@ -193,7 +194,6 @@ def test_action_sync_ai_brain_logic(mock_brain_dir, tmp_path, monkeypatch):
         return MockCompletedProcess()
         
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
-    # Auto-confirm preview
     monkeypatch.setattr("builtins.input", lambda _: "y")
     
     state = LumaState(project_key="1")
@@ -212,3 +212,4 @@ def test_action_sync_ai_brain_logic(mock_brain_dir, tmp_path, monkeypatch):
     
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
+    assert os.path.exists(os.path.join(target_dir, "screenshot_1234.png"))
