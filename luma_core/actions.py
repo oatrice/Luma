@@ -602,7 +602,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             print(f"   ⚠️ Publisher finished but no known PR URL.")
 
 def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
-    """Manually trigger AI Brain Sync to the project directory."""
+    """Manually trigger AI Brain Sync with preview + confirm + session picker."""
     if not state.active_issue:
         print("❌ No active issue selected. Please select an issue first.")
         return False
@@ -610,7 +610,45 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
     print(f"\n🧠 Syncing AI Agent Brain Artifacts for {project['name']}...")
     try:
         from luma_core.ai_brain_sync import AntigravityBrain
-        synced_docs = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number)
+        
+        sessions = AntigravityBrain.get_all_sessions()
+        if not sessions:
+            print("⚠️ No valid AI Brain sessions found.")
+            return False
+        
+        # Preview latest session
+        latest = sessions[0]
+        print(f"\n   📂 Latest Session: {latest['session_id'][:12]}...")
+        print(f"   📄 Preview: {latest['preview']}")
+        
+        confirm = input("\n   ✅ Use this session? (Y/n): ").strip().lower()
+        
+        selected_path = latest["path"]
+        
+        if confirm == "n":
+            # Show session picker
+            print(f"\n   📋 Available Sessions:")
+            display_limit = min(8, len(sessions))
+            for i, s in enumerate(sessions[:display_limit]):
+                print(f"   [{i+1}] {s['session_id'][:12]}... — {s['preview'][:50]}")
+            
+            choice = input(f"\n   Select session [1-{display_limit}] or [c] Cancel: ").strip().lower()
+            if choice == "c" or not choice:
+                print("   ❌ Cancelled.")
+                return False
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < display_limit:
+                    selected_path = sessions[idx]["path"]
+                    print(f"   🔗 Selected: {sessions[idx]['session_id'][:12]}...")
+                else:
+                    print("   ❌ Invalid selection.")
+                    return False
+            except ValueError:
+                print("   ❌ Invalid input.")
+                return False
+        
+        synced_docs = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
         
         if synced_docs:
             import subprocess
@@ -621,7 +659,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
                 print(f"  - {doc}")
             return True
         else:
-            print("⚠️ No valid AI Brain session or artifacts found to sync.")
+            print("⚠️ No new artifacts to sync (content unchanged or empty).")
             return False
     except Exception as e:
         print(f"⚠️ Failed to sync AI brain artifacts: {e}")
