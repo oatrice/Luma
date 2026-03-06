@@ -123,34 +123,7 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                 else:
                     print(f"⚠️ Git: {create_result.stderr.strip()}")
             
-            # Also ensure sibling repos are on the correct branch
-            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-                from luma_core.config import PROJECTS
-                print(f"🔄 Syncing sibling repos...")
-                for sibling_key in project.get("sibling_repos", []):
-                    sibling = PROJECTS.get(sibling_key)
-                    if sibling and os.path.exists(sibling["path"]):
-                        sib_result = subprocess.run(
-                            ["git", "checkout", state.active_branch],
-                            cwd=sibling["path"],
-                            capture_output=True,
-                            text=True
-                        )
-                        if sib_result.returncode == 0:
-                            print(f"   ✅ {sibling['name']}: Switched to branch")
-                        else:
-                            # Try to create the branch
-                            create_sib = subprocess.run(
-                                ["git", "checkout", "-b", state.active_branch],
-                                cwd=sibling["path"],
-                                capture_output=True,
-                                text=True
-                            )
-                            if create_sib.returncode == 0:
-                                print(f"   ✅ {sibling['name']}: Branch created")
-                            else:
-                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
-                                
+
         except Exception as e:
             print(f"⚠️ Git error: {e}")
         
@@ -247,34 +220,7 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                 else:
                     print(f"⚠️ Git error: {result.stderr.strip()}")
             
-            # Create branches in sibling repos (Web, Backend, Android)
-            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-                from luma_core.config import PROJECTS
-                print(f"\n🔄 Creating branches in sibling repos...")
-                for sibling_key in project.get("sibling_repos", []):
-                    sibling = PROJECTS.get(sibling_key)
-                    if sibling and os.path.exists(sibling["path"]):
-                        sib_result = subprocess.run(
-                            ["git", "checkout", "-b", branch_name],
-                            cwd=sibling["path"],
-                            capture_output=True,
-                            text=True
-                        )
-                        if sib_result.returncode == 0:
-                            print(f"   ✅ {sibling['name']}: Branch created")
-                        else:
-                            # Try to switch to existing branch
-                            switch_sib = subprocess.run(
-                                ["git", "checkout", branch_name],
-                                cwd=sibling["path"],
-                                capture_output=True,
-                                text=True
-                            )
-                            if switch_sib.returncode == 0:
-                                print(f"   ✅ {sibling['name']}: Switched to existing branch")
-                            else:
-                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
-                                
+
         except Exception as e:
             print(f"⚠️ Failed to create branch: {e}")
         
@@ -430,14 +376,6 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
     # Determine target repos (Multi-Repo Support)
     target_projects = [project]
-    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
-        try:
-             for sibling_key in project.get("sibling_repos", []):
-                 if sibling_key in PROJECTS:
-                     target_projects.append(PROJECTS[sibling_key])
-        except Exception:
-            pass
 
     # --- SCREENSHOT LOGIC ---
     screenshot_md = ""
@@ -590,10 +528,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         
         if pr_url:
             print(f"   ✅ PR Created: {pr_url}")
-            # If this is the main project, update state. If sibling, maybe just log?
-            # For now, we update state with the LAST created PR or maybe a list?
-            # LumaState currently stores single pr_url. Let's keep it simple and store the ROOT one if possible,
-            # or just the last one. Ideally we should store all.
+            # Update state with the created PR url
             if proj == project:
                  ok, msg = transition_to(state, WorkflowPhase.PR_PENDING, pr_url=pr_url)
                  if ok:
@@ -669,14 +604,6 @@ def action_code_review(state: LumaState, project: dict):
     
     # Determine target repos (Multi-Repo Support)
     target_projects = [project]
-    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
-        try:
-             for sibling_key in project.get("sibling_repos", []):
-                 if str(sibling_key) in PROJECTS:
-                     target_projects.append(PROJECTS[str(sibling_key)])
-        except Exception:
-            pass
 
     for proj in target_projects:
         print(f"\n🚀 Reviewing {proj['name']}...")
@@ -776,25 +703,7 @@ def action_update_docs(state: LumaState, project: dict):
     print(f"   Project: {project['name']}")
     
     # 1. Determine Scope (Single vs Multi-Repo)
-    # Check for explicit multi-repo flag in project config
-    is_multi_repo = project.get("type") == "monorepo_root"
     target_repos = [project]
-    
-    if is_multi_repo:
-        print("   Mode: Multi-Repo (JarWise)")
-        # Dynamically load sibling repos
-        try:
-            for sibling_key in project.get("sibling_repos", []):
-                # Ensure key is string
-                if str(sibling_key) in PROJECTS:
-                    target_repos.append(PROJECTS[str(sibling_key)])
-                    print(f"   ➕ Added sibling: {PROJECTS[str(sibling_key)]['name']}")
-                else:
-                    print(f"   ⚠️ Sibling key '{sibling_key}' not found in PROJECTS config.")
-        except Exception as e:
-            print(f"⚠️ Failed to load sibling repos: {e}") 
-            import traceback
-            traceback.print_exc() 
     
     print("\n🚀 Ready to update:")
     for repo in target_repos:
@@ -859,12 +768,74 @@ def action_switch_project(state: LumaState) -> str:
     for key, proj in PROJECTS.items():
         print(f"  [{key}] {proj['name']}")
     
+    print("  [+] Add New Project")
+    
     choice = input("\nSelect: ").strip()
     
+    if choice == "+":
+        return _add_new_project(state)
+        
     if choice in PROJECTS:
         return choice
     
     return None
+
+def _add_new_project(state: LumaState) -> str:
+    """Interactively add a new project and save it to config"""
+    print("\n✨ Add New Project")
+    print("=================")
+    
+    name = input("Project Name: ").strip()
+    if not name:
+        print("❌ Project Name is required.")
+        return None
+        
+    path = input("Absolute Path to Project: ").strip()
+    if not path or not os.path.isabs(path):
+        print("❌ Absolute Path is required.")
+        return None
+        
+    repo = input("GitHub Repo (e.g. oatrice/Akasa) [Optional]: ").strip()
+    kanban_number_str = input("GitHub Project Board Number [Optional]: ").strip()
+    
+    # Generate a unique key
+    import time
+    new_key = str(int(time.time()))
+    
+    new_project = {
+        "name": name,
+        "path": path,
+        "repo": repo if repo else "",
+        "kanban_number": int(kanban_number_str) if kanban_number_str.isdigit() else 1,
+        "kanban_id": "" # Cannot easily infer this via CLI right now
+    }
+    
+    # 1. Add to current session runtime
+    PROJECTS[new_key] = new_project
+    
+    # 2. Save to global config
+    from luma_core.config import GLOBAL_CONFIG_FILE
+    import json
+    
+    try:
+        current_config = {}
+        if os.path.exists(GLOBAL_CONFIG_FILE):
+             with open(GLOBAL_CONFIG_FILE, "r") as f:
+                  current_config = json.load(f)
+        
+        if "custom_projects" not in current_config:
+            current_config["custom_projects"] = {}
+            
+        current_config["custom_projects"][new_key] = new_project
+        
+        with open(GLOBAL_CONFIG_FILE, "w") as f:
+            json.dump(current_config, f, indent=2)
+            
+        print(f"\n✅ Project '{name}' added successfully!")
+        return new_key
+    except Exception as e:
+        print(f"\n❌ Failed to save project: {e}")
+        return None
 
 def action_settings():
     """Settings menu to configure LLM Provider and Agent CLI"""
