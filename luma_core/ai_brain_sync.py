@@ -66,20 +66,51 @@ class AntigravityBrain:
         return None
 
     @classmethod
-    def _versioned_copy(cls, src: str, target_dir: str, filename: str) -> Optional[str]:
+    def _versioned_copy(cls, src: str, target_dir: str, filename: str, session_path: Optional[str] = None) -> Optional[str]:
         """Copy src to target_dir/filename with versioning. Returns dest path or None if skipped."""
         name, ext = os.path.splitext(filename)
         dst = os.path.join(target_dir, filename)
+        
+        # Read content if it's a markdown file to replace absolute paths with relative ones
+        content_to_write = None
+        if ext.lower() == ".md" and session_path:
+            try:
+                with open(src, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                # Replace absolute brain session path with relative `./`
+                # Covers both plain text paths and file:// paths used in markdown
+                content_to_write = content.replace(f"file://{session_path}/", "./")
+                content_to_write = content_to_write.replace(f"{session_path}/", "./")
+            except Exception:
+                pass
 
         if os.path.exists(dst):
-            if filecmp.cmp(src, dst, shallow=False):
+            # Compare based on parsed content if available, else use filecmp
+            identical = False
+            if content_to_write is not None:
+                try:
+                    with open(dst, "r", encoding="utf-8") as f:
+                        identical = f.read() == content_to_write
+                except Exception:
+                    pass
+            else:
+                identical = filecmp.cmp(src, dst, shallow=False)
+                
+            if identical:
                 return None
+                
             version = 2
             while os.path.exists(os.path.join(target_dir, f"{name}_v{version}{ext}")):
                 version += 1
             dst = os.path.join(target_dir, f"{name}_v{version}{ext}")
 
-        shutil.copy2(src, dst)
+        if content_to_write is not None:
+            with open(dst, "w", encoding="utf-8") as f:
+                f.write(content_to_write)
+        else:
+            shutil.copy2(src, dst)
+            
         return dst
 
     @classmethod
@@ -103,14 +134,14 @@ class AntigravityBrain:
 
         synced_files = []
         for entry in os.listdir(session_path):
-            # Skip hidden files/dirs
-            if entry.startswith("."):
+            # Skip hidden files/dirs and .resolve.* files
+            if entry.startswith(".") or entry.startswith(".resolve."):
                 continue
             src = os.path.join(session_path, entry)
             # Skip subdirectories — only sync files
             if not os.path.isfile(src):
                 continue
-            dst = cls._versioned_copy(src, target_dir, entry)
+            dst = cls._versioned_copy(src, target_dir, entry, session_path)
             if dst:
                 rel_path = os.path.relpath(dst, project_dir)
                 synced_files.append(rel_path)

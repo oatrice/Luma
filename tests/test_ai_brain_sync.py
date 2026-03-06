@@ -23,10 +23,21 @@ def mock_brain_dir(tmp_path, monkeypatch):
     # Session 3: Recent with required files + images
     sess3 = brain_root / "2466c0f9-3333"
     sess3.mkdir()
+    
+    # Contains absolute paths to images that should be replaced
+    walkthrough_content = f"""# Walkthrough
+    
+![img1]({sess3}/screenshot_1234.png)
+<img src="{sess3}/walkthrough_img.jpg" />
+[link to task](file://{sess3}/task.md)
+    """
+    
     (sess3 / "task.md").write_text("# Active Task Number 45")
-    (sess3 / "implementation_plan.md").write_text("Plan")
+    (sess3 / "walkthrough.md").write_text(walkthrough_content)
     (sess3 / "screenshot_1234.png").write_bytes(b"\x89PNG fake image v1")
     (sess3 / "walkthrough_img.jpg").write_bytes(b"\xff\xd8 fake jpg")
+    # File to skip
+    (sess3 / ".resolve.3a947561-ec74.tmp").write_text("skip me too")
     # Hidden file (should be skipped)
     (sess3 / ".system_cache").write_text("skip me")
     # Subdirectory (should be skipped)
@@ -64,26 +75,53 @@ def test_get_all_sessions_includes_session_id(mock_brain_dir):
 
 # --- sync all files ---
 
-def test_sync_includes_images(mock_brain_dir, tmp_path):
-    """sync_to_repo should include image files, not just .md."""
+def test_sync_includes_images_but_skips_resolve(mock_brain_dir, tmp_path):
+    """sync_to_repo should include image files, skip .resolve.* and hidden files."""
     project_dir = str(tmp_path / "repo")
     os.makedirs(project_dir)
     
     synced_files = AntigravityBrain.sync_to_repo(project_dir, 45)
     
-    # Should sync: task.md, implementation_plan.md, screenshot_1234.png, walkthrough_img.jpg
-    # Should NOT sync: .system_cache, .system_generated/
+    # Should sync: task.md, walkthrough.md, screenshot_1234.png, walkthrough_img.jpg
+    # Should NOT sync: .system_cache, .system_generated/, .resolve.3a947561-ec74.tmp
     assert len(synced_files) == 4
     
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
-    assert os.path.exists(os.path.join(target_dir, "implementation_plan.md"))
+    assert os.path.exists(os.path.join(target_dir, "walkthrough.md"))
     assert os.path.exists(os.path.join(target_dir, "screenshot_1234.png"))
     assert os.path.exists(os.path.join(target_dir, "walkthrough_img.jpg"))
     
-    # Hidden files and dirs should NOT be synced
+    # Hidden files, dirs, and .resolve.* should NOT be synced
     assert not os.path.exists(os.path.join(target_dir, ".system_cache"))
     assert not os.path.exists(os.path.join(target_dir, ".system_generated"))
+    assert not list(filter(lambda x: x.startswith(".resolve."), os.listdir(target_dir)))
+
+def test_sync_updates_image_paths_in_md(mock_brain_dir, tmp_path):
+    """sync_to_repo should replace absolute brain session paths with relative paths in .md files."""
+    project_dir = str(tmp_path / "repo_paths")
+    os.makedirs(project_dir)
+    
+    AntigravityBrain.sync_to_repo(project_dir, 45)
+    
+    target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
+    walkthrough_path = os.path.join(target_dir, "walkthrough.md")
+    
+    assert os.path.exists(walkthrough_path)
+    
+    with open(walkthrough_path, "r", encoding="utf-8") as f:
+        content = f.read()
+        
+    sess3 = os.path.join(mock_brain_dir, "2466c0f9-3333")
+    
+    # Original absolute paths should be gone
+    assert sess3 not in content
+    assert f"file://{sess3}" not in content
+    
+    # Replaced with relative file names since they are in the same folder
+    assert "![img1](./screenshot_1234.png)" in content
+    assert '<img src="./walkthrough_img.jpg" />' in content
+    assert "[link to task](./task.md)" in content
 
 def test_sync_to_repo_uses_existing_feature_dir(mock_brain_dir, tmp_path):
     """When a feature dir already exists, sync into it."""
