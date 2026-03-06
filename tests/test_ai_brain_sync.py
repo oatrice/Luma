@@ -30,10 +30,35 @@ def mock_brain_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(AntigravityBrain, "DEFAULT_BRAIN_PATH", str(brain_root))
     return str(brain_root)
 
+# --- get_latest_session ---
+
 def test_get_latest_session(mock_brain_dir):
     latest_path = AntigravityBrain.get_latest_session()
     assert latest_path is not None
     assert "2466c0f9-3333" in latest_path
+
+# --- get_all_sessions ---
+
+def test_get_all_sessions_returns_sorted_list(mock_brain_dir):
+    """Should return all valid sessions sorted by mtime (newest first)."""
+    sessions = AntigravityBrain.get_all_sessions()
+    assert len(sessions) == 2  # Only 2 have task.md
+    # Newest first
+    assert "2466c0f9-3333" in sessions[0]["path"]
+    assert "2466c0f9-1111" in sessions[1]["path"]
+
+def test_get_all_sessions_includes_preview(mock_brain_dir):
+    """Each session should include a preview (first line of task.md)."""
+    sessions = AntigravityBrain.get_all_sessions()
+    assert sessions[0]["preview"] == "# Active Task Number 45"
+    assert sessions[1]["preview"] == "# Old Issue"
+
+def test_get_all_sessions_includes_session_id(mock_brain_dir):
+    """Each session has a short session_id from the dir name."""
+    sessions = AntigravityBrain.get_all_sessions()
+    assert sessions[0]["session_id"] == "2466c0f9-3333"
+
+# --- sync_to_repo with explicit session_path ---
 
 def test_sync_to_repo_creates_in_features_dir(mock_brain_dir, tmp_path):
     """sync_to_repo should create ai_brain/ inside docs/features/{N}_issue-{N}/"""
@@ -67,47 +92,59 @@ def test_sync_to_repo_uses_existing_feature_dir(mock_brain_dir, tmp_path):
     assert os.path.exists(os.path.join(target_dir, "task.md"))
     assert os.path.exists(os.path.join(target_dir, "implementation_plan.md"))
 
+def test_sync_to_repo_with_explicit_session(mock_brain_dir, tmp_path):
+    """Should use the explicit session_path instead of auto-detecting latest."""
+    project_dir = str(tmp_path / "repo_explicit")
+    os.makedirs(project_dir)
+    
+    # Pick the OLD session explicitly (not the latest)
+    old_session = os.path.join(mock_brain_dir, "2466c0f9-1111")
+    synced_files = AntigravityBrain.sync_to_repo(project_dir, 99, session_path=old_session)
+    
+    assert len(synced_files) == 1  # Only task.md exists in old session
+    
+    target_dir = os.path.join(project_dir, "docs", "features", "99_issue-99", "ai_brain")
+    assert os.path.exists(os.path.join(target_dir, "task.md"))
+    
+    # Verify it's the OLD content
+    with open(os.path.join(target_dir, "task.md")) as f:
+        assert "Old Issue" in f.read()
+
+# --- Versioning ---
+
 def test_sync_versioning_same_content_skips(mock_brain_dir, tmp_path):
     """If file content is identical, don't create a new version."""
     project_dir = str(tmp_path / "repo_ver1")
     os.makedirs(project_dir)
     
-    # First sync
     synced1 = AntigravityBrain.sync_to_repo(project_dir, 45)
     assert len(synced1) == 2
     
-    # Second sync with same content — should skip (no new files)
     synced2 = AntigravityBrain.sync_to_repo(project_dir, 45)
-    assert len(synced2) == 0  # Nothing new to sync
+    assert len(synced2) == 0
     
-    # No _v2 files should exist
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
     assert not os.path.exists(os.path.join(target_dir, "task_v2.md"))
 
 def test_sync_versioning_different_content_creates_v2(mock_brain_dir, tmp_path):
-    """If file content changed, save as _v2, _v3, etc."""
+    """If file content changed, save as _v2."""
     project_dir = str(tmp_path / "repo_ver2")
     os.makedirs(project_dir)
     
-    # First sync
     synced1 = AntigravityBrain.sync_to_repo(project_dir, 45)
     assert len(synced1) == 2
     
-    # Modify the brain source to simulate updated content
-    brain_root = mock_brain_dir
-    sess3 = os.path.join(brain_root, "2466c0f9-3333")
+    sess3 = os.path.join(mock_brain_dir, "2466c0f9-3333")
     with open(os.path.join(sess3, "task.md"), "w") as f:
         f.write("# Updated Task v2")
     
-    # Second sync — should create _v2 files
     synced2 = AntigravityBrain.sync_to_repo(project_dir, 45)
-    assert len(synced2) >= 1  # At least task_v2.md
+    assert len(synced2) >= 1
     
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
-    assert os.path.exists(os.path.join(target_dir, "task.md"))  # Original still there
-    assert os.path.exists(os.path.join(target_dir, "task_v2.md"))  # New version
+    assert os.path.exists(os.path.join(target_dir, "task.md"))
+    assert os.path.exists(os.path.join(target_dir, "task_v2.md"))
     
-    # Verify v2 content is the updated one
     with open(os.path.join(target_dir, "task_v2.md")) as f:
         assert "Updated Task v2" in f.read()
 
@@ -116,21 +153,17 @@ def test_sync_versioning_v3(mock_brain_dir, tmp_path):
     project_dir = str(tmp_path / "repo_ver3")
     os.makedirs(project_dir)
     
-    brain_root = mock_brain_dir
-    sess3 = os.path.join(brain_root, "2466c0f9-3333")
+    sess3 = os.path.join(mock_brain_dir, "2466c0f9-3333")
     
-    # First sync
     AntigravityBrain.sync_to_repo(project_dir, 45)
     
-    # Second sync (different)
     with open(os.path.join(sess3, "task.md"), "w") as f:
         f.write("# Task v2")
     AntigravityBrain.sync_to_repo(project_dir, 45)
     
-    # Third sync (different again)
     with open(os.path.join(sess3, "task.md"), "w") as f:
         f.write("# Task v3")
-    synced3 = AntigravityBrain.sync_to_repo(project_dir, 45)
+    AntigravityBrain.sync_to_repo(project_dir, 45)
     
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
@@ -139,6 +172,8 @@ def test_sync_versioning_v3(mock_brain_dir, tmp_path):
     
     with open(os.path.join(target_dir, "task_v3.md")) as f:
         assert "Task v3" in f.read()
+
+# --- Integration with action ---
 
 def test_action_sync_ai_brain_logic(mock_brain_dir, tmp_path, monkeypatch):
     import os
@@ -158,6 +193,8 @@ def test_action_sync_ai_brain_logic(mock_brain_dir, tmp_path, monkeypatch):
         return MockCompletedProcess()
         
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
+    # Auto-confirm preview
+    monkeypatch.setattr("builtins.input", lambda _: "y")
     
     state = LumaState(project_key="1")
     state.active_issue = IssueData(
