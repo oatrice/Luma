@@ -128,8 +128,8 @@ PROJECTS = {
         "name": "Akasa",
         "path": "/Users/oatrice/Software-projects/Akasa",
         "repo": "oatrice/Akasa",
-        "kanban_number": 1,
-        "kanban_id": "", # Update this later if needed
+        "kanban_number": 9,
+        "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
     }
 }
 
