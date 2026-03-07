@@ -962,13 +962,19 @@ def action_refine_issue(state: LumaState, project: dict):
         print("❌ Analyst agent not available.")
         return
 
+    # Combine properties if multiple issues
+    issues = state.active_issues
+    combined_title = " & ".join([issue.title for issue in issues])
+    combined_number = "-".join([str(issue.number) for issue in issues])
+    combined_body = "\n\n---\n\n".join([f"### Issue #{issue.number}\n{issue.body or ''}" for issue in issues])
+
     # Create temporary state
     analyst_state = {
-        "task": state.active_issue.title,
+        "task": combined_title,
         "issue_data": {
-            "title": state.active_issue.title,
-            "number": state.active_issue.number,
-            "body": state.active_issue.body
+            "title": combined_title,
+            "number": combined_number,
+            "body": combined_body
         },
         "target_dir": project["path"]
     }
@@ -1159,15 +1165,23 @@ def action_generate_sbe(state: LumaState, project: dict):
         print(f"❌ SBE agent not available: {e}")
         return
     
+    # Combine properties if multiple issues
+    issues = state.active_issues
+    combined_title = " & ".join([issue.title for issue in issues])
+    combined_number = "-".join([str(issue.number) for issue in issues])
+    combined_body = "\n\n---\n\n".join([f"### Issue #{issue.number}\n{issue.body or ''}" for issue in issues])
+    
+    first_issue = issues[0]
+    
     # Create state for SBE agent
     sbe_state = {
-        "task": state.active_issue.title,
+        "task": combined_title,
         "issue_data": {
-            "title": state.active_issue.title,
-            "number": state.active_issue.number,
-            "body": state.active_issue.body,
-            "url": state.active_issue.html_url,
-            "repository": state.active_issue.repository
+            "title": combined_title,
+            "number": combined_number,
+            "body": combined_body,
+            "url": getattr(first_issue, "html_url", ""),
+            "repository": getattr(first_issue, "repository", "")
         },
         "target_dir": project["path"]
     }
@@ -1233,15 +1247,24 @@ def action_generate_spec(state: LumaState, project: dict):
         print(f"❌ Spec agent not available: {e}")
         return
 
+    # Combine properties if multiple issues
+    issues = state.active_issues
+    combined_title = " & ".join([issue.title for issue in issues])
+    combined_number = "-".join([str(issue.number) for issue in issues])
+    combined_body = "\n\n---\n\n".join([f"### Issue #{issue.number}\n{issue.body or ''}" for issue in issues])
+    
+    # Use the first issue's URL and repository for simplicity
+    first_issue = issues[0]
+
     # Create State
     spec_state = {
-        "task": state.active_issue.title,
+        "task": combined_title,
         "issue_data": {
-            "title": state.active_issue.title,
-            "number": state.active_issue.number,
-            "body": state.active_issue.body,
-            "url": state.active_issue.html_url,
-            "repository": state.active_issue.repository
+            "title": combined_title,
+            "number": combined_number,
+            "body": combined_body,
+            "url": getattr(first_issue, "html_url", ""),
+            "repository": getattr(first_issue, "repository", "")
         },
         "target_dir": project["path"]
     }
@@ -1480,7 +1503,8 @@ def action_archive_artifacts(state: LumaState, project: dict):
         print("❌ No active issue to archive for.")
         return
 
-    print(f"\n📦 Archiving artifacts for Issue #{state.active_issue.number}...")
+    combined_number = "-".join([str(i.number) for i in state.active_issues])
+    print(f"\n📦 Archiving artifacts for Issue #{combined_number}...")
 
     # Determine Feature Directory
     # Strategy: Try to find existing dir matching issue number
@@ -1497,56 +1521,28 @@ def action_archive_artifacts(state: LumaState, project: dict):
     # 2. Search existing
     if not feature_dir:
         for d in os.listdir(features_root):
-            if d.startswith(f"{state.active_issue.number}_") or f"issue-{state.active_issue.number}" in d:
+            if d.startswith(f"{combined_number}_") or f"issue-{combined_number}" in d:
                 feature_dir = os.path.join(features_root, d)
                 break
     
     # 3. Create new if needed
     if not feature_dir:
-        slug = state.active_issue.title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:50]
-        dirname = f"{state.active_issue.number}_{slug}"
+        combined_title = " & ".join([i.title for i in state.active_issues])
+        slug = combined_title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:50]
+        dirname = f"{combined_number}_{slug}"
         feature_dir = os.path.join(features_root, dirname)
         os.makedirs(feature_dir, exist_ok=True)
         print(f"   📂 Created feature dir: {dirname}")
     else:
         print(f"   📂 Target: {os.path.basename(feature_dir)}")
 
-    # Automatically locate the latest Gemini Antigravity Brain
-    brain_dir = os.path.expanduser("~/.gemini/antigravity/brain")
+    # Only archive locally generated planning/documentation artifacts.
+    # AI Brain artifacts (task.md, walkthrough.md, etc.) are handled by ai_brain_sync.py
+    # and placed in the ai_brain/ subdirectory.
     search_dirs = [project["path"]]
     
-    if os.path.exists(brain_dir):
-        dirs = [os.path.join(brain_dir, d) for d in os.listdir(brain_dir) if os.path.isdir(os.path.join(brain_dir, d)) and not d.startswith('.')]
-        if dirs:
-            from datetime import datetime
-            # Sort by modification time, newest first
-            dirs.sort(key=os.path.getmtime, reverse=True)
-            # Show up to 5 most recent sessions
-            recent = dirs[:5]
-            print("   🧠 Available Antigravity Brain sessions:")
-            for i, d in enumerate(recent):
-                mtime = datetime.fromtimestamp(os.path.getmtime(d)).strftime("%Y-%m-%d %H:%M")
-                sid = os.path.basename(d)
-                # Check which artifacts exist in this session
-                artifact_names = [f for f in os.listdir(d) if f.endswith('.md') and not f.startswith('.')]
-                artifact_hint = f" ({len(artifact_names)} .md files)" if artifact_names else ""
-                print(f"      {i+1}) {sid[:8]}... [{mtime}]{artifact_hint}")
-            choice = input(f"   Select session [1-{len(recent)}] (default=1): ").strip()
-            try:
-                idx = int(choice) - 1 if choice else 0
-                if idx < 0 or idx >= len(recent):
-                    idx = 0
-            except ValueError:
-                idx = 0
-            latest_brain = recent[idx]
-            print(f"   🧠 Syncing from Antigravity Brain: {os.path.basename(latest_brain)[:8]}...")
-            search_dirs.append(latest_brain)
-            # Store selected session for reuse during PR creation
-            state.context["selected_brain_session"] = latest_brain
-
     artifacts = [
-        "analysis.md", "spec.md", "plan.md", "task.md", "walkthrough.md",
-        "implementation_plan.md", "code_review.md" 
+        "analysis.md", "spec.md", "plan.md", "sbe.md", "code_review.md" 
     ]
     # Also support platform specific variations like plan_android.md
     
@@ -1560,30 +1556,25 @@ def action_archive_artifacts(state: LumaState, project: dict):
             is_match = filename in artifacts
             if not is_match:
                 if filename.startswith("plan_") and filename.endswith(".md"): is_match = True
-                if filename.startswith("walkthrough_") and filename.endswith(".md"): is_match = True
+                if filename.startswith("spec_") and filename.endswith(".md"): is_match = True
             
             if is_match:
                 src = os.path.join(sdir, filename)
                 dst = os.path.join(feature_dir, filename)
                 try:
-                    # we use copy2 for gemini workspace so we don't accidentally wreck the agent's ability to read its own files
-                    if sdir != project["path"]:
-                        shutil.copy2(src, dst)
-                        print(f"   ➡️  Copied {filename} (from Brain)")
-                    else:
-                        shutil.move(src, dst)
-                        print(f"   ➡️  Moved {filename}")
+                    shutil.move(src, dst)
+                    print(f"   ➡️  Moved {filename}")
                     moved_count += 1
                 except Exception as e:
                     print(f"   ⚠️  Failed to process {filename}: {e}")
 
     if moved_count == 0:
-        print("   (No artifacts found to archive)")
+        print("   (No local artifacts found to archive)")
     else:
-        print(f"✅ Archived {moved_count} files.")
+        print(f"✅ Archived {moved_count} local files.")
 
 
-def get_feature_dir(project_path: str, issue_number: int) -> str:
+def get_feature_dir(project_path: str, issue_number: str) -> str:
     """Helper to find feature directory for an issue"""
     features_root = os.path.join(project_path, "docs", "features")
     if not os.path.exists(features_root):
@@ -1625,13 +1616,15 @@ def action_guided_workflow(state: LumaState, project: dict):
             print("❌ No issue selected. Aborting.")
             return
     else:
-        print(f"\n🔹 Step 1: Issue #{state.active_issue.number} already selected.")
+        combined_number = "-".join([str(i.number) for i in state.active_issues])
+        print(f"\n🔹 Step 1: Issue #{combined_number} already selected.")
 
     # 2. Planning (Refine -> Spec -> Plan)
     print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
     
     # Check for existing artifacts
-    feature_dir = get_feature_dir(project["path"], state.active_issue.number)
+    combined_number = "-".join([str(i.number) for i in state.active_issues])
+    feature_dir = get_feature_dir(project["path"], combined_number)
     # Also check context if just created
     if not feature_dir and state.context.get("last_feature_dir"):
         feature_dir = state.context.get("last_feature_dir")
@@ -1848,7 +1841,9 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
         # In a real system, we'd read from plan.md to get specific tasks per platform
         # For now, we use a generic task + specific path scope
         
-        sub_task = f"Implement {agent_type} components for Issue #{state.active_issue.number}: {state.active_issue.title}"
+        combined_number = "-".join([str(i.number) for i in state.active_issues])
+        combined_title = " & ".join([i.title for i in state.active_issues])
+        sub_task = f"Implement {agent_type} components for Issue #{combined_number}: {combined_title}"
         source_paths = []
         
         tech_stack = ""
@@ -1883,10 +1878,11 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
         if not feature_dir:
              features_root = os.path.join(project["path"], "docs", "features")
              if os.path.exists(features_root):
+                 combined_number = "-".join([str(i.number) for i in state.active_issues])
                  for d in os.listdir(features_root):
-                    if d.startswith(f"{state.active_issue.number}_") or f"issue-{state.active_issue.number}" in d:
-                        feature_dir = os.path.join(features_root, d)
-                        break
+                     if d.startswith(f"{combined_number}_") or f"issue-{combined_number}" in d:
+                         feature_dir = os.path.join(features_root, d)
+                         break
         
         if feature_dir and os.path.exists(feature_dir):
             print(f"   📂 Loading context from: {os.path.basename(feature_dir)}...")
@@ -1907,7 +1903,10 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
         if generate_prompts_only:
              # Just generate the prompt text file
              prompt_file = os.path.join(project["path"], f"prompt_{agent_type}.txt")
-             
+             combined_number = "-".join([str(i.number) for i in state.active_issues])
+             combined_title = " & ".join([i.title for i in state.active_issues])
+             combined_body = "\n\n---\n\n".join([f"### Issue #{issue.number}\n{issue.body or ''}" for issue in state.active_issues])
+
              prompt_content = f"""# Role: Senior {agent_type.capitalize()} Developer
 # Task: {sub_task}
 
@@ -1915,9 +1914,9 @@ Please write the code for the following requirements.
 
 ## Context
 Project: {project['name']}
-Issue: #{state.active_issue.number} {state.active_issue.title}
+Issue: #{combined_number} {combined_title}
 Body:
-{state.active_issue.body or "No details provided."}
+{combined_body or "No details provided."}
 
 ## Architecture & Plans (AUTHORITATIVE)
 The following content is from the approved design documents. **You MUST follow this design.**
