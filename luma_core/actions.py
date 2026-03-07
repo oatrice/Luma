@@ -71,10 +71,10 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     
     print("\n--- 📋 Select Issue to Work On ---")
     for i, card in enumerate(selectable_issues, 1):
-        status_icon = "🔥" if card.status.lower() == "in progress" else "\u2705"
+        status_icon = "🔥" if card.status.lower() == "in progress" else "✅"
         print(f"  [{i}] {status_icon} #{card.issue_number}: {card.title[:50]} ({card.status})")
     print("  [0] Cancel")
-    print("  \u2139\ufe0f  Comma-separated for multi-select (e.g. 1,3)")
+    print("  ℹ️  Comma-separated for multi-select (e.g. 1,3)")
     
     choice = input("\nSelect issue(s): ").strip()
     
@@ -89,14 +89,16 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
             if 0 <= idx < len(selectable_issues):
                 selected_cards.append(selectable_issues[idx])
             else:
-                print(f"\u274c Invalid index: {idx + 1}")
+                print(f"❌ Invalid index: {idx + 1}")
                 return False
         if selected_cards:
             return _start_issues(state, selected_cards, project)
-    except ValueError:
+    except ValueError as e:
+        import traceback
+        traceback.print_exc()
         pass
     
-    print("\u274c Invalid selection")
+    print("❌ Invalid selection")
     return False
 
 
@@ -108,8 +110,8 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     card_nums = {c.issue_number for c in cards}
     
     if active_nums == card_nums and state.active_branch:
-        print(f"\n\u2705 Already working on {', '.join(f'#{n}' for n in card_nums)} - continuing...")
-        print(f"\ud83c\udf3f Branch: {state.active_branch}")
+        print(f"\n✅ Already working on {', '.join(f'#{n}' for n in card_nums)} - continuing...")
+        print(f"🌿 Branch: {state.active_branch}")
         
         # Ensure git is on the correct branch
         import subprocess
@@ -121,7 +123,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 text=True
             )
             if result.returncode == 0:
-                print(f"\u2705 Switched to branch '{state.active_branch}'.")
+                print(f"✅ Switched to branch '{state.active_branch}'.")
             else:
                 create_result = subprocess.run(
                     ["git", "checkout", "-b", state.active_branch],
@@ -130,14 +132,14 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                     text=True
                 )
                 if create_result.returncode == 0:
-                    print(f"\u2705 Created and switched to branch '{state.active_branch}'.")
+                    print(f"✅ Created and switched to branch '{state.active_branch}'.")
                 else:
-                    print(f"\u26a0\ufe0f Git: {create_result.stderr.strip()}")
+                    print(f"⚠️ Git: {create_result.stderr.strip()}")
             
             # Also ensure sibling repos are on the correct branch
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
-                print(f"\ud83d\udd04 Syncing sibling repos...")
+                print(f"🔄 Syncing sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -148,7 +150,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                             text=True
                         )
                         if sib_result.returncode == 0:
-                            print(f"   \u2705 {sibling['name']}: Switched to branch")
+                            print(f"   ✅ {sibling['name']}: Switched to branch")
                         else:
                             create_sib = subprocess.run(
                                 ["git", "checkout", "-b", state.active_branch],
@@ -157,12 +159,12 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                                 text=True
                             )
                             if create_sib.returncode == 0:
-                                print(f"   \u2705 {sibling['name']}: Branch created")
+                                print(f"   ✅ {sibling['name']}: Branch created")
                             else:
-                                print(f"   \u26a0\ufe0f {sibling['name']}: {sib_result.stderr.strip()}")
+                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
 
         except Exception as e:
-            print(f"\u26a0\ufe0f Git error: {e}")
+            print(f"⚠️ Git error: {e}")
         
         return True
     
@@ -185,18 +187,18 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         ))
     
     # Show Context
-    print("\n\ud83e\udde0 Loading Project Context...")
+    print("\n🧠 Loading Project Context...")
     try:
         summarizer = ContextSummarizer(project["path"])
         reminders = summarizer.summarize_rules()
         if reminders:
-            print("\n\ud83d\udcdd Project Reminders & Rules:")
+            print("\n📝 Project Reminders & Rules:")
             for r in reminders:
                 print(f"  {r}")
         else:
             print("  No specific rules found.")
     except Exception as e:
-        print(f"\u26a0\ufe0f Failed to load context: {e}")
+        print(f"⚠️ Failed to load context: {e}")
     
     # Suggest branch name (with multi-issue numbers)
     issue_nums = "-".join(str(c.issue_number) for c in cards)
@@ -211,11 +213,11 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         if len(cards) > 1:
             suggestions = [s.replace(f"/{primary_number}-", f"/{issue_nums}-") for s in suggestions]
     except Exception as e:
-        print(f"\u26a0\ufe0f AI Agent unavailable: {e}")
+        print(f"⚠️ AI Agent unavailable: {e}")
         slug = primary_title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
         suggestions = [f"feat/{issue_nums}-{slug}"]
 
-    print("\n\ud83c\udf3f Suggested branches:")
+    print("\n🌿 Suggested branches:")
     for i, name in enumerate(suggestions, 1):
         print(f"  [{i}] {name}")
     
@@ -240,15 +242,15 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     
     if ok:
         issue_display = ", ".join(f"#{c.issue_number}" for c in cards)
-        print(f"\n\u2705 Started: {issue_display}")
+        print(f"\n✅ Started: {issue_display}")
         for c in cards:
-            print(f"   \ud83c\udfaf #{c.issue_number}: {c.title[:50]}")
-        print(f"\ud83c\udf3f Branch: {branch_name}")
+            print(f"   🎯 #{c.issue_number}: {c.title[:50]}")
+        print(f"🌿 Branch: {branch_name}")
         
         # Actually create the branch in Git
         import subprocess
         try:
-            print(f"\ud83d\udd04 Creating git branch...")
+            print(f"🔄 Creating git branch...")
             result = subprocess.run(
                 ["git", "checkout", "-b", branch_name],
                 cwd=project["path"],
@@ -256,7 +258,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 text=True
             )
             if result.returncode == 0:
-                print(f"\u2705 Branch '{branch_name}' created and checked out.")
+                print(f"✅ Branch '{branch_name}' created and checked out.")
             else:
                 switch_result = subprocess.run(
                     ["git", "checkout", branch_name],
@@ -265,14 +267,14 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                     text=True
                 )
                 if switch_result.returncode == 0:
-                    print(f"\u2705 Switched to existing branch '{branch_name}'.")
+                    print(f"✅ Switched to existing branch '{branch_name}'.")
                 else:
-                    print(f"\u26a0\ufe0f Git error: {result.stderr.strip()}")
+                    print(f"⚠️ Git error: {result.stderr.strip()}")
             
             # Create branches in sibling repos
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
-                print(f"\n\ud83d\udd04 Creating branches in sibling repos...")
+                print(f"\n🔄 Creating branches in sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -283,7 +285,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                             text=True
                         )
                         if sib_result.returncode == 0:
-                            print(f"   \u2705 {sibling['name']}: Branch created")
+                            print(f"   ✅ {sibling['name']}: Branch created")
                         else:
                             switch_sib = subprocess.run(
                                 ["git", "checkout", branch_name],
@@ -292,30 +294,30 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                                 text=True
                             )
                             if switch_sib.returncode == 0:
-                                print(f"   \u2705 {sibling['name']}: Switched to existing branch")
+                                print(f"   ✅ {sibling['name']}: Switched to existing branch")
                             else:
-                                print(f"   \u26a0\ufe0f {sibling['name']}: {sib_result.stderr.strip()}")
+                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
                                 
         except Exception as e:
-            print(f"\u26a0\ufe0f Failed to create branch: {e}")
+            print(f"⚠️ Failed to create branch: {e}")
         
         # Sync Kanban for all issues
         for i, card in enumerate(cards):
             if card.item_id and project.get("kanban_id"):
                 if i == 0:
-                    print("\ud83d\udd04 Syncing Kanban status...")
+                    print("🔄 Syncing Kanban status...")
                 sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
         
         return True
     else:
-        print(f"\u274c {msg}")
+        print(f"❌ {msg}")
         return False
 
 
 def action_add_issue(state: LumaState, project: dict) -> bool:
     """Add an issue to the current active issues (mid-work)"""
     if state.phase not in [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]:
-        print("\u274c Can only add issues during CODING or PREFLIGHT phase.")
+        print("❌ Can only add issues during CODING or PREFLIGHT phase.")
         return False
     
     print("\n\u2795 Add Issue to Current Work Session")
@@ -356,7 +358,7 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
                 repository=card.repository
             )
             state.active_issues.append(new_issue)
-            print(f"\u2705 Added #{card.issue_number}: {card.title[:40]}")
+            print(f"✅ Added #{card.issue_number}: {card.title[:40]}")
             print(f"   Active issues: {', '.join(f'#{i.number}' for i in state.active_issues)}")
             
             # Sync Kanban
@@ -366,14 +368,14 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
     except ValueError:
         pass
     
-    print("\u274c Invalid selection")
+    print("❌ Invalid selection")
     return False
 
 
 def action_remove_issue(state: LumaState, project: dict) -> bool:
     """Remove an issue from the current active issues"""
     if not state.active_issues or len(state.active_issues) <= 1:
-        print("\u274c Cannot remove: need at least 1 active issue.")
+        print("❌ Cannot remove: need at least 1 active issue.")
         return False
     
     print("\n\u2796 Remove Issue from Current Work Session")
@@ -390,13 +392,13 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
         idx = int(choice) - 1
         if 0 <= idx < len(state.active_issues):
             removed = state.active_issues.pop(idx)
-            print(f"\u2705 Removed #{removed.number}: {removed.title[:40]}")
+            print(f"✅ Removed #{removed.number}: {removed.title[:40]}")
             print(f"   Remaining: {', '.join(f'#{i.number}' for i in state.active_issues)}")
             return True
     except ValueError:
         pass
     
-    print("\u274c Invalid selection")
+    print("❌ Invalid selection")
     return False
 
 
