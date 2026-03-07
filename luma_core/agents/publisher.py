@@ -242,12 +242,12 @@ INSTRUCTIONS:
             try:
                 with open(manual_body_path, "r", encoding="utf-8") as f:
                     existing_body = f.read()
-                issue_number = state.get('issue_data', {}).get('number')
-                if issue_number and f"issues/{issue_number}" in existing_body:
-                    print(f"🤖 Auto-Approve: Draft body matches issue #{issue_number}. Using manual PR body...")
+                issue_url = state.get('issue_data', {}).get('url')
+                if issue_url and f"Closes {issue_url}" in existing_body:
+                    print(f"🤖 Auto-Approve: Draft body correctly targets issue URL ({issue_url}). Using manual PR body...")
                     use_existing = True
                 else:
-                    print(f"⚠️ Auto-Approve: Draft body does NOT match current issue #{issue_number}. Regenerating...")
+                    print(f"⚠️ Auto-Approve: Draft body does NOT match current issue URL ({issue_url}). Regenerating...")
             except Exception as e:
                 print(f"⚠️ Failed to validate draft body: {e}")
 
