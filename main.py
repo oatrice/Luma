@@ -77,6 +77,8 @@ def save_global_config(config):
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
+    "+": {"label": "➕ Add Issue (to session)",     "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
+    "-": {"label": "➖ Remove Issue (from session)", "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
     "3": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "4": {"label": "📝 Generate Spec + SBE",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
@@ -199,6 +201,14 @@ def main():
             if actions.action_select_issue(state, project):
                 save_state(state, project["path"])
         
+        elif choice == "+":
+            if actions.action_add_issue(state, project):
+                save_state(state, project["path"])
+        
+        elif choice == "-":
+            if actions.action_remove_issue(state, project):
+                save_state(state, project["path"])
+        
         elif choice == "3":
             actions.action_refine_issue(state, project)
             
@@ -283,12 +293,14 @@ def main():
                     print("✅ PR has been merged!")
                     
                     # Move Kanban to Done
-                    if state.active_issue and state.active_issue.project_item_id:
-                        sync_kanban_on_action(
-                            "pr_merged",
-                            state.active_issue.project_id,
-                            state.active_issue.project_item_id
-                        )
+                    if state.active_issues:
+                        for ai_issue in state.active_issues:
+                            if ai_issue.project_item_id:
+                                sync_kanban_on_action(
+                                    "pr_merged",
+                                    ai_issue.project_id,
+                                    ai_issue.project_item_id
+                                )
                     
                     # Reset state to IDLE
                     state = LumaState(project_key=state.project_key)

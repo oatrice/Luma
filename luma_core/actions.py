@@ -71,33 +71,45 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     
     print("\n--- 📋 Select Issue to Work On ---")
     for i, card in enumerate(selectable_issues, 1):
-        status_icon = "🔥" if card.status.lower() == "in progress" else "✅"
+        status_icon = "🔥" if card.status.lower() == "in progress" else "\u2705"
         print(f"  [{i}] {status_icon} #{card.issue_number}: {card.title[:50]} ({card.status})")
     print("  [0] Cancel")
+    print("  \u2139\ufe0f  Comma-separated for multi-select (e.g. 1,3)")
     
-    choice = input("\nSelect issue: ").strip()
+    choice = input("\nSelect issue(s): ").strip()
     
     if choice == "0":
         return False
     
+    # Parse multi-select (e.g. "1,3" or "1")
     try:
-        idx = int(choice) - 1
-        if 0 <= idx < len(selectable_issues):
-            return _start_issue(state, selectable_issues[idx], project)
+        indices = [int(x.strip()) - 1 for x in choice.split(",")]
+        selected_cards = []
+        for idx in indices:
+            if 0 <= idx < len(selectable_issues):
+                selected_cards.append(selectable_issues[idx])
+            else:
+                print(f"\u274c Invalid index: {idx + 1}")
+                return False
+        if selected_cards:
+            return _start_issues(state, selected_cards, project)
     except ValueError:
         pass
     
-    print("❌ Invalid selection")
+    print("\u274c Invalid selection")
     return False
 
 
-def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
-    """Start working on an issue"""
+def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
+    """Start working on one or more issues"""
     
-    # Check if this issue is already active (re-selecting same issue)
-    if state.active_issue and state.active_issue.number == card.issue_number:
-        print(f"\n✅ Already working on #{card.issue_number} - continuing...")
-        print(f"🌿 Branch: {state.active_branch}")
+    # Check if ALL these issues are already active (re-selecting same set)
+    active_nums = {i.number for i in state.active_issues} if state.active_issues else set()
+    card_nums = {c.issue_number for c in cards}
+    
+    if active_nums == card_nums and state.active_branch:
+        print(f"\n\u2705 Already working on {', '.join(f'#{n}' for n in card_nums)} - continuing...")
+        print(f"\ud83c\udf3f Branch: {state.active_branch}")
         
         # Ensure git is on the correct branch
         import subprocess
@@ -109,9 +121,8 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                 text=True
             )
             if result.returncode == 0:
-                print(f"✅ Switched to branch '{state.active_branch}'.")
+                print(f"\u2705 Switched to branch '{state.active_branch}'.")
             else:
-                # Branch doesn't exist, create it
                 create_result = subprocess.run(
                     ["git", "checkout", "-b", state.active_branch],
                     cwd=project["path"],
@@ -119,14 +130,14 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                     text=True
                 )
                 if create_result.returncode == 0:
-                    print(f"✅ Created and switched to branch '{state.active_branch}'.")
+                    print(f"\u2705 Created and switched to branch '{state.active_branch}'.")
                 else:
-                    print(f"⚠️ Git: {create_result.stderr.strip()}")
+                    print(f"\u26a0\ufe0f Git: {create_result.stderr.strip()}")
             
             # Also ensure sibling repos are on the correct branch
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
-                print(f"🔄 Syncing sibling repos...")
+                print(f"\ud83d\udd04 Syncing sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -137,9 +148,8 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                             text=True
                         )
                         if sib_result.returncode == 0:
-                            print(f"   ✅ {sibling['name']}: Switched to branch")
+                            print(f"   \u2705 {sibling['name']}: Switched to branch")
                         else:
-                            # Try to create the branch
                             create_sib = subprocess.run(
                                 ["git", "checkout", "-b", state.active_branch],
                                 cwd=sibling["path"],
@@ -147,12 +157,12 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                                 text=True
                             )
                             if create_sib.returncode == 0:
-                                print(f"   ✅ {sibling['name']}: Branch created")
+                                print(f"   \u2705 {sibling['name']}: Branch created")
                             else:
-                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
+                                print(f"   \u26a0\ufe0f {sibling['name']}: {sib_result.stderr.strip()}")
 
         except Exception as e:
-            print(f"⚠️ Git error: {e}")
+            print(f"\u26a0\ufe0f Git error: {e}")
         
         return True
     
@@ -161,41 +171,51 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
         transition_to(state, WorkflowPhase.SELECTING)
     # If already CODING, we're switching issues - no need to go through SELECTING
     
-    # Create IssueData
-    issue = IssueData(
-        number=card.issue_number,
-        title=card.title,
-        html_url=card.url,
-        body=card.body,
-        project_item_id=card.item_id,
-        project_id=project["kanban_id"],
-        repository=card.repository
-    )
+    # Create IssueData list
+    issues = []
+    for card in cards:
+        issues.append(IssueData(
+            number=card.issue_number,
+            title=card.title,
+            html_url=card.url,
+            body=card.body,
+            project_item_id=card.item_id,
+            project_id=project["kanban_id"],
+            repository=card.repository
+        ))
     
     # Show Context
-    print("\n🧠 Loading Project Context...")
+    print("\n\ud83e\udde0 Loading Project Context...")
     try:
         summarizer = ContextSummarizer(project["path"])
         reminders = summarizer.summarize_rules()
         if reminders:
-            print("\n📝 Project Reminders & Rules:")
+            print("\n\ud83d\udcdd Project Reminders & Rules:")
             for r in reminders:
                 print(f"  {r}")
         else:
             print("  No specific rules found.")
     except Exception as e:
-        print(f"⚠️ Failed to load context: {e}")
+        print(f"\u26a0\ufe0f Failed to load context: {e}")
     
-    # Suggest branch name
+    # Suggest branch name (with multi-issue numbers)
+    issue_nums = "-".join(str(c.issue_number) for c in cards)
+    primary_title = cards[0].title
+    primary_body = cards[0].body or ""
+    primary_number = cards[0].issue_number
+    
     try:
         from luma_core.agents.analyst import generate_branch_names
-        suggestions = generate_branch_names(card.title, card.body or "", card.issue_number)
+        suggestions = generate_branch_names(primary_title, primary_body, primary_number)
+        # Replace single issue number with multi-issue numbers in suggestions
+        if len(cards) > 1:
+            suggestions = [s.replace(f"/{primary_number}-", f"/{issue_nums}-") for s in suggestions]
     except Exception as e:
-        print(f"⚠️ AI Agent unavailable: {e}")
-        slug = card.title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
-        suggestions = [f"feat/{card.issue_number}-{slug}"]
+        print(f"\u26a0\ufe0f AI Agent unavailable: {e}")
+        slug = primary_title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
+        suggestions = [f"feat/{issue_nums}-{slug}"]
 
-    print("\n🌿 Suggested branches:")
+    print("\n\ud83c\udf3f Suggested branches:")
     for i, name in enumerate(suggestions, 1):
         print(f"  [{i}] {name}")
     
@@ -214,18 +234,21 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
     ok, msg = transition_to(
         state, 
         WorkflowPhase.CODING,
-        active_issue=issue,
+        active_issues=issues,
         active_branch=branch_name
     )
     
     if ok:
-        print(f"\n✅ Started: #{card.issue_number} {card.title}")
-        print(f"🌿 Branch: {branch_name}")
+        issue_display = ", ".join(f"#{c.issue_number}" for c in cards)
+        print(f"\n\u2705 Started: {issue_display}")
+        for c in cards:
+            print(f"   \ud83c\udfaf #{c.issue_number}: {c.title[:50]}")
+        print(f"\ud83c\udf3f Branch: {branch_name}")
         
         # Actually create the branch in Git
         import subprocess
         try:
-            print(f"🔄 Creating git branch...")
+            print(f"\ud83d\udd04 Creating git branch...")
             result = subprocess.run(
                 ["git", "checkout", "-b", branch_name],
                 cwd=project["path"],
@@ -233,9 +256,8 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                 text=True
             )
             if result.returncode == 0:
-                print(f"✅ Branch '{branch_name}' created and checked out.")
+                print(f"\u2705 Branch '{branch_name}' created and checked out.")
             else:
-                # Branch might already exist, try switching to it
                 switch_result = subprocess.run(
                     ["git", "checkout", branch_name],
                     cwd=project["path"],
@@ -243,14 +265,14 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                     text=True
                 )
                 if switch_result.returncode == 0:
-                    print(f"✅ Switched to existing branch '{branch_name}'.")
+                    print(f"\u2705 Switched to existing branch '{branch_name}'.")
                 else:
-                    print(f"⚠️ Git error: {result.stderr.strip()}")
+                    print(f"\u26a0\ufe0f Git error: {result.stderr.strip()}")
             
-            # Create branches in sibling repos (Web, Backend, Android)
+            # Create branches in sibling repos
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
-                print(f"\n🔄 Creating branches in sibling repos...")
+                print(f"\n\ud83d\udd04 Creating branches in sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -261,9 +283,8 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                             text=True
                         )
                         if sib_result.returncode == 0:
-                            print(f"   ✅ {sibling['name']}: Branch created")
+                            print(f"   \u2705 {sibling['name']}: Branch created")
                         else:
-                            # Try to switch to existing branch
                             switch_sib = subprocess.run(
                                 ["git", "checkout", branch_name],
                                 cwd=sibling["path"],
@@ -271,22 +292,112 @@ def _start_issue(state: LumaState, card: KanbanCard, project: dict) -> bool:
                                 text=True
                             )
                             if switch_sib.returncode == 0:
-                                print(f"   ✅ {sibling['name']}: Switched to existing branch")
+                                print(f"   \u2705 {sibling['name']}: Switched to existing branch")
                             else:
-                                print(f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}")
+                                print(f"   \u26a0\ufe0f {sibling['name']}: {sib_result.stderr.strip()}")
                                 
         except Exception as e:
-            print(f"⚠️ Failed to create branch: {e}")
+            print(f"\u26a0\ufe0f Failed to create branch: {e}")
         
-        # Sync Kanban
-        if card.item_id and project.get("kanban_id"):
-            print("🔄 Syncing Kanban status...")
-            sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
+        # Sync Kanban for all issues
+        for i, card in enumerate(cards):
+            if card.item_id and project.get("kanban_id"):
+                if i == 0:
+                    print("\ud83d\udd04 Syncing Kanban status...")
+                sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
         
         return True
     else:
-        print(f"❌ {msg}")
+        print(f"\u274c {msg}")
         return False
+
+
+def action_add_issue(state: LumaState, project: dict) -> bool:
+    """Add an issue to the current active issues (mid-work)"""
+    if state.phase not in [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]:
+        print("\u274c Can only add issues during CODING or PREFLIGHT phase.")
+        return False
+    
+    print("\n\u2795 Add Issue to Current Work Session")
+    if state.active_issues:
+        print(f"   Current issues: {', '.join(f'#{i.number}' for i in state.active_issues)}")
+    
+    all_cards = fetch_kanban_cards(project["kanban_number"])
+    active_nums = {i.number for i in state.active_issues}
+    
+    valid_statuses = ["Ready", "In Progress", "Todo"]
+    selectable = [c for c in all_cards 
+                  if any(s.lower() == c.status.lower() for s in valid_statuses)
+                  and c.issue_number not in active_nums]
+    
+    if not selectable:
+        print("\ud83d\udced No additional issues available.")
+        return False
+    
+    for i, card in enumerate(selectable, 1):
+        print(f"  [{i}] #{card.issue_number}: {card.title[:50]} ({card.status})")
+    print("  [0] Cancel")
+    
+    choice = input("\nSelect issue to add: ").strip()
+    if choice == "0":
+        return False
+    
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(selectable):
+            card = selectable[idx]
+            new_issue = IssueData(
+                number=card.issue_number,
+                title=card.title,
+                html_url=card.url,
+                body=card.body,
+                project_item_id=card.item_id,
+                project_id=project["kanban_id"],
+                repository=card.repository
+            )
+            state.active_issues.append(new_issue)
+            print(f"\u2705 Added #{card.issue_number}: {card.title[:40]}")
+            print(f"   Active issues: {', '.join(f'#{i.number}' for i in state.active_issues)}")
+            
+            # Sync Kanban
+            if card.item_id and project.get("kanban_id"):
+                sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
+            return True
+    except ValueError:
+        pass
+    
+    print("\u274c Invalid selection")
+    return False
+
+
+def action_remove_issue(state: LumaState, project: dict) -> bool:
+    """Remove an issue from the current active issues"""
+    if not state.active_issues or len(state.active_issues) <= 1:
+        print("\u274c Cannot remove: need at least 1 active issue.")
+        return False
+    
+    print("\n\u2796 Remove Issue from Current Work Session")
+    for i, issue in enumerate(state.active_issues, 1):
+        primary = " (primary)" if i == 1 else ""
+        print(f"  [{i}] #{issue.number}: {issue.title[:50]}{primary}")
+    print("  [0] Cancel")
+    
+    choice = input("\nSelect issue to remove: ").strip()
+    if choice == "0":
+        return False
+    
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(state.active_issues):
+            removed = state.active_issues.pop(idx)
+            print(f"\u2705 Removed #{removed.number}: {removed.title[:40]}")
+            print(f"   Remaining: {', '.join(f'#{i.number}' for i in state.active_issues)}")
+            return True
+    except ValueError:
+        pass
+    
+    print("\u274c Invalid selection")
+    return False
 
 
 def action_view_kanban(project: dict):
@@ -376,7 +487,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         print("💡 Start coding first by selecting an issue")
         return
     
-    if not state.active_issue or not state.active_branch:
+    if not state.active_issues or not state.active_branch:
         print("❌ No active issue/branch")
         return
     
@@ -569,15 +680,31 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         
         # Construct a temporary state for the publisher
         # Append screenshots and AI brain context to body
-        issue_body = (state.active_issue.body or "") + repo_screenshot_section + ai_brain_section
+        # Multi-issue: combine all issue bodies + closing references
+        primary_issue = state.active_issue
+        
+        if len(state.active_issues) > 1:
+            closes_line = ", ".join(f"Closes #{i.number}" for i in state.active_issues)
+            issues_section = "\n\n## Issues\n" + "\n".join(
+                f"- #{i.number}: {i.title}" for i in state.active_issues
+            )
+            combined_body = (primary_issue.body or "") + issues_section + repo_screenshot_section + ai_brain_section
+            pr_title = f"{primary_issue.title} (#{', #'.join(str(i.number) for i in state.active_issues)})"
+        else:
+            closes_line = f"Closes #{primary_issue.number}"
+            combined_body = (primary_issue.body or "") + repo_screenshot_section + ai_brain_section
+            pr_title = primary_issue.title
+        
+        # Add closes line at the end
+        combined_body += f"\n\n{closes_line}"
         
         pub_state = {
-            "task": state.active_issue.title,
+            "task": pr_title,
             "issue_data": {
-                "title": state.active_issue.title,
-                "number": state.active_issue.number,
-                "body": issue_body,
-                "url": getattr(state.active_issue, 'html_url', f"https://github.com/{project['repo']}/issues/{state.active_issue.number}")
+                "title": pr_title,
+                "number": primary_issue.number,
+                "body": combined_body,
+                "url": getattr(primary_issue, 'html_url', f"https://github.com/{project['repo']}/issues/{primary_issue.number}")
             },
             "repo": proj["repo"],
             "issue_source_repo": project["repo"],

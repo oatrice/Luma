@@ -6,6 +6,7 @@ Luma V2 State Manager
 
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Tuple, Dict, Any, List
+import copy
 from datetime import datetime
 from enum import Enum
 import json
@@ -39,7 +40,7 @@ class LumaState:
     version: str = "1.0"
     project_key: str = ""
     phase: WorkflowPhase = WorkflowPhase.IDLE
-    active_issue: Optional[IssueData] = None
+    active_issues: List[IssueData] = field(default_factory=list)
     active_branch: Optional[str] = None
     started_at: Optional[str] = None
     checklist: Dict[str, bool] = field(default_factory=dict)
@@ -47,6 +48,16 @@ class LumaState:
     pr_url: Optional[str] = None
     pr_number: Optional[int] = None
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    @property
+    def active_issue(self) -> Optional[IssueData]:
+        """Backward compat: returns first issue (primary) or None"""
+        return self.active_issues[0] if self.active_issues else None
+
+    @property
+    def has_issues(self) -> bool:
+        """Check if any issues are active"""
+        return len(self.active_issues) > 0
 
 
 # =============================================================================
@@ -62,7 +73,7 @@ VALID_TRANSITIONS = {
 }
 
 TRANSITION_REQUIREMENTS = {
-    (WorkflowPhase.SELECTING, WorkflowPhase.CODING): ["active_issue", "active_branch"],
+    (WorkflowPhase.SELECTING, WorkflowPhase.CODING): ["active_issues", "active_branch"],
     (WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING): ["pr_url"],
 }
 
@@ -139,9 +150,22 @@ def load_state(project_path: str) -> LumaState:
             print(f"⚠️ Unknown phase '{phase_str}', defaulting to 'idle'")
             data["phase"] = WorkflowPhase.IDLE
         
-        # Reconstruct IssueData if exists
-        if data.get("active_issue") and isinstance(data["active_issue"], dict):
-            data["active_issue"] = IssueData(**data["active_issue"])
+        # Backward compat: migrate old single active_issue to active_issues list
+        if data.get("active_issue") and not data.get("active_issues"):
+            old_issue = data.pop("active_issue")
+            if isinstance(old_issue, dict):
+                data["active_issues"] = [IssueData(**old_issue)]
+            elif isinstance(old_issue, IssueData):
+                data["active_issues"] = [old_issue]
+        elif "active_issue" in data:
+            data.pop("active_issue", None)
+
+        # Reconstruct active_issues list
+        if data.get("active_issues") and isinstance(data["active_issues"], list):
+            data["active_issues"] = [
+                IssueData(**item) if isinstance(item, dict) else item
+                for item in data["active_issues"]
+            ]
         
         # Remove unknown fields
         known_fields = {f.name for f in LumaState.__dataclass_fields__.values()}
@@ -235,7 +259,7 @@ def transition_to(
         
     elif new_phase == WorkflowPhase.IDLE:
         # Reset active work data
-        state.active_issue = None
+        state.active_issues = []
         state.active_branch = None
         state.pr_url = None
         state.pr_number = None
@@ -270,8 +294,13 @@ def format_state_header(state: LumaState) -> str:
     emoji, name, _ = get_phase_display(state.phase)
     lines = [f"📍 Phase: {emoji} {name}"]
     
-    if state.active_issue:
-        lines.append(f"🎯 Task: #{state.active_issue.number} {state.active_issue.title[:40]}...")
+    if state.active_issues:
+        if len(state.active_issues) == 1:
+            issue = state.active_issues[0]
+            lines.append(f"🎯 Task: #{issue.number} {issue.title[:40]}...")
+        else:
+            nums = ", ".join(f"#{i.number}" for i in state.active_issues)
+            lines.append(f"🎯 Tasks: [{nums}] {state.active_issues[0].title[:30]}...")
     
     if state.active_branch:
         lines.append(f"🌿 Branch: {state.active_branch}")
