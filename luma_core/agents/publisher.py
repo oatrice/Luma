@@ -235,11 +235,26 @@ INSTRUCTIONS:
     # Initialize choice
     choice = ''
     if auto_approve:
+        use_existing = False
         if os.path.exists(manual_body_path) and os.path.getsize(manual_body_path) > 0:
-            print("🤖 Auto-Approve enabled & Draft Body found: Using manual PR body...")
+            # ตรวจสอบว่า draft_pr_body.md ตรงกับ issue ปัจจุบันหรือไม่
+            # ป้องกันการใช้ PR body เก่าจาก issue ก่อนหน้า
+            try:
+                with open(manual_body_path, "r", encoding="utf-8") as f:
+                    existing_body = f.read()
+                issue_number = state.get('issue_data', {}).get('number')
+                if issue_number and f"issues/{issue_number}" in existing_body:
+                    print(f"🤖 Auto-Approve: Draft body matches issue #{issue_number}. Using manual PR body...")
+                    use_existing = True
+                else:
+                    print(f"⚠️ Auto-Approve: Draft body does NOT match current issue #{issue_number}. Regenerating...")
+            except Exception as e:
+                print(f"⚠️ Failed to validate draft body: {e}")
+
+        if use_existing:
             choice = 'm'
         else:
-            print("🤖 Auto-Approve enabled: Skipping prompt review and generating new PR body...")
+            print("🤖 Auto-Approve enabled: Generating new PR body...")
             choice = 'y'
     else:
         print("✋ Waiting for approval... Please review the prompt file.")
