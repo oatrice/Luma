@@ -1909,9 +1909,13 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
              combined_title = " & ".join([i.title for i in state.active_issues])
              combined_body = "\n\n---\n\n".join([f"### Issue #{issue.number}\n{issue.body or ''}" for issue in state.active_issues])
 
+             android_specific_instruction = ""
+             if agent_type == "android":
+                 android_specific_instruction = "\n**⚠️ สำคัญมากๆ สำหรับ Android:**\nหากคุณต้องการ Test หรือ Build ระบบ **ห้ามรันผ่าน Command Line `gradlew` เด็ดขาด** ให้คุณรันการ Build และ Test ผ่าน UI ของช่องทาง path ของ **Android Studio** เท่านั้น\n"
+
              prompt_content = f"""# Role: Senior {agent_type.capitalize()} Developer
 # Task: {sub_task}
-
+{android_specific_instruction}
 **💡 คำสั่งสำหรับ AI Assistant (Cursor/Claude/etc):**
 ให้อ่านไฟล์ทั้งหมดใน `docs/features/{os.path.basename(feature_dir) if feature_dir else "[feature_dir]"}` และไฟล์ `prompt_{agent_type}.txt` นี้ (ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง) 
 มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement
