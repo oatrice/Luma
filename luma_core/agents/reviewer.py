@@ -69,13 +69,16 @@ def reviewer_agent(state: AgentState):
     try:
         print("🧪 Reviewer: Analyzing for missing tests...")
         advice_prompt = f"""
-        Analyze the code changes below and list 3 critical test cases that should be added/verified.
-        Focus on edge cases.
+        Analyze the code changes below and write a "Manual Verification Guide" for the developer to perform local testing.
+        Think about how to physically test these changes step-by-step (e.g., clicking UI, sending text in chat, running curl).
         
         Code:
-        {json.dumps(changes, indent=2)[:3000]}
+        {{json.dumps(changes, indent=2)[:3000]}}
         
-        Output: Bullet points only.
+        Output format should be clear and actionable:
+        - Step 1: ...
+        - Step 2: ...
+        - Expected Result: ...
         """
         advice = llm.invoke([HumanMessage(content=advice_prompt)]).content
         print(f"\n⚠️ Recommended Test Cases:\n{advice}\n")

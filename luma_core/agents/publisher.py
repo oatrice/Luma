@@ -258,6 +258,12 @@ INSTRUCTIONS:
             choice = 'y'
     else:
         print("✋ Waiting for approval... Please review the prompt file.")
+        if state.get("test_suggestions"):
+            print("\n" + "="*50)
+            print("🛑 🛑 🛑 กฎเหล็ก: กรุณา MANUAL VERIFY โค้ดของคุณก่อน! 🛑 🛑 🛑")
+            print("AI ได้เตรียมวิธีทดสอบสำหรับฟีเจอร์นี้ให้แล้ว กรุณาลองทดสอบตามนี้ในเครื่องของคุณ:\n")
+            print(state["test_suggestions"])
+            print("="*50 + "\n")
         print("👉 Options: [y] Auto-Generate, [m] Use Manual Body, [n] Cancel")
         choice = input("👉 Select Check: ").strip().lower()
     
