@@ -114,6 +114,25 @@ class AntigravityBrain:
         return dst
 
     @classmethod
+    def _should_skip_file(cls, filename: str) -> bool:
+        """Check if a file should be skipped during sync.
+        
+        Skips:
+        - Hidden files (starting with '.')
+        - .resolve.* files
+        - *.metadata.json files
+        - *.resolved and *.resolved.N files
+        """
+        import re
+        if filename.startswith("."):
+            return True
+        if filename.endswith(".metadata.json"):
+            return True
+        if re.search(r'\.resolved(\.\d+)?$', filename):
+            return True
+        return False
+
+    @classmethod
     def sync_to_repo(cls, project_dir: str, issue_number: int, session_path: Optional[str] = None) -> List[str]:
         """Syncs brain artifacts into the project dir. Uses session_path if given, else auto-detects latest."""
         if session_path:
@@ -134,8 +153,8 @@ class AntigravityBrain:
 
         synced_files = []
         for entry in os.listdir(session_path):
-            # Skip hidden files/dirs and .resolve.* files
-            if entry.startswith(".") or entry.startswith(".resolve."):
+            # Skip unwanted files (hidden, .resolve.*, .metadata.json, .resolved)
+            if cls._should_skip_file(entry):
                 continue
             src = os.path.join(session_path, entry)
             # Skip subdirectories — only sync files

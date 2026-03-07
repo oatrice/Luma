@@ -40,6 +40,11 @@ def mock_brain_dir(tmp_path, monkeypatch):
     (sess3 / ".resolve.3a947561-ec74.tmp").write_text("skip me too")
     # Hidden file (should be skipped)
     (sess3 / ".system_cache").write_text("skip me")
+    # Metadata and resolved files (should be skipped)
+    (sess3 / "walkthrough.md.metadata.json").write_text('{"key": "value"}')
+    (sess3 / "walkthrough.md.resolved").write_text("resolved content")
+    (sess3 / "walkthrough.md.resolved.0").write_text("resolved v0")
+    (sess3 / "walkthrough.md.resolved.1").write_text("resolved v1")
     # Subdirectory (should be skipped)
     sub = sess3 / ".system_generated"
     sub.mkdir()
@@ -83,7 +88,7 @@ def test_sync_includes_images_but_skips_resolve(mock_brain_dir, tmp_path):
     synced_files = AntigravityBrain.sync_to_repo(project_dir, 45)
     
     # Should sync: task.md, walkthrough.md, screenshot_1234.png, walkthrough_img.jpg
-    # Should NOT sync: .system_cache, .system_generated/, .resolve.3a947561-ec74.tmp
+    # Should NOT sync: .system_cache, .system_generated/, .resolve.*, *.metadata.json, *.resolved, *.resolved.N
     assert len(synced_files) == 4
     
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
@@ -92,10 +97,30 @@ def test_sync_includes_images_but_skips_resolve(mock_brain_dir, tmp_path):
     assert os.path.exists(os.path.join(target_dir, "screenshot_1234.png"))
     assert os.path.exists(os.path.join(target_dir, "walkthrough_img.jpg"))
     
-    # Hidden files, dirs, and .resolve.* should NOT be synced
+    # Hidden files, dirs, .resolve.*, .metadata.json, .resolved should NOT be synced
     assert not os.path.exists(os.path.join(target_dir, ".system_cache"))
     assert not os.path.exists(os.path.join(target_dir, ".system_generated"))
     assert not list(filter(lambda x: x.startswith(".resolve."), os.listdir(target_dir)))
+
+def test_sync_skips_metadata_and_resolved_files(mock_brain_dir, tmp_path):
+    """sync_to_repo should skip .metadata.json, .resolved, and .resolved.N files."""
+    project_dir = str(tmp_path / "repo_meta")
+    os.makedirs(project_dir)
+    
+    synced_files = AntigravityBrain.sync_to_repo(project_dir, 45)
+    
+    target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
+    
+    # These artifact metadata files should NOT be synced
+    assert not os.path.exists(os.path.join(target_dir, "walkthrough.md.metadata.json"))
+    assert not os.path.exists(os.path.join(target_dir, "walkthrough.md.resolved"))
+    assert not os.path.exists(os.path.join(target_dir, "walkthrough.md.resolved.0"))
+    assert not os.path.exists(os.path.join(target_dir, "walkthrough.md.resolved.1"))
+    
+    # None of the synced file names should contain these suffixes
+    for f in synced_files:
+        assert ".metadata.json" not in f
+        assert ".resolved" not in f
 
 def test_sync_updates_image_paths_in_md(mock_brain_dir, tmp_path):
     """sync_to_repo should replace absolute brain session paths with relative paths in .md files."""
