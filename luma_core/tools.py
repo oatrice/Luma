@@ -1184,7 +1184,17 @@ def update_version_in_file(repo_path: str, new_version: str, version_file: str =
                 pass
     
     if not result["error"]:
-        result["error"] = "No version file found (VERSION, package.json, or build.gradle)"
+        # Auto-create VERSION file if none exists
+        version_path = os.path.join(repo_path, "VERSION")
+        try:
+            with open(version_path, 'w') as f:
+                f.write(new_version + '\n')
+            result["success"] = True
+            result["file"] = "VERSION"
+            print(f"   🆕 Auto-created VERSION file")
+            return result
+        except Exception as e:
+            result["error"] = f"Failed to auto-create VERSION file: {e}"
     
     return result
 
@@ -1438,6 +1448,14 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
             readme_path = os.path.join(config["path"], "README.md")
             
             docs_available = []
+            if not os.path.exists(changelog_path):
+                print(f"   🆕 Creating default CHANGELOG.md...")
+                try:
+                    with open(changelog_path, 'w', encoding='utf-8') as f:
+                        f.write("# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n")
+                except Exception as e:
+                    print(f"   ⚠️ Failed to create CHANGELOG.md: {e}")
+
             if os.path.exists(changelog_path):
                 docs_available.append("CHANGELOG.md")
             if os.path.exists(readme_path):
