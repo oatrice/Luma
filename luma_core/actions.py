@@ -1910,6 +1910,10 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
              prompt_content = f"""# Role: Senior {agent_type.capitalize()} Developer
 # Task: {sub_task}
 
+**💡 คำสั่งสำหรับ AI Assistant (Cursor/Claude/etc):**
+ให้อ่านไฟล์ทั้งหมดใน `docs/features/{os.path.basename(feature_dir) if feature_dir else "[feature_dir]"}` และไฟล์ `prompt_{agent_type}.txt` นี้ (ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง) 
+มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement
+
 Please write the code for the following requirements.
 
 ## Context
