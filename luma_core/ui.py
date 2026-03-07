@@ -71,14 +71,17 @@ def display_header(state: LumaState, project: dict):
     _print_boxed_line(format_row("📂", "Project", project['name']), BOX_WIDTH)
     _print_boxed_line(format_row("📍", "Phase  ", f"{emoji} {phase_name}"), BOX_WIDTH)
     
-    if state.active_issue:
-        # Truncate title
-        max_title_len = 35 
-        title = state.active_issue.title
-        if len(title) > max_title_len:
-            title = title[:max_title_len] + "..."
-        
-        task_info = f"#{state.active_issue.number} {title}"
+    if state.active_issues:
+        if len(state.active_issues) == 1:
+            max_title_len = 35 
+            title = state.active_issues[0].title
+            if len(title) > max_title_len:
+                title = title[:max_title_len] + "..."
+            task_info = f"#{state.active_issues[0].number} {title}"
+        else:
+            nums = ", ".join(f"#{i.number}" for i in state.active_issues)
+            title = state.active_issues[0].title[:25] + "..."
+            task_info = f"[{nums}] {title}"
         _print_boxed_line(format_row("🎯", "Task   ", task_info), BOX_WIDTH)
     
     if state.active_branch:

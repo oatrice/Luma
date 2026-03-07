@@ -28,7 +28,7 @@ class TestLumaState:
     
     def test_state_with_issue(self):
         issue = IssueData(number=1, title="Test", html_url="http://test")
-        state = LumaState(active_issue=issue, phase=WorkflowPhase.CODING)
+        state = LumaState(active_issues=[issue], phase=WorkflowPhase.CODING)
         assert state.active_issue.number == 1
         assert state.phase == WorkflowPhase.CODING
 
@@ -57,7 +57,7 @@ class TestSaveLoad:
         original = LumaState(
             project_key="jarwise",
             phase=WorkflowPhase.CODING,
-            active_issue=issue,
+            active_issues=[issue],
             active_branch="feat/42"
         )
         
@@ -107,7 +107,7 @@ class TestTransitions:
         ok, msg = transition_to(
             state, 
             WorkflowPhase.CODING,
-            active_issue=issue,
+            active_issues=[issue],
             active_branch="feat/1"
         )
         
@@ -120,7 +120,7 @@ class TestTransitions:
         issue = IssueData(number=1, title="Test", html_url="http://test")
         state = LumaState(
             phase=WorkflowPhase.PR_PENDING,
-            active_issue=issue,
+            active_issues=[issue],
             active_branch="feat/1",
             pr_url="http://pr"
         )
@@ -150,7 +150,7 @@ class TestDisplayFunctions:
         issue = IssueData(number=42, title="Test Issue Title", html_url="http://test")
         state = LumaState(
             phase=WorkflowPhase.CODING,
-            active_issue=issue,
+            active_issues=[issue],
             active_branch="feat/42"
         )
         header = format_state_header(state)
@@ -162,6 +162,136 @@ class TestDisplayFunctions:
             state = LumaState(phase=phase)
             rec = get_next_step_recommendation(state)
             assert len(rec) > 0
+
+
+class TestMultiIssueMode:
+    """Test Multi-Issue Mode (active_issues as list)"""
+
+    def test_default_state_has_empty_issues_list(self):
+        """active_issues should be empty list by default"""
+        state = LumaState()
+        assert state.active_issues == []
+        assert state.active_issue is None  # property backward compat
+
+    def test_state_with_multiple_issues(self):
+        """Can create state with multiple issues"""
+        issue1 = IssueData(number=68, title="Admin CRUD", html_url="http://test/68")
+        issue2 = IssueData(number=69, title="Staff Mgmt", html_url="http://test/69")
+        state = LumaState(
+            active_issues=[issue1, issue2],
+            phase=WorkflowPhase.CODING
+        )
+        assert len(state.active_issues) == 2
+        assert state.active_issue.number == 68  # primary = first
+        assert state.active_issues[1].number == 69
+
+    def test_active_issue_property_returns_first(self):
+        """active_issue property returns first issue in list"""
+        issue1 = IssueData(number=10, title="First", html_url="http://1")
+        issue2 = IssueData(number=20, title="Second", html_url="http://2")
+        state = LumaState(active_issues=[issue1, issue2])
+        assert state.active_issue == issue1
+
+    def test_active_issue_property_returns_none_when_empty(self):
+        """active_issue property returns None when list empty"""
+        state = LumaState()
+        assert state.active_issue is None
+
+    def test_has_issues_property(self):
+        """has_issues property returns True/False"""
+        state = LumaState()
+        assert state.has_issues is False
+
+        issue = IssueData(number=1, title="Test", html_url="http://1")
+        state.active_issues.append(issue)
+        assert state.has_issues is True
+
+    def test_save_load_roundtrip_multi_issue(self, tmp_path):
+        """Save/load with multiple issues preserves all data"""
+        issue1 = IssueData(number=68, title="Admin CRUD", html_url="http://68")
+        issue2 = IssueData(number=69, title="Staff Mgmt", html_url="http://69")
+        original = LumaState(
+            project_key="jarwise",
+            phase=WorkflowPhase.CODING,
+            active_issues=[issue1, issue2],
+            active_branch="feat/68-69-admin-content"
+        )
+
+        save_state(original, str(tmp_path))
+        loaded = load_state(str(tmp_path))
+
+        assert len(loaded.active_issues) == 2
+        assert loaded.active_issues[0].number == 68
+        assert loaded.active_issues[1].number == 69
+        assert loaded.active_branch == "feat/68-69-admin-content"
+
+    def test_backward_compat_load_single_issue_format(self, tmp_path):
+        """Load old state format (active_issue dict) into active_issues list"""
+        old_state = {
+            "version": "1.0",
+            "project_key": "jarwise",
+            "phase": "coding",
+            "active_issue": {
+                "number": 42,
+                "title": "Old Issue",
+                "html_url": "http://test/42"
+            },
+            "active_branch": "feat/42",
+            "checklist": {},
+            "context": {},
+            "last_updated": "2026-01-01T00:00:00"
+        }
+        state_file = tmp_path / ".luma_state.json"
+        state_file.write_text(json.dumps(old_state))
+
+        loaded = load_state(str(tmp_path))
+        assert len(loaded.active_issues) == 1
+        assert loaded.active_issues[0].number == 42
+        assert loaded.active_issue.number == 42  # property compat
+
+    def test_transition_to_coding_with_multi_issues(self):
+        """Transition to CODING with multiple issues"""
+        state = LumaState(phase=WorkflowPhase.SELECTING)
+        issue1 = IssueData(number=68, title="Issue A", html_url="http://68")
+        issue2 = IssueData(number=69, title="Issue B", html_url="http://69")
+
+        ok, msg = transition_to(
+            state,
+            WorkflowPhase.CODING,
+            active_issues=[issue1, issue2],
+            active_branch="feat/68-69-issues"
+        )
+
+        assert ok is True
+        assert len(state.active_issues) == 2
+
+    def test_transition_to_idle_clears_issues_list(self):
+        """Transition to IDLE clears active_issues"""
+        issue = IssueData(number=1, title="Test", html_url="http://1")
+        state = LumaState(
+            phase=WorkflowPhase.PR_PENDING,
+            active_issues=[issue],
+            active_branch="feat/1",
+            pr_url="http://pr"
+        )
+
+        ok, msg = transition_to(state, WorkflowPhase.IDLE)
+        assert ok is True
+        assert state.active_issues == []
+        assert state.active_issue is None
+
+    def test_format_header_multi_issue(self):
+        """Header shows multiple issue numbers"""
+        issue1 = IssueData(number=68, title="Admin CRUD", html_url="http://68")
+        issue2 = IssueData(number=69, title="Staff Mgmt", html_url="http://69")
+        state = LumaState(
+            phase=WorkflowPhase.CODING,
+            active_issues=[issue1, issue2],
+            active_branch="feat/68-69"
+        )
+        header = format_state_header(state)
+        assert "#68" in header
+        assert "#69" in header
 
 
 if __name__ == "__main__":
