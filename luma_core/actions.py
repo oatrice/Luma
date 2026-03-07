@@ -1737,7 +1737,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             
     print("\n   💡 [AI Prompt] Copy this text to your preferred AI:")
     print("   " + "-"*75)
-    print(f"   อ่านไฟล์ทั้งหมดใน {rel_feat_dir} และไฟล์ prompt_*.txt")
+    print(f"   อ่านไฟล์ทั้งหมดใน {rel_feat_dir} และไฟล์ prompt_*.txt (ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง)")
     print("   มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement")
     print("   " + "-"*75)
     
