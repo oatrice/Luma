@@ -894,9 +894,9 @@ def action_code_review(state: LumaState, project: dict):
             print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
             print("="*60)
             if len(target_projects) > 1:
-                print("นำ code review จาก terminal และ code_review.md ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
+                print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
             else:
-                print("นำ code review จาก terminal และ code_review.md มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
+                print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
             print("="*60 + "\n")
             
         except Exception as e:
