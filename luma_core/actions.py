@@ -730,67 +730,109 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             print(f"   ⚠️ Publisher finished but no known PR URL.")
 
 def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
-    """Manually trigger AI Brain Sync with preview + confirm + session picker."""
+    """Manually trigger AI Brain Sync with preview + confirm + session picker. Supports Antigravity and Gemini CLI."""
     if not state.active_issue:
         print("❌ No active issue selected. Please select an issue first.")
         return False
         
     print(f"\n🧠 Syncing AI Agent Brain Artifacts for {project['name']}...")
+    all_synced_docs = []
+    
+    # 1. Try Antigravity Brain
     try:
-        from luma_core.ai_brain_sync import AntigravityBrain
+        from luma_core.ai_brain_sync import AntigravityBrain, GeminiCLIBrain
         
         sessions = AntigravityBrain.get_all_sessions()
-        if not sessions:
-            print("⚠️ No valid AI Brain sessions found.")
-            return False
-        
-        # Preview latest session
-        latest = sessions[0]
-        print(f"\n   📂 Latest Session: {latest['session_id'][:12]}...")
-        print(f"   📄 Preview: {latest['preview']}")
-        
-        confirm = input("\n   ✅ Use this session? (Y/n): ").strip().lower()
-        
-        selected_path = latest["path"]
-        
-        if confirm == "n":
-            # Show session picker
-            print(f"\n   📋 Available Sessions:")
-            display_limit = min(8, len(sessions))
-            for i, s in enumerate(sessions[:display_limit]):
-                print(f"   [{i+1}] {s['session_id'][:12]}... — {s['preview'][:50]}")
+        if sessions:
+            # Preview latest session
+            latest = sessions[0]
+            print(f"\n   📂 [Antigravity] Latest Session: {latest['session_id'][:12]}...")
+            print(f"   📄 Preview: {latest['preview']}")
             
-            choice = input(f"\n   Select session [1-{display_limit}] or [c] Cancel: ").strip().lower()
-            if choice == "c" or not choice:
-                print("   ❌ Cancelled.")
-                return False
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < display_limit:
-                    selected_path = sessions[idx]["path"]
-                    print(f"   🔗 Selected: {sessions[idx]['session_id'][:12]}...")
+            confirm = input("\n   ✅ Use this Antigravity session? (Y/n/s to skip): ").strip().lower()
+            
+            if confirm != "s":
+                selected_path = latest["path"]
+                
+                if confirm == "n":
+                    # Show session picker
+                    print(f"\n   📋 Available Antigravity Sessions:")
+                    display_limit = min(8, len(sessions))
+                    for i, s in enumerate(sessions[:display_limit]):
+                        print(f"   [{i+1}] {s['session_id'][:12]}... — {s['preview'][:50]}")
+                    
+                    choice = input(f"\n   Select session [1-{display_limit}] or [c] Cancel: ").strip().lower()
+                    if choice != "c" and choice:
+                        try:
+                            idx = int(choice) - 1
+                            if 0 <= idx < display_limit:
+                                selected_path = sessions[idx]["path"]
+                                print(f"   🔗 Selected: {sessions[idx]['session_id'][:12]}...")
+                                synced_antigravity = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
+                                all_synced_docs.extend(synced_antigravity)
+                                state.context["selected_brain_session"] = selected_path
+                        except ValueError:
+                            pass
                 else:
-                    print("   ❌ Invalid selection.")
-                    return False
-            except ValueError:
-                print("   ❌ Invalid input.")
-                return False
-        
-        synced_docs = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
-        # Store selected session for reuse during PR creation
-        state.context["selected_brain_session"] = selected_path
-        
-        if synced_docs:
-            print(f"✅ Successfully synced {len(synced_docs)} files from AI Brain.")
-            for doc in synced_docs:
-                print(f"  - {doc}")
-            print(f"💡 The files have been copied to the project. You can review and commit them manually.")
-            return True
+                    synced_antigravity = AntigravityBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
+                    all_synced_docs.extend(synced_antigravity)
+                    state.context["selected_brain_session"] = selected_path
         else:
-            print("⚠️ No new artifacts to sync (content unchanged or empty).")
-            return False
+            print("ℹ️ No Antigravity sessions found.")
+
     except Exception as e:
-        print(f"⚠️ Failed to sync AI brain artifacts: {e}")
+        print(f"⚠️ Antigravity sync failed: {e}")
+
+    # 2. Try Gemini CLI Brain
+    try:
+        from luma_core.ai_brain_sync import GeminiCLIBrain
+        print("\n   🔍 Checking Gemini CLI session artifacts...")
+        
+        gemini_sessions = GeminiCLIBrain.get_all_sessions()
+        if gemini_sessions:
+            latest = gemini_sessions[0]
+            print(f"\n   📂 [Gemini CLI] Latest Session: {latest['session_id'][:12]}...")
+            print(f"   📄 Preview: {latest['preview'][:80]}")
+            
+            confirm = input("\n   ✅ Sync this Gemini CLI session? (Y/n/s to skip): ").strip().lower()
+            
+            if confirm != "s":
+                selected_path = latest["path"]
+                
+                if confirm == "n":
+                    # Show session picker
+                    print(f"\n   📋 Available Gemini CLI Sessions:")
+                    display_limit = min(8, len(gemini_sessions))
+                    for i, s in enumerate(gemini_sessions[:display_limit]):
+                        print(f"   [{i+1}] {s['session_id'][:12]}... — {s['preview'][:60]}")
+                    
+                    choice = input(f"\n   Select session [1-{display_limit}] or [c] Cancel: ").strip().lower()
+                    if choice != "c" and choice:
+                        try:
+                            idx = int(choice) - 1
+                            if 0 <= idx < display_limit:
+                                selected_path = gemini_sessions[idx]["path"]
+                                print(f"   🔗 Selected: {gemini_sessions[idx]['session_id'][:12]}...")
+                                synced_gemini = GeminiCLIBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
+                                all_synced_docs.extend(synced_gemini)
+                        except ValueError:
+                            pass
+                else:
+                    synced_gemini = GeminiCLIBrain.sync_to_repo(project["path"], state.active_issue.number, session_path=selected_path)
+                    all_synced_docs.extend(synced_gemini)
+        else:
+            print("   ℹ️ No Gemini CLI session artifacts found.")
+    except Exception as e:
+        print(f"⚠️ Gemini CLI sync failed: {e}")
+
+    if all_synced_docs:
+        print(f"\n✅ Successfully synced {len(all_synced_docs)} files from AI Brain(s).")
+        for doc in all_synced_docs:
+            print(f"  - {doc}")
+        print(f"💡 The files have been copied to the project. You can review and commit them manually.")
+        return True
+    else:
+        print("\n⚠️ No new artifacts to sync (content unchanged or no sources found).")
         return False
 
 def action_code_review(state: LumaState, project: dict):

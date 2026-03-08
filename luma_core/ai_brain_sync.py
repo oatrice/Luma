@@ -1,6 +1,7 @@
 import os
 import shutil
 import filecmp
+import json
 from typing import Optional, List, Dict
 
 class AntigravityBrain:
@@ -166,3 +167,126 @@ class AntigravityBrain:
                 synced_files.append(rel_path)
 
         return synced_files
+
+class GeminiCLIBrain:
+    DEFAULT_SESSION_PATH = os.path.expanduser("~/.gemini/tmp/luma/chats/")
+
+    @classmethod
+    def get_latest_session(cls) -> Optional[str]:
+        """Fetch the most recent session JSON file."""
+        if not os.path.exists(cls.DEFAULT_SESSION_PATH):
+            return None
+
+        files = [os.path.join(cls.DEFAULT_SESSION_PATH, f) for f in os.listdir(cls.DEFAULT_SESSION_PATH) if f.endswith(".json")]
+        if not files:
+            return None
+            
+        return max(files, key=os.path.getmtime)
+
+    @classmethod
+    def get_all_sessions(cls) -> List[Dict]:
+        """Return all valid sessions sorted by mtime (newest first), with preview."""
+        if not os.path.exists(cls.DEFAULT_SESSION_PATH):
+            return []
+
+        sessions = []
+        for f in os.listdir(cls.DEFAULT_SESSION_PATH):
+            if not f.endswith(".json"):
+                continue
+            path = os.path.join(cls.DEFAULT_SESSION_PATH, f)
+            
+            # Read first user message as preview
+            try:
+                with open(path, "r", encoding="utf-8") as tf:
+                    data = json.load(tf)
+                    messages = data.get("messages", [])
+                    preview = "(empty session)"
+                    if messages:
+                        first_msg = messages[0]
+                        if isinstance(first_msg.get("content"), list):
+                            preview = first_msg["content"][0].get("text", "")[:100]
+                        else:
+                            preview = str(first_msg.get("content", ""))[:100]
+            except Exception:
+                preview = "(unreadable)"
+
+            sessions.append({
+                "path": path,
+                "session_id": f.replace("session-", "").replace(".json", ""),
+                "preview": preview,
+                "mtime": os.path.getmtime(path),
+            })
+
+        sessions.sort(key=lambda s: s["mtime"], reverse=True)
+        return sessions
+
+    @classmethod
+    def _extract_chat_log(cls, session_path: str) -> str:
+        """Convert JSON session messages into a readable Markdown log."""
+        try:
+            with open(session_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            output = [f"# Gemini CLI Session Log: {data.get('sessionId', 'Unknown')}\n"]
+            output.append(f"Start Time: {data.get('startTime', 'Unknown')}\n")
+            output.append("-" * 20 + "\n")
+
+            for msg in data.get("messages", []):
+                role = msg.get("type", "unknown").upper()
+                content = ""
+                
+                # Extract text from content list
+                if isinstance(msg.get("content"), list):
+                    content = "\n".join([c.get("text", "") for c in msg["content"] if isinstance(c, dict)])
+                else:
+                    content = str(msg.get("content", ""))
+
+                output.append(f"### {role}\n\n{content}\n")
+                
+                # Include thoughts if available
+                if msg.get("thoughts"):
+                    output.append("#### Thoughts:\n")
+                    for thought in msg["thoughts"]:
+                        output.append(f"- **{thought.get('subject')}**: {thought.get('description')}\n")
+                
+                output.append("\n---\n")
+
+            return "\n".join(output)
+        except Exception as e:
+            return f"Error extracting session artifacts: {str(e)}"
+
+    @classmethod
+    def sync_to_repo(cls, project_dir: str, issue_number: int, session_path: Optional[str] = None) -> List[str]:
+        """Syncs Gemini CLI session artifacts into the project dir."""
+        if not session_path:
+            session_path = cls.get_latest_session()
+            if not session_path:
+                return []
+
+        # Find target directory
+        feature_dir = AntigravityBrain._find_feature_dir(project_dir, issue_number)
+        if not feature_dir:
+            features_root = os.path.join(project_dir, "docs", "features")
+            feature_dir = os.path.join(features_root, f"{issue_number}_issue-{issue_number}")
+
+        target_dir = os.path.join(feature_dir, "ai_brain")
+        os.makedirs(target_dir, exist_ok=True)
+
+        chat_log_content = cls._extract_chat_log(session_path)
+        chat_log_filename = "gemini_chat_log.md"
+        dst = os.path.join(target_dir, chat_log_filename)
+        
+        # Simple versioning if needed or just overwrite for chat log?
+        # Let's use versioned copy from AntigravityBrain but with content directly
+        # Since we need to write the content we just extracted
+        
+        temp_src = os.path.join(target_dir, ".temp_chat_log.md")
+        with open(temp_src, "w", encoding="utf-8") as f:
+            f.write(chat_log_content)
+            
+        final_dst = AntigravityBrain._versioned_copy(temp_src, target_dir, chat_log_filename)
+        os.remove(temp_src)
+        
+        if final_dst:
+            return [os.path.relpath(final_dst, project_dir)]
+        return []
