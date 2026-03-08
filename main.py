@@ -10,12 +10,12 @@ import sys
 import json
 import argparse
 
+# Ensure luma_core is in path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import luma_core.ui as ui
 import luma_core.actions as actions
 from luma_core.config import PROJECTS
-
-# Ensure luma_core is in path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from luma_core.state_manager import (
     LumaState, IssueData, WorkflowPhase,
