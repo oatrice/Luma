@@ -939,6 +939,13 @@ def action_code_review(state: LumaState, project: dict):
                 print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
             else:
                 print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
+            print("="*60)
+            
+            print("\n" + "🧪"*10 + " RE-VERIFY INSTRUCTION " + "🧪"*10)
+            print("หลังจากแก้ไขโค้ดตาม Code Review เสร็จแล้ว:")
+            print("1. ให้ทำการ Re-verify (Regression Test) ในส่วนที่เกี่ยวข้องทั้งหมด")
+            print("2. ตรวจสอบว่า Test Suggestions ที่ AI แนะนำได้รับการแก้ไขและรันผ่านแล้ว")
+            print("3. ตรวจสอบ manual_test_checklist.md (ถ้ามี) อีกครั้งเพื่อให้มั่นใจว่าไม่มี regression")
             print("="*60 + "\n")
             
         except Exception as e:
@@ -1791,10 +1798,22 @@ def action_guided_workflow(state: LumaState, project: dict):
         print("\n⏳ Pausing workflow. Come back when you're done!")
         return
 
+    print("\n   " + "🛠️"*5 + " MANUAL VERIFY INSTRUCTION " + "🛠️"*5)
+    print("   ขอบคุณที่ยืนยัน! กรุณาตรวจสอบ Checklist สุดท้ายอีกครั้งเพื่อให้มั่นใจ:")
+    print(f"   1. อ่านขั้นตอนใน {rel_feat_dir}/walkthrough.md (ถ้ามี)")
+    print(f"   2. รัน Manual Test ตามไฟล์ manual_test_checklist.md (ถ้ามี)")
+    print("   3. รัน Unit/Integration Test ที่เกี่ยวข้องทั้งหมด")
+    print("   " + "-"*75)
+
     # 4. Review & Docs & Roadmap
     print("\n🔹 Step 4: Quality, Documentation & Roadmap")
     if input("   Run Code Review? (Y/n): ").lower() != 'n':
         action_code_review(state, project)
+        
+        print("\n   " + "🔍"*5 + " RE-VERIFY AFTER REVIEW " + "🔍"*5)
+        print("   กรุณา Re-verify ฟังก์ชันต่างๆ อีกครั้งหลังจากทำการแก้ไขตาม Code Review")
+        print("   เพื่อยืนยันว่าไม่มีผลกระทบ (Regression) ต่อส่วนอื่นๆ ของระบบ")
+        print("   " + "-"*75)
         
     if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != 'n':
         action_update_docs(state, project)
