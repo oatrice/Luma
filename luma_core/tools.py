@@ -8,6 +8,28 @@ from .llm import get_llm
 from .config import TARGET_DIR as DEFAULT_TARGET_DIR
 
 
+def get_project_git_info(project_path: str) -> dict:
+    """Get the current git hash and commit date for a project."""
+    import subprocess
+    try:
+        # Get hash
+        hash_res = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_path, capture_output=True, text=True, check=True
+        )
+        # Get date
+        date_res = subprocess.run(
+            ["git", "show", "-s", "--format=%ci", "HEAD"],
+            cwd=project_path, capture_output=True, text=True, check=True
+        )
+        return {
+            "hash": hash_res.stdout.strip(),
+            "date": date_res.stdout.strip()
+        }
+    except Exception:
+        return {"hash": "unknown", "date": "unknown"}
+
+
 def suggest_version_from_git(target_dir: str = DEFAULT_TARGET_DIR) -> Optional[str]:
     """
     Analyzes git commit messages and diff to suggest the next version.

@@ -34,7 +34,8 @@ from luma_core.tools import (
     get_git_changed_files,
     update_multi_repo_docs,
     update_android_version_logic,
-    suggest_version_from_git
+    suggest_version_from_git,
+    get_project_git_info
 )
 from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 
@@ -43,8 +44,16 @@ from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 # Configuration & Constants
 # =============================================================================
 
-BOX_WIDTH = 58
-GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
+LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
+STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
+
+def check_luma_outdated():
+    """Check if the current running Luma is outdated compared to the code on disk."""
+    current_disk_info = get_project_git_info(LUMA_ROOT)
+    
+    if STARTUP_GIT_INFO["hash"] != current_disk_info["hash"]:
+        return True, current_disk_info
+    return False, None
 
 
 def load_global_config():
@@ -164,6 +173,19 @@ def main():
     print("\n🚀 Starting Luma V2 Workflow Guardian...")
     
     while True:
+        # --- LUMA SELF-UPDATE CHECK ---
+        is_outdated, disk_info = check_luma_outdated()
+        if is_outdated:
+            print("\n" + "!" * BOX_WIDTH)
+            print(" ⚠️  LUMA CODE UPDATED ON DISK! ".center(BOX_WIDTH, " "))
+            print("-" * BOX_WIDTH)
+            print(f" Running: {STARTUP_GIT_INFO['hash'][:8]} ({STARTUP_GIT_INFO['date'][:16]})")
+            print(f" On Disk: {disk_info['hash'][:8]} ({disk_info['date'][:16]})")
+            print("-" * BOX_WIDTH)
+            print(" 👉 Please RESTART Luma to apply changes. ".center(BOX_WIDTH, " "))
+            print("!" * BOX_WIDTH + "\n")
+        # ------------------------------
+
         # Check and print Gemini CLI LLM session metrics from the previous action
         try:
             import luma_core.llm
