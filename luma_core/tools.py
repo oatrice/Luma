@@ -486,18 +486,23 @@ def load_or_generate_pr_content(current_branch: str, repo: str, target_dir: str 
             Files: {diff_res.stdout[:500]}
             """
             
-        ai_res = llm.invoke([HumanMessage(content=gen_prompt)])
-        content = ai_res.content.strip()
-        
-        # Parse Title
-        title = f"feat: {current_branch}"
-        body = content
-        
-        lines = content.split('\n')
-        first_line = lines[0].strip()
-        if first_line.startswith("TITLE:"):
-            title = first_line.replace("TITLE:", "").strip()
-            body = "\n".join(lines[1:]).strip()
+        try:
+            ai_res = llm.invoke([HumanMessage(content=gen_prompt)])
+            content = ai_res.content.strip()
+            
+            # Parse Title
+            title = f"feat: {current_branch}"
+            body = content
+            
+            lines = content.split('\n')
+            first_line = lines[0].strip()
+            if first_line.startswith("TITLE:"):
+                title = first_line.replace("TITLE:", "").strip()
+                body = "\n".join(lines[1:]).strip()
+        except Exception as e:
+            print(f"⚠️ AI PR Generation failed: {e}")
+            title = f"feat: {current_branch}"
+            body = f"Automatic PR for branch {current_branch}. (AI generation failed)"
 
         # SAVE DRAFT (JSON for System)
         with open(draft_file, "w") as f:

@@ -16,6 +16,7 @@ from . import config
 _session_gemini_cli_time = 0.0
 _session_gemini_cli_tokens = 0
 _current_gemini_session_id = None
+
 class GeminiCLIModel(BaseChatModel):
     """LangChain wrapper for the gemini commands using subprocess"""
     
@@ -24,7 +25,7 @@ class GeminiCLIModel(BaseChatModel):
     
     @property
     def _llm_type(self) -> str:
-        return "gemini-cli"
+        return f"gemini-cli:{self.model}"
 
     def _generate(
         self,
@@ -187,9 +188,12 @@ class GeminiCLIModel(BaseChatModel):
             try:
                 with open(export_path, "w") as f:
                     f.write(prompt)
-                output += f"\n\n[SYSTEM] Gemini CLI failed to process the request. The prompt has been saved to: {export_path}. Please use an external AI to process it."
+                error_msg = output + f"\n\n[SYSTEM] Gemini CLI failed to process the request. The prompt has been saved to: {export_path}. Please use an external AI to process it."
             except Exception as e:
                 print(f"⚠️ Failed to export prompt: {e}")
+                error_msg = output
+            
+            raise RuntimeError(error_msg)
             
         end_time = time.time()
         duration = end_time - start_time
@@ -211,38 +215,110 @@ class GeminiCLIModel(BaseChatModel):
         return ChatResult(generations=[generation])
 
 
-def get_llm(temperature=0.7, purpose="general"):
-    """Factory function to get the configured LLM instance"""
-    print(f"🐛 DEBUG [get_llm]: Reading config.LLM_PROVIDER = {config.LLM_PROVIDER}")
+class FallbackModel(BaseChatModel):
+    """LangChain wrapper that tries multiple models in order if one fails"""
+    models: List[BaseChatModel]
     
-    if config.LLM_PROVIDER == "openrouter":
-        model_name = config.OPENROUTER_GENERAL_MODEL
-        if purpose == "code":
-            model_name = config.OPENROUTER_CODE_MODEL
+    @property
+    def _llm_type(self) -> str:
+        return "fallback"
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        errors = []
+        for i, model in enumerate(self.models):
+            try:
+                return model._generate(messages, stop, run_manager, **kwargs)
+            except Exception as e:
+                model_type = getattr(model, "_llm_type", "unknown")
+                print(f"⚠️ Model {i+1} ({model_type}) failed: {e}")
+                errors.append(str(e))
+                if i < len(self.models) - 1:
+                    next_model_type = getattr(self.models[i+1], "_llm_type", "unknown")
+                    print(f"🔄 Switching to fallback model {i+2} ({next_model_type})...")
+                    time.sleep(1)
+                else:
+                    print("❌ All models in fallback chain failed.")
         
-        print(f"🔌 Using OpenRouter ({model_name})...")
+        raise RuntimeError(f"All models failed. Errors: {'; '.join(errors)}")
+
+
+def _create_model(provider: str, model_name: Optional[str] = None, temperature: float = 0.7, purpose: str = "general") -> BaseChatModel:
+    """Internal helper to create a specific model instance"""
+    if provider == "openrouter":
+        name = model_name or (config.OPENROUTER_CODE_MODEL if purpose == "code" else config.OPENROUTER_GENERAL_MODEL)
+        print(f"🔌 Initializing OpenRouter ({name})...")
         return ChatOpenAI(
-            model=model_name,
+            model=name,
             openai_api_key=config.OPENROUTER_API_KEY,
             openai_api_base="https://openrouter.ai/api/v1",
             temperature=temperature,
             max_tokens=4000
         )
-    elif config.LLM_PROVIDER == "gemini":
-        model_name = config.GEMINI_GENERAL_MODEL
-        if purpose == "code":
-            model_name = config.GEMINI_CODE_MODEL
-
-        print(f"🔌 Using Gemini ({model_name})...")
+    elif provider == "gemini":
+        name = model_name or (config.GEMINI_CODE_MODEL if purpose == "code" else config.GEMINI_GENERAL_MODEL)
+        print(f"🔌 Initializing Gemini SDK ({name})...")
         return ChatGoogleGenerativeAI(
-            model=model_name, 
+            model=name, 
             google_api_key=config.GOOGLE_API_KEY,
             temperature=temperature,
             request_timeout=120
         )
-    elif config.LLM_PROVIDER == "gemini_cli":
-        model_name = config.GEMINI_CODE_MODEL if purpose == "code" else config.GEMINI_GENERAL_MODEL
-        print(f"🔌 Using Gemini CLI ({model_name})...")
-        return GeminiCLIModel(model=model_name, temperature=temperature)
+    elif provider == "gemini_cli":
+        name = model_name or (config.GEMINI_CODE_MODEL if purpose == "code" else config.GEMINI_GENERAL_MODEL)
+        print(f"🔌 Initializing Gemini CLI ({name})...")
+        return GeminiCLIModel(model=name, temperature=temperature)
     else:
-        raise ValueError(f"Unknown LLM_PROVIDER: {config.LLM_PROVIDER}")
+        raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
+
+
+def get_llm(temperature=0.7, purpose="general"):
+    """Factory function to get the configured LLM instance with fallback support"""
+    print(f"🐛 DEBUG [get_llm]: Reading config.LLM_PROVIDER = {config.LLM_PROVIDER}")
+    
+    # 1. Start with the primary configuration
+    primary_provider = config.LLM_PROVIDER
+    
+    # 2. Build the model sequence
+    model_sequence = []
+    
+    # --- Add Primary Provider ---
+    model_sequence.append((primary_provider, None))
+    
+    # --- Special Case: gemini_cli internal fallbacks ---
+    if primary_provider == "gemini_cli":
+        # If using a "Pro" model, try "Flash" as an internal fallback
+        primary_model = config.GEMINI_CODE_MODEL if purpose == "code" else config.GEMINI_GENERAL_MODEL
+        if "pro" in primary_model.lower():
+            # Add Flash as a fast, reliable internal fallback
+            model_sequence.append(("gemini_cli", "gemini-2.0-flash"))
+            
+    # --- Add Cross-Provider Fallbacks ---
+    if config.OPENROUTER_API_KEY and primary_provider != "openrouter":
+        model_sequence.append(("openrouter", None))
+        
+    if config.GOOGLE_API_KEY and primary_provider != "gemini":
+        model_sequence.append(("gemini", None))
+            
+    # 3. Initialize all models in the sequence
+    models = []
+    for provider, model_name in model_sequence:
+        try:
+            models.append(_create_model(provider, model_name=model_name, temperature=temperature, purpose=purpose))
+        except Exception as e:
+            print(f"⚠️ Could not initialize provider {provider} ({model_name or 'default'}): {e}")
+            
+    if not models:
+        raise ValueError("No valid LLM providers could be initialized.")
+        
+    if len(models) > 1:
+        chain_names = [getattr(m, "_llm_type", "unknown") for m in models]
+        print(f"🔗 Active Fallback Chain: {' -> '.join(chain_names)}")
+        return FallbackModel(models=models)
+        
+    return models[0]
