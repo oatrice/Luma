@@ -46,16 +46,13 @@ class GeminiCLIModel(BaseChatModel):
         # Call gemini cli using STDIN to avoid OS ARG_MAX limits for large code payloads
         start_time = time.time()
         
-        global _current_gemini_session_id
-        
         max_retries = 2
         for attempt in range(max_retries):
             try:
                 print(f"🐛 DEBUG [GeminiCLIModel]: Generating response using model {self.model} (Payload length: {len(prompt)} chars, Attempt {attempt+1}/{max_retries})")
                 
+                # Always start a new session (no -r flag)
                 cmd = ["gemini", "-m", self.model]
-                if _current_gemini_session_id:
-                    cmd.extend(["-r", _current_gemini_session_id])
                     
                 # Use Popen to pipe prompt via stdin
                 process = subprocess.Popen(
@@ -71,9 +68,6 @@ class GeminiCLIModel(BaseChatModel):
                 
                 if process.returncode != 0:
                     print(f"⚠️ Gemini CLI Error Output: {stderr}")
-                    # Reset session ID if it was invalid
-                    if "No previous sessions found" in stderr and _current_gemini_session_id:
-                         _current_gemini_session_id = None
                          
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
                     if attempt < max_retries - 1:
@@ -82,18 +76,6 @@ class GeminiCLIModel(BaseChatModel):
                         continue
                 else:
                     output = stdout.strip()
-                    
-                # If we don't have a session ID yet, fetch the one we just created
-                if not _current_gemini_session_id and process.returncode == 0:
-                    try:
-                        import re
-                        out = subprocess.run(["gemini", "--list-sessions"], capture_output=True, text=True)
-                        match = re.search(r"1\..*?\[([a-f0-9\-]+)\]", out.stdout)
-                        if match:
-                            _current_gemini_session_id = match.group(1)
-                            print(f"🐛 DEBUG [GeminiCLIModel]: Bound to persistent session {_current_gemini_session_id}")
-                    except Exception:
-                        pass
                 
                 break # Exit retry loop on success or non-retryable error
                     
