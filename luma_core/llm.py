@@ -330,6 +330,12 @@ def get_llm(temperature=0.7, purpose="general"):
         if "pro" in primary_model.lower():
             # Add Flash as a fast, reliable internal fallback
             model_sequence.append(("gemini_cli", "gemini-2.0-flash"))
+            # Add Flash Lite as an even faster, cost-efficient internal fallback
+            model_sequence.append(("gemini_cli", "gemini-2.5-flash-lite"))
+            # Add auto and specialized gemini-2/3 aliases as last resorts in the CLI chain
+            model_sequence.append(("gemini_cli", "auto"))
+            model_sequence.append(("gemini_cli", "gemini-2"))
+            model_sequence.append(("gemini_cli", "gemini-3"))
             
     # --- Add Cross-Provider Fallbacks ---
     if config.OPENROUTER_API_KEY and primary_provider != "openrouter":
