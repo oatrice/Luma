@@ -48,56 +48,6 @@ class GeminiCLIModel(BaseChatModel):
         
         global _current_gemini_session_id
         
-        # Determine if we should prompt the user for a session on first run
-        if _current_gemini_session_id is None:
-            try:
-                import re
-                out = subprocess.run(["gemini", "--list-sessions"], capture_output=True, text=True)
-                if out.returncode == 0 and "Available sessions" in out.stdout:
-                    lines = out.stdout.strip().split("\n")
-                    
-                    # Extract sessions looking like: 1. Title... (1 day ago) [uuid]
-                    sessions = []
-                    for line in lines:
-                        match = re.search(r"(\d+)\.\s+(.*?)\s+\[([a-f0-9\-]{36})\]", line)
-                        if match:
-                            sessions.append({
-                                "index": match.group(1),
-                                "title": match.group(2)[:60] + "..." if len(match.group(2)) > 60 else match.group(2),
-                                "id": match.group(3)
-                            })
-                            
-                    if sessions:
-                        # Show most recent sessions first
-                        sessions.reverse()
-                        display_limit = min(8, len(sessions))
-                        display_sessions = sessions[:display_limit]
-                        
-                        print("\n" + "="*50)
-                        print("🤖 [Gemini CLI] Found active sessions for this repo.")
-                        print("We should maintain context. Which session should I join?")
-                        print("="*50)
-                        print("  [0] 🆕 Start a NEW fresh session (Default)")
-                        for i, s in enumerate(display_sessions, 1):
-                            print(f"  [{i}] 📂 {s['title']}")
-                            
-                        choice = input(f"\nSelect session [0-{display_limit}]: ").strip()
-                        if choice and choice != "0":
-                            try:
-                                idx = int(choice) - 1
-                                if 0 <= idx < display_limit:
-                                    _current_gemini_session_id = display_sessions[idx]["id"]
-                                    print(f"🔗 Joined session: {_current_gemini_session_id}")
-                                else:
-                                    print("⚠️ Invalid selection. Starting a new session.")
-                            except ValueError:
-                                print("⚠️ Invalid input. Starting a new session.")
-                        else:
-                            print("🆕 Starting a new session.")
-                            # We leave _current_gemini_session_id as None, it will get populated after the first request
-            except Exception as e:
-                print(f"⚠️ Could not list Gemini sessions: {e}")
-
         max_retries = 2
         for attempt in range(max_retries):
             try:
