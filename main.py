@@ -44,6 +44,8 @@ from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 # Configuration & Constants
 # =============================================================================
 
+BOX_WIDTH = 58
+GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
