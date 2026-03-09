@@ -18,6 +18,7 @@ _session_gemini_cli_tokens = 0
 _current_gemini_session_id = None
 
 class GeminiCLIModel(BaseChatModel):
+# ... rest of code (keeping it for context in the tool call)
     """LangChain wrapper for the gemini commands using subprocess"""
     
     model: str = Field(default="gemini-2.5-pro")
@@ -231,20 +232,52 @@ class FallbackModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         errors = []
-        for i, model in enumerate(self.models):
+        
+        # Determine the start index (use the remembered index if it's within bounds, otherwise 0)
+        start_idx = config.FALLBACK_ACTIVE_INDEX if 0 <= config.FALLBACK_ACTIVE_INDEX < len(self.models) else 0
+        
+        # Phase 1: Try from the last working model to the end
+        if start_idx > 0:
+            current_model_type = getattr(self.models[start_idx], "_llm_type", "unknown")
+            print(f"🔄 Using remembered working model {start_idx+1} ({current_model_type})...")
+
+        for i in range(start_idx, len(self.models)):
+            model = self.models[i]
             try:
-                return model._generate(messages, stop, run_manager, **kwargs)
+                result = model._generate(messages, stop, run_manager, **kwargs)
+                if i != config.FALLBACK_ACTIVE_INDEX:
+                    config.save_fallback_index(i) # Remember this success
+                return result
             except Exception as e:
                 model_type = getattr(model, "_llm_type", "unknown")
                 print(f"⚠️ Model {i+1} ({model_type}) failed: {e}")
-                errors.append(str(e))
+                errors.append(f"Model {i+1} ({model_type}): {str(e)}")
                 if i < len(self.models) - 1:
                     next_model_type = getattr(self.models[i+1], "_llm_type", "unknown")
                     print(f"🔄 Switching to fallback model {i+2} ({next_model_type})...")
                     time.sleep(1)
-                else:
-                    print("❌ All models in fallback chain failed.")
-        
+
+        # Phase 2: If we started from a fallback (start_idx > 0) and failed, 
+        # retry the primary models (0 to start_idx - 1)
+        if start_idx > 0:
+            print(f"🔄 Last working model (and subsequent fallbacks) failed. Retrying from the primary model...")
+            for i in range(0, start_idx):
+                model = self.models[i]
+                try:
+                    result = model._generate(messages, stop, run_manager, **kwargs)
+                    config.save_fallback_index(i) # Remember this success
+                    return result
+                except Exception as e:
+                    model_type = getattr(model, "_llm_type", "unknown")
+                    print(f"⚠️ Model {i+1} ({model_type}) failed: {e}")
+                    errors.append(f"Model {i+1} ({model_type}): {str(e)}")
+                    if i < start_idx - 1:
+                        next_model_type = getattr(self.models[i+1], "_llm_type", "unknown")
+                        print(f"🔄 Switching to next primary fallback model {i+2} ({next_model_type})...")
+                        time.sleep(1)
+
+        print("❌ All models in fallback chain failed.")
+        config.save_fallback_index(0) # Reset to primary on complete failure
         raise RuntimeError(f"All models failed. Errors: {'; '.join(errors)}")
 
 
