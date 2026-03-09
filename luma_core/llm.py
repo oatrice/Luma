@@ -163,6 +163,7 @@ class FallbackModel(BaseChatModel):
         run_manager: Optional[Any] = None,
         **kwargs: Any,
     ) -> ChatResult:
+        import time
         errors = []
         
         # Determine the start index (use the remembered index if it's within bounds, otherwise 0)
@@ -171,7 +172,6 @@ class FallbackModel(BaseChatModel):
         # --- Auto-Recovery Logic ---
         # If we've been using a fallback for more than 1 hour, try the primary model again
         if start_idx > 0:
-            import time
             current_time = time.time()
             cooldown_period = 3600  # 1 hour in seconds
             elapsed = current_time - config.FALLBACK_LAST_RESET
