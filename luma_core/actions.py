@@ -964,12 +964,7 @@ def action_code_review(state: LumaState, project: dict):
                 print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
             print("="*60)
             
-            print("\n" + "🧪"*10 + " RE-VERIFY INSTRUCTION " + "🧪"*10)
-            print("หลังจากแก้ไขโค้ดตาม Code Review เสร็จแล้ว:")
-            print("1. ให้ทำการ Re-verify (Regression Test) ในส่วนที่เกี่ยวข้องทั้งหมด")
-            print("2. ตรวจสอบว่า Test Suggestions ที่ AI แนะนำได้รับการแก้ไขและรันผ่านแล้ว")
-            print("3. ตรวจสอบ manual_test_checklist.md (ถ้ามี) อีกครั้งเพื่อให้มั่นใจว่าไม่มี regression")
-            print("="*60 + "\n")
+            print("\n" + "🧪"*10 + " ต้อง RE-MANUAL VERIFY อย่างไร " + "🧪"*10)
             
         except Exception as e:
             print(f"   ❌ Error during code review for {proj['name']}: {e}")
