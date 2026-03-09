@@ -1798,12 +1798,7 @@ def action_guided_workflow(state: LumaState, project: dict):
         print("\n⏳ Pausing workflow. Come back when you're done!")
         return
 
-    print("\n   " + "🛠️"*5 + " MANUAL VERIFY INSTRUCTION " + "🛠️"*5)
-    print("   ขอบคุณที่ยืนยัน! กรุณาตรวจสอบ Checklist สุดท้ายอีกครั้งเพื่อให้มั่นใจ:")
-    print(f"   1. อ่านขั้นตอนใน {rel_feat_dir}/walkthrough.md (ถ้ามี)")
-    print(f"   2. รัน Manual Test ตามไฟล์ manual_test_checklist.md (ถ้ามี)")
-    print("   3. รัน Unit/Integration Test ที่เกี่ยวข้องทั้งหมด")
-    print("   " + "-"*75)
+    print("\n   " + "🛠️"*5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️"*5)
 
     # 4. Review & Docs & Roadmap
     print("\n🔹 Step 4: Quality, Documentation & Roadmap")

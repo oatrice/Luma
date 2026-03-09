@@ -236,7 +236,20 @@ class FallbackModel(BaseChatModel):
         # Determine the start index (use the remembered index if it's within bounds, otherwise 0)
         start_idx = config.FALLBACK_ACTIVE_INDEX if 0 <= config.FALLBACK_ACTIVE_INDEX < len(self.models) else 0
         
-        # Phase 1: Try from the last working model to the end
+        # --- Auto-Recovery Logic ---
+        # If we've been using a fallback for more than 1 hour, try the primary model again
+        if start_idx > 0:
+            import time
+            current_time = time.time()
+            cooldown_period = 3600  # 1 hour in seconds
+            elapsed = current_time - config.FALLBACK_LAST_RESET
+            
+            if elapsed > cooldown_period:
+                print(f"🕒 Fallback memory is old ({elapsed/60:.1f}m). Trying to recover and use primary model...")
+                start_idx = 0
+        # ---------------------------
+        
+        # Phase 1: Try from the start_idx to the end
         if start_idx > 0:
             current_model_type = getattr(self.models[start_idx], "_llm_type", "unknown")
             print(f"🔄 Using remembered working model {start_idx+1} ({current_model_type})...")

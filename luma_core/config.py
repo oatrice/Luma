@@ -13,6 +13,7 @@ GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspat
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini_cli")
 AGENT_CLI = os.getenv("AGENT_CLI", "gemini_cli")
 FALLBACK_ACTIVE_INDEX = 0
+FALLBACK_LAST_RESET = 0.0
 
 # Load overrides from global config
 if os.path.exists(GLOBAL_CONFIG_FILE):
@@ -22,13 +23,17 @@ if os.path.exists(GLOBAL_CONFIG_FILE):
             LLM_PROVIDER = _global_cfg.get("LLM_PROVIDER", LLM_PROVIDER)
             AGENT_CLI = _global_cfg.get("AGENT_CLI", AGENT_CLI)
             FALLBACK_ACTIVE_INDEX = _global_cfg.get("FALLBACK_ACTIVE_INDEX", 0)
+            FALLBACK_LAST_RESET = _global_cfg.get("FALLBACK_LAST_RESET", 0.0)
     except Exception:
         pass
 
 def save_fallback_index(index: int):
     """Save the fallback index to global config file for persistence"""
-    global FALLBACK_ACTIVE_INDEX
+    import time
+    global FALLBACK_ACTIVE_INDEX, FALLBACK_LAST_RESET
     FALLBACK_ACTIVE_INDEX = index
+    FALLBACK_LAST_RESET = time.time()
+    
     try:
         current_config = {}
         if os.path.exists(GLOBAL_CONFIG_FILE):
@@ -36,6 +41,7 @@ def save_fallback_index(index: int):
                   current_config = json.load(f)
         
         current_config["FALLBACK_ACTIVE_INDEX"] = index
+        current_config["FALLBACK_LAST_RESET"] = FALLBACK_LAST_RESET
         with open(GLOBAL_CONFIG_FILE, "w") as f:
             json.dump(current_config, f, indent=2)
     except Exception as e:
