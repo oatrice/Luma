@@ -838,33 +838,56 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 def action_code_review(state: LumaState, project: dict):
     """Run local code review agent"""
     print(f"\n🧐 Local Code Reviewer")
-    
+
     # Determine target repos (Multi-Repo Support)
-    target_projects = [project]
+    potential_projects = [project]
     if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
         try:
              for sibling_key in project.get("sibling_repos", []):
                  if str(sibling_key) in PROJECTS:
-                     target_projects.append(PROJECTS[str(sibling_key)])
+                     potential_projects.append(PROJECTS[str(sibling_key)])
         except Exception:
             pass
+
+    target_projects = []
+    if len(potential_projects) > 1:
+        print("\n   Select repositories to review (e.g., 1, 2 or 'all'):")
+        for i, proj in enumerate(potential_projects, 1):
+            print(f"   [{i}] {proj['name']} ({proj.get('type', 'unknown')})")
+
+        choice = input("\n   Select [all]: ").strip().lower()
+        if not choice or choice == "all":
+            target_projects = potential_projects
+        else:
+            try:
+                indices = [int(i.strip()) - 1 for i in choice.split(",") if i.strip()]
+                for idx in indices:
+                    if 0 <= idx < len(potential_projects):
+                        target_projects.append(potential_projects[idx])
+            except ValueError:
+                print("   ⚠️ Invalid input. Reviewing all repositories.")
+                target_projects = potential_projects
+    else:
+        target_projects = potential_projects
+
+    if not target_projects:
+        print("   ❌ No repositories selected.")
+        return
 
     for proj in target_projects:
         print(f"\n🚀 Reviewing {proj['name']}...")
         target_dir = proj["path"]
-    
+
         # 1. Get changed files
         try:
             from luma_core.agents.reviewer import reviewer_agent
-            
+
             file_list = get_git_changed_files("all", target_dir=target_dir)
             if not file_list:
                 print(f"   ✅ {proj['name']}: No changes found (Clean vs origin/main).")
                 continue
-                
+
             print(f"   🔎 Found {len(file_list)} changed files in {proj['name']}.")
-            
             # Limit files
             if len(file_list) > 30:
                 print(f"   ⚠️ Too many files ({len(file_list)}). Reviewing top 10.")
