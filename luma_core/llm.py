@@ -166,32 +166,34 @@ class FallbackModel(BaseChatModel):
         import time
         errors = []
         
-        # Determine the start index (use the remembered index if it's within bounds, otherwise 0)
-        start_idx = config.FALLBACK_ACTIVE_INDEX if 0 <= config.FALLBACK_ACTIVE_INDEX < len(self.models) else 0
+        # Determine the start index using project-specific info
+        current_path = os.getcwd()
+        active_idx, last_reset = config.get_fallback_info(current_path)
+        start_idx = active_idx if 0 <= active_idx < len(self.models) else 0
         
         # --- Auto-Recovery Logic ---
         # If we've been using a fallback for more than 1 hour, try the primary model again
         if start_idx > 0:
             current_time = time.time()
             cooldown_period = 3600  # 1 hour in seconds
-            elapsed = current_time - config.FALLBACK_LAST_RESET
+            elapsed = current_time - last_reset
             
             if elapsed > cooldown_period:
-                print(f"🕒 Fallback memory is old ({elapsed/60:.1f}m). Trying to recover and use primary model...")
+                print(f"🕒 Fallback memory is old ({elapsed/60:.1f}m). Trying to recover and use primary model for this project...")
                 start_idx = 0
         # ---------------------------
         
         # Phase 1: Try from the start_idx to the end
         if start_idx > 0:
             current_model_type = getattr(self.models[start_idx], "_llm_type", "unknown")
-            print(f"🔄 Using remembered working model {start_idx+1} ({current_model_type})...")
+            print(f"🔄 Using remembered working model {start_idx+1} ({current_model_type}) for this project...")
 
         for i in range(start_idx, len(self.models)):
             model = self.models[i]
             try:
                 result = model._generate(messages, stop, run_manager, **kwargs)
-                if i != config.FALLBACK_ACTIVE_INDEX:
-                    config.save_fallback_index(i) # Remember this success
+                # Success! Remember this index for THIS project
+                config.save_fallback_index(i, current_path)
                 return result
             except Exception as e:
                 model_type = getattr(model, "_llm_type", "unknown")
@@ -210,7 +212,7 @@ class FallbackModel(BaseChatModel):
                 model = self.models[i]
                 try:
                     result = model._generate(messages, stop, run_manager, **kwargs)
-                    config.save_fallback_index(i) # Remember this success
+                    config.save_fallback_index(i, current_path) # Remember this success
                     return result
                 except Exception as e:
                     model_type = getattr(model, "_llm_type", "unknown")
@@ -222,7 +224,7 @@ class FallbackModel(BaseChatModel):
                         time.sleep(1)
 
         print("❌ All models in fallback chain failed.")
-        config.save_fallback_index(0) # Reset to primary on complete failure
+        config.save_fallback_index(0, current_path) # Reset to primary on complete failure
         raise RuntimeError(f"All models failed. Errors: {'; '.join(errors)}")
 
 

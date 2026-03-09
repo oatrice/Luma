@@ -22,18 +22,53 @@ if os.path.exists(GLOBAL_CONFIG_FILE):
             _global_cfg = json.load(f)
             LLM_PROVIDER = _global_cfg.get("LLM_PROVIDER", LLM_PROVIDER)
             AGENT_CLI = _global_cfg.get("AGENT_CLI", AGENT_CLI)
+            # Global fallbacks as ultimate backup
             FALLBACK_ACTIVE_INDEX = _global_cfg.get("FALLBACK_ACTIVE_INDEX", 0)
             FALLBACK_LAST_RESET = _global_cfg.get("FALLBACK_LAST_RESET", 0.0)
     except Exception:
         pass
 
-def save_fallback_index(index: int):
-    """Save the fallback index to global config file for persistence"""
+def get_fallback_info(project_path: str = None):
+    """Get fallback index and reset time, preferring local project config"""
+    # 1. Try local project config first
+    if project_path:
+        local_cfg_path = os.path.join(project_path, ".luma_dev.json")
+        if os.path.exists(local_cfg_path):
+            try:
+                with open(local_cfg_path, "r") as f:
+                    local_cfg = json.load(f)
+                    return local_cfg.get("FALLBACK_ACTIVE_INDEX", 0), local_cfg.get("FALLBACK_LAST_RESET", 0.0)
+            except Exception:
+                pass
+    
+    # 2. Fallback to global variables loaded at startup
+    return FALLBACK_ACTIVE_INDEX, FALLBACK_LAST_RESET
+
+def save_fallback_index(index: int, project_path: str = None):
+    """Save the fallback index to local project config or global config"""
     import time
     global FALLBACK_ACTIVE_INDEX, FALLBACK_LAST_RESET
     FALLBACK_ACTIVE_INDEX = index
     FALLBACK_LAST_RESET = time.time()
     
+    # 1. Save to Local Project Config (Recommended)
+    if project_path:
+        try:
+            local_cfg_path = os.path.join(project_path, ".luma_dev.json")
+            local_config = {}
+            if os.path.exists(local_cfg_path):
+                with open(local_cfg_path, "r") as f:
+                    local_config = json.load(f)
+            
+            local_config["FALLBACK_ACTIVE_INDEX"] = index
+            local_config["FALLBACK_LAST_RESET"] = FALLBACK_LAST_RESET
+            
+            with open(local_cfg_path, "w") as f:
+                json.dump(local_config, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Failed to save local fallback index: {e}")
+
+    # 2. Also sync to global for cross-project consistency if no local path provided
     try:
         current_config = {}
         if os.path.exists(GLOBAL_CONFIG_FILE):
@@ -45,9 +80,10 @@ def save_fallback_index(index: int):
         with open(GLOBAL_CONFIG_FILE, "w") as f:
             json.dump(current_config, f, indent=2)
     except Exception as e:
-        print(f"Warning: Failed to save fallback index: {e}")
+        print(f"Warning: Failed to save global fallback index: {e}")
 
 # OpenRouter Configuration
+# ... (rest of the file remains same)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_CODE_MODEL = "qwen/qwen3-coder:free"
 OPENROUTER_GENERAL_MODEL = "mistralai/mistral-7b-instruct:free"
