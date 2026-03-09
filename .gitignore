@@ -21,3 +21,4 @@ test_out.txt
 *.resolve
 dummy_task.md
 .luma_state.json
+.luma_global.json
