@@ -15,6 +15,16 @@ AGENT_CLI = os.getenv("AGENT_CLI", "gemini_cli")
 FALLBACK_ACTIVE_INDEX = 0
 FALLBACK_LAST_RESET = 0.0
 
+# Gemini CLI Model Selection
+AVAILABLE_GEMINI_CLI_MODELS = [
+    "gemini-3-flash-preview",
+    "gemini-3-pro-preview",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
+GEMINI_CLI_MODEL = os.getenv("GEMINI_CLI_MODEL", "gemini-3-flash-preview")
+
 # Load overrides from global config
 if os.path.exists(GLOBAL_CONFIG_FILE):
     try:
@@ -22,6 +32,7 @@ if os.path.exists(GLOBAL_CONFIG_FILE):
             _global_cfg = json.load(f)
             LLM_PROVIDER = _global_cfg.get("LLM_PROVIDER", LLM_PROVIDER)
             AGENT_CLI = _global_cfg.get("AGENT_CLI", AGENT_CLI)
+            GEMINI_CLI_MODEL = _global_cfg.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
             # Global fallbacks as ultimate backup
             FALLBACK_ACTIVE_INDEX = _global_cfg.get("FALLBACK_ACTIVE_INDEX", 0)
             FALLBACK_LAST_RESET = _global_cfg.get("FALLBACK_LAST_RESET", 0.0)
@@ -81,6 +92,23 @@ def save_fallback_index(index: int, project_path: str = None):
             json.dump(current_config, f, indent=2)
     except Exception as e:
         print(f"Warning: Failed to save global fallback index: {e}")
+
+def save_gemini_cli_model(model: str):
+    """Save the selected Gemini CLI model to global config and update runtime."""
+    global GEMINI_CLI_MODEL
+    GEMINI_CLI_MODEL = model
+    
+    try:
+        current_config = {}
+        if os.path.exists(GLOBAL_CONFIG_FILE):
+            with open(GLOBAL_CONFIG_FILE, "r") as f:
+                current_config = json.load(f)
+        
+        current_config["GEMINI_CLI_MODEL"] = model
+        with open(GLOBAL_CONFIG_FILE, "w") as f:
+            json.dump(current_config, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Failed to save Gemini CLI model: {e}")
 
 # OpenRouter Configuration
 # ... (rest of the file remains same)

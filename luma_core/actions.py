@@ -1143,10 +1143,14 @@ def _add_new_project(state: LumaState) -> str:
         return None
 
 def action_settings():
-    """Settings menu to configure LLM Provider and Agent CLI"""
+    """Settings menu to configure LLM Provider, Agent CLI, and Gemini CLI Model"""
     import os
     import json
-    from luma_core.config import GLOBAL_CONFIG_FILE, LLM_PROVIDER, AGENT_CLI
+    from luma_core.config import (
+        GLOBAL_CONFIG_FILE, LLM_PROVIDER, AGENT_CLI,
+        AVAILABLE_GEMINI_CLI_MODELS, GEMINI_CLI_MODEL,
+        save_gemini_cli_model
+    )
     
     print("\n⚙️  Settings")
     print("==========")
@@ -1162,14 +1166,16 @@ def action_settings():
             
     current_llm = current_config.get("LLM_PROVIDER", LLM_PROVIDER)
     current_cli = current_config.get("AGENT_CLI", AGENT_CLI)
+    current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
     
     while True:
         print(f"\nCurrent Configuration:")
-        print(f"  [1] LLM Provider: {current_llm}")
-        print(f"  [2] Agent CLI:    {current_cli}")
-        print(f"  [3] 🔙 Back")
+        print(f"  [1] LLM Provider:      {current_llm}")
+        print(f"  [2] Agent CLI:         {current_cli}")
+        print(f"  [3] Gemini CLI Model:  {current_model}")
+        print(f"  [4] 🔙 Back")
         
-        choice = input("\nSelect setting to change [1-3]: ").strip()
+        choice = input("\nSelect setting to change [1-4]: ").strip()
         
         if choice == "1":
             print("\nSelect LLM Provider:")
@@ -1195,8 +1201,26 @@ def action_settings():
                 current_cli = "gemini_cli"
             elif c_choice == "2":
                 current_cli = "opencode"
+
+        elif choice == "3":
+            print("\nSelect Gemini CLI Model:")
+            for i, model in enumerate(AVAILABLE_GEMINI_CLI_MODELS, 1):
+                marker = " ← current" if model == current_model else ""
+                print(f"  [{i}] {model}{marker}")
+            
+            m_choice = input(f"Select [1-{len(AVAILABLE_GEMINI_CLI_MODELS)}]: ").strip()
+            try:
+                idx = int(m_choice) - 1
+                if 0 <= idx < len(AVAILABLE_GEMINI_CLI_MODELS):
+                    current_model = AVAILABLE_GEMINI_CLI_MODELS[idx]
+                    save_gemini_cli_model(current_model)
+                    print(f"  ✅ Model set to: {current_model}")
+                else:
+                    print("❌ Invalid option")
+            except ValueError:
+                print("❌ Invalid option")
                 
-        elif choice == "3" or choice == "":
+        elif choice == "4" or choice == "":
             break
         else:
             print("❌ Invalid option")
