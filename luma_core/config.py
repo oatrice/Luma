@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -7,7 +8,9 @@ load_dotenv()
 import json
 
 # --- Config ---
-GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json")
+GLOBAL_CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json"
+)
 
 # Default values
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini_cli")
@@ -39,6 +42,7 @@ if os.path.exists(GLOBAL_CONFIG_FILE):
     except Exception:
         pass
 
+
 def get_fallback_info(project_path: str = None):
     """Get fallback index and reset time, preferring local project config"""
     # 1. Try local project config first
@@ -48,20 +52,24 @@ def get_fallback_info(project_path: str = None):
             try:
                 with open(local_cfg_path, "r") as f:
                     local_cfg = json.load(f)
-                    return local_cfg.get("FALLBACK_ACTIVE_INDEX", 0), local_cfg.get("FALLBACK_LAST_RESET", 0.0)
+                    return local_cfg.get("FALLBACK_ACTIVE_INDEX", 0), local_cfg.get(
+                        "FALLBACK_LAST_RESET", 0.0
+                    )
             except Exception:
                 pass
-    
+
     # 2. Fallback to global variables loaded at startup
     return FALLBACK_ACTIVE_INDEX, FALLBACK_LAST_RESET
+
 
 def save_fallback_index(index: int, project_path: str = None):
     """Save the fallback index to local project config or global config"""
     import time
+
     global FALLBACK_ACTIVE_INDEX, FALLBACK_LAST_RESET
     FALLBACK_ACTIVE_INDEX = index
     FALLBACK_LAST_RESET = time.time()
-    
+
     # 1. Save to Local Project Config (Recommended)
     if project_path:
         try:
@@ -70,10 +78,10 @@ def save_fallback_index(index: int, project_path: str = None):
             if os.path.exists(local_cfg_path):
                 with open(local_cfg_path, "r") as f:
                     local_config = json.load(f)
-            
+
             local_config["FALLBACK_ACTIVE_INDEX"] = index
             local_config["FALLBACK_LAST_RESET"] = FALLBACK_LAST_RESET
-            
+
             with open(local_cfg_path, "w") as f:
                 json.dump(local_config, f, indent=2)
         except Exception as e:
@@ -83,9 +91,9 @@ def save_fallback_index(index: int, project_path: str = None):
     try:
         current_config = {}
         if os.path.exists(GLOBAL_CONFIG_FILE):
-             with open(GLOBAL_CONFIG_FILE, "r") as f:
-                  current_config = json.load(f)
-        
+            with open(GLOBAL_CONFIG_FILE, "r") as f:
+                current_config = json.load(f)
+
         current_config["FALLBACK_ACTIVE_INDEX"] = index
         current_config["FALLBACK_LAST_RESET"] = FALLBACK_LAST_RESET
         with open(GLOBAL_CONFIG_FILE, "w") as f:
@@ -93,33 +101,43 @@ def save_fallback_index(index: int, project_path: str = None):
     except Exception as e:
         print(f"Warning: Failed to save global fallback index: {e}")
 
+
 def save_gemini_cli_model(model: str):
     """Save the selected Gemini CLI model to global config and update runtime."""
     global GEMINI_CLI_MODEL
     GEMINI_CLI_MODEL = model
-    
+
     try:
         current_config = {}
         if os.path.exists(GLOBAL_CONFIG_FILE):
             with open(GLOBAL_CONFIG_FILE, "r") as f:
                 current_config = json.load(f)
-        
+
         current_config["GEMINI_CLI_MODEL"] = model
         with open(GLOBAL_CONFIG_FILE, "w") as f:
             json.dump(current_config, f, indent=2)
     except Exception as e:
         print(f"Warning: Failed to save Gemini CLI model: {e}")
 
+
 # OpenRouter Configuration
-# ... (rest of the file remains same)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_CODE_MODEL = "qwen/qwen3-coder:free"
 OPENROUTER_GENERAL_MODEL = "mistralai/mistral-7b-instruct:free"
+
+# OpenAI Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = "gpt-4o"
 
 # Gemini Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_CODE_MODEL = "gemini-2.5-pro"
 GEMINI_GENERAL_MODEL = "gemini-2.5-pro"
+GEMINI_API_FALLBACK_MODELS = [
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
 
 # GitHub Configuration
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
@@ -218,7 +236,7 @@ PROJECTS = {
         "repo": "oatrice/Akasa",
         "kanban_number": 9,
         "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
-    }
+    },
 }
 
 # --- Load Custom Projects from Global Config ---
@@ -228,7 +246,7 @@ try:
             _cfg = json.load(f)
             custom_projects_data = _cfg.get("custom_projects", {})
             # Merge custom projects into PROJECTS dictionary
-            # Custom projects might overwrite existing keys if not careful, 
+            # Custom projects might overwrite existing keys if not careful,
             # ideally keys are unique or sequential.
             for key, val in custom_projects_data.items():
                 PROJECTS[key] = val
