@@ -32,7 +32,7 @@ def reviewer_agent(state: AgentState):
     Task: {state['task']}
     
     Current Code input:
-    {json.dumps(changes, indent=2)}
+    {json.dumps(changes, indent=2, ensure_ascii=False)}
     
     Instructions:
     1. Review the code changes in the JSON above.
@@ -73,7 +73,7 @@ def reviewer_agent(state: AgentState):
         Think about how to physically test these changes step-by-step (e.g., clicking UI, sending text in chat, running curl).
         
         Code:
-        {{json.dumps(changes, indent=2)[:3000]}}
+        {{json.dumps(changes, indent=2, ensure_ascii=False)[:3000]}}
         
         Output format should be clear and actionable:
         - Step 1: ...
