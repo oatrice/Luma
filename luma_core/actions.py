@@ -1707,6 +1707,26 @@ def action_archive_artifacts(state: LumaState, project: dict):
     else:
         print(f"✅ Archived {moved_count} local files.")
 
+    # 4. Sync AI Brain artifacts (Antigravity & Gemini CLI)
+    try:
+        from luma_core.ai_brain_sync import AntigravityBrain, GeminiCLIBrain
+        
+        # Issue number requires int
+        issue_num_int = int(combined_number.split("-")[0]) if "-" in combined_number else int(combined_number)
+        
+        # Sync Antigravity
+        antigravity_files = AntigravityBrain.sync_to_repo(project["path"], issue_num_int)
+        if antigravity_files:
+            print(f"✅ Synced {len(antigravity_files)} Antigravity artifacts.")
+            
+        # Sync Gemini CLI
+        gemini_files = GeminiCLIBrain.sync_to_repo(project["path"], issue_num_int)
+        if gemini_files:
+            print(f"✅ Synced {len(gemini_files)} Gemini CLI artifacts.")
+            
+    except Exception as e:
+        print(f"   ⚠️  Failed to sync AI Brain artifacts: {e}")
+
 
 def get_feature_dir(project_path: str, issue_number: str) -> str:
     """Helper to find feature directory for an issue"""

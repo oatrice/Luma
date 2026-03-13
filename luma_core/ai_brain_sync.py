@@ -9,8 +9,8 @@ class AntigravityBrain:
     ARTIFACTS = ["task.md", "implementation_plan.md", "walkthrough.md"]
 
     @classmethod
-    def get_latest_session(cls) -> Optional[str]:
-        """Fetch the most recent session directory correctly."""
+    def get_latest_session(cls, project_dir: Optional[str] = None, issue_number: Optional[int] = None) -> Optional[str]:
+        """Fetch the most recent session directory correctly, with optional content matching."""
         if not os.path.exists(cls.DEFAULT_BRAIN_PATH):
             return None
 
@@ -25,7 +25,31 @@ class AntigravityBrain:
         if not valid_paths:
             return None
             
-        return max(valid_paths, key=os.path.getmtime)
+        valid_paths.sort(key=os.path.getmtime, reverse=True)
+        
+        # If no matching criteria provided, return newest
+        if not project_dir and not issue_number:
+            return valid_paths[0]
+            
+        project_name = os.path.basename(project_dir.rstrip("/")) if project_dir else None
+        issue_str = str(issue_number) if issue_number else None
+        
+        for path in valid_paths:
+            task_file = os.path.join(path, "task.md")
+            try:
+                with open(task_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    
+                match_project = True if not project_name else (project_name.lower() in content.lower())
+                match_issue = True if not issue_str else (issue_str in content)
+                
+                if match_project or match_issue:
+                    return path
+            except Exception:
+                continue
+                
+        # Fallback to newest if no strict match
+        return valid_paths[0]
 
     @classmethod
     def get_all_sessions(cls) -> List[Dict]:
@@ -135,12 +159,12 @@ class AntigravityBrain:
 
     @classmethod
     def sync_to_repo(cls, project_dir: str, issue_number: int, session_path: Optional[str] = None) -> List[str]:
-        """Syncs brain artifacts into the project dir. Uses session_path if given, else auto-detects latest."""
+        """Syncs brain artifacts into the project dir. Uses session_path if given, else auto-detects latest matching."""
         if session_path:
             if not os.path.isdir(session_path):
                 return []
         else:
-            session_path = cls.get_latest_session()
+            session_path = cls.get_latest_session(project_dir, issue_number)
             if not session_path:
                 return []
 
@@ -172,8 +196,8 @@ class GeminiCLIBrain:
     DEFAULT_SESSION_PATH = os.path.expanduser("~/.gemini/tmp/luma/chats/")
 
     @classmethod
-    def get_latest_session(cls) -> Optional[str]:
-        """Fetch the most recent session JSON file."""
+    def get_latest_session(cls, project_dir: Optional[str] = None, issue_number: Optional[int] = None) -> Optional[str]:
+        """Fetch the most recent session JSON file, with optional content matching."""
         if not os.path.exists(cls.DEFAULT_SESSION_PATH):
             return None
 
@@ -181,7 +205,28 @@ class GeminiCLIBrain:
         if not files:
             return None
             
-        return max(files, key=os.path.getmtime)
+        files.sort(key=os.path.getmtime, reverse=True)
+        
+        if not project_dir and not issue_number:
+            return files[0]
+            
+        project_name = os.path.basename(project_dir.rstrip("/")) if project_dir else None
+        issue_str = str(issue_number) if issue_number else None
+        
+        for path in files:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    
+                match_project = True if not project_name else (project_name.lower() in content.lower())
+                match_issue = True if not issue_str else (issue_str in content)
+                
+                if match_project or match_issue:
+                    return path
+            except Exception:
+                continue
+                
+        return files[0]
 
     @classmethod
     def get_all_sessions(cls) -> List[Dict]:
@@ -259,7 +304,7 @@ class GeminiCLIBrain:
     def sync_to_repo(cls, project_dir: str, issue_number: int, session_path: Optional[str] = None) -> List[str]:
         """Syncs Gemini CLI session artifacts into the project dir."""
         if not session_path:
-            session_path = cls.get_latest_session()
+            session_path = cls.get_latest_session(project_dir, issue_number)
             if not session_path:
                 return []
 
