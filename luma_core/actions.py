@@ -880,6 +880,7 @@ def action_code_review(state: LumaState, project: dict):
 
         # 1. Get changed files
         try:
+            import subprocess
             from luma_core.agents.reviewer import reviewer_agent
 
             file_list = get_git_changed_files("all", target_dir=target_dir)
@@ -901,8 +902,23 @@ def action_code_review(state: LumaState, project: dict):
                     if rel_path.endswith(('.png', '.jpg', '.ico', '.pdf', '.jar')):
                         continue
                     try:
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            changes[rel_path] = f.read()
+                        # 1. Try to get diff against origin/main (includes local commits)
+                        diff_cmd = ["git", "diff", "origin/main", "--", rel_path]
+                        diff_res = subprocess.run(diff_cmd, cwd=target_dir, capture_output=True, text=True)
+                        
+                        if diff_res.returncode == 0 and diff_res.stdout.strip():
+                            changes[rel_path] = diff_res.stdout.strip()
+                        else:
+                            # 2. If no origin/main diff, try just checking uncommitted changes
+                            diff_cmd = ["git", "diff", "HEAD", "--", rel_path]
+                            diff_res = subprocess.run(diff_cmd, cwd=target_dir, capture_output=True, text=True)
+                            
+                            if diff_res.returncode == 0 and diff_res.stdout.strip():
+                                changes[rel_path] = diff_res.stdout.strip()
+                            else:
+                                # 3. Fallback to reading the full file if it's untracked or we can't get diff
+                                with open(full_path, 'r', encoding='utf-8') as f:
+                                    changes[rel_path] = f.read()
                     except:
                         pass
             
