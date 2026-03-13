@@ -949,6 +949,19 @@ def action_code_review(state: LumaState, project: dict):
                         f.write("## 🧪 Test Suggestions\n\n")
                         f.write(result["test_suggestions"] + "\n\n")
                 print(f"\n   ✅ Review Report saved to: {report_path}")
+                
+                # Append the raw prompt to draft_code_review.md if available
+                if result.get("prompt_used"):
+                    draft_path = os.path.join(target_dir, "draft_code_review.md")
+                    try:
+                        with open(draft_path, "a", encoding="utf-8") as f:
+                            f.write("\n\n---\n\n## 🤖 Prompt Used by Reviewer\n\n```text\n")
+                            f.write(result["prompt_used"])
+                            f.write("\n```\n")
+                        print(f"   ✅ Appended review prompt to: {draft_path}")
+                    except Exception as e:
+                        print(f"   ⚠️ Could not append prompt to {draft_path}: {e}")
+                        
             except Exception as e:
                 print(f"\n   ⚠️ Failed to save report: {e}")
                 
@@ -959,10 +972,19 @@ def action_code_review(state: LumaState, project: dict):
             print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
             print("="*60)
             if len(target_projects) > 1:
-                print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
+                prompt_text = "นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย"
             else:
-                print("นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย")
+                prompt_text = "นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย"
+            print(prompt_text)
             print("="*60)
+            
+            prompt_path = os.path.join(target_dir, "code_review_prompt.txt")
+            try:
+                with open(prompt_path, "w", encoding="utf-8") as f:
+                    f.write(prompt_text)
+                print(f"\n   📝 Prompt saved to: {prompt_path}")
+            except Exception as e:
+                print(f"\n   ⚠️ Failed to save prompt: {e}")
             
             print("\n" + "🧪"*10 + " ต้อง RE-MANUAL VERIFY อย่างไร " + "🧪"*10)
             

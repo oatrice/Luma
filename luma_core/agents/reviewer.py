@@ -85,7 +85,7 @@ def reviewer_agent(state: AgentState):
     except Exception as e:
         print(f"⚠️ Reviewer Advice failed: {e}")
 
-    return {"code_content": content, "test_suggestions": advice}
+    return {"code_content": content, "test_suggestions": advice, "prompt_used": review_prompt}
 
 def docs_reviewer_agent(state: AgentState):
     """Reviewer Agent (Docs): Reviews Documentation Changes"""
