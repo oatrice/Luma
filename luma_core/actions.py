@@ -1684,8 +1684,8 @@ def action_generate_plan(state: LumaState, project: dict):
         print(f"\n✨ Plan created at: {result['plan_file']}")
 
 
-def action_update_roadmap(state: LumaState, project: dict):
-    """Update ROADMAP.md status for an issue"""
+def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-issue support
+    """Update ROADMAP.md status for one or more issues (supports comma-separated input)."""
     print(f"\n🗺️  Updating Roadmap for {project['name']}...")
 
     # Locate ROADMAP.md
@@ -1696,10 +1696,9 @@ def action_update_roadmap(state: LumaState, project: dict):
     roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
 
     if not roadmap_path:
-        print(f"❌ Roadmap not found in docs/ or root.")
+        print("❌ Roadmap not found in docs/ or root.")
         return
 
-    # Read content
     try:
         with open(roadmap_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -1707,89 +1706,100 @@ def action_update_roadmap(state: LumaState, project: dict):
         print(f"❌ Failed to read roadmap: {e}")
         return
 
-    # Interactive: Select Issue
-    issue_id = input("Enter Issue # to update (e.g. 65): ").strip().replace("#", "")
-    if not issue_id:
+    # ── Input: รองรับ single ("65") หรือ comma/space-separated ("33, 34", "33 34") ──
+    issue_input = input("Enter Issue # to update (e.g. 65 or 33, 34): ").strip()
+    if not issue_input:
         return
 
-    # Verify via gh cli
-    print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
+    raw_ids = issue_input.replace(",", " ").split()
+    issue_ids = [x.strip().replace("#", "") for x in raw_ids if x.strip().replace("#", "").isdigit()]
+
+    if not issue_ids:
+        print(f"❌ No valid issue numbers found in: {issue_input!r}")
+        return
+
     import subprocess
 
-    try:
-        gh_res = subprocess.run(
-            [
-                "gh",
-                "issue",
-                "view",
-                issue_id,
-                "--json",
-                "title,state",
-                "-t",
-                "{{.title}} ({{.state}})",
-            ],
-            cwd=project["path"],
-            capture_output=True,
-            text=True,
-        )
-        if gh_res.returncode == 0:
-            print(f"   ✅ Found: {gh_res.stdout.strip()}")
-        else:
-            print(f"   ⚠️ Could not verify issue via gh: {gh_res.stderr.strip()}")
-    except Exception as e:
-        print(f"   ⚠️ GitHub CLI check failed: {e}")
+    # ── Verify each issue via gh CLI ──────────────────────────────────────────
+    for issue_id in issue_ids:
+        print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
+        try:
+            gh_res = subprocess.run(
+                [
+                    "gh", "issue", "view", issue_id,
+                    "--json", "title,state",
+                    "-t", "{{.title}} ({{.state}})",
+                ],
+                cwd=project["path"],
+                capture_output=True,
+                text=True,
+            )
+            if gh_res.returncode == 0:
+                print(f"   ✅ Found: {gh_res.stdout.strip()}")
+            else:
+                print(f"   ⚠️ Could not verify issue via gh: {gh_res.stderr.strip()}")
+        except Exception as e:
+            print(f"   ⚠️ GitHub CLI check failed: {e}")
 
-    # Find the block
-    found_idx = -1
-    for i, line in enumerate(lines):
-        if (
-            f"**#{issue_id}" in line
-            or f"#{issue_id} " in line
-            or f"[#{issue_id}]" in line
-        ):
-            found_idx = i
-            break
-
-    if found_idx == -1:
-        print(f"❌ Issue #{issue_id} not found in Roadmap.")
-        return
-
-    print(f"✅ Found issue at line {found_idx + 1}: {lines[found_idx].strip()}")
-
-    # Check if this is a table row (starts with |)
-    is_table_row = lines[found_idx].strip().startswith("|")
-
-    status_idx = -1
-    indent = "    - "  # Default fallback indent
-
-    if is_table_row:
-        status_idx = found_idx
-        # In a markdown table, status is likely the last or second to last column
-        print(f"   Current row: {lines[found_idx].strip()}")
-    else:
-        # Look for status line in next few lines (list format)
-        for i in range(found_idx + 1, min(found_idx + 6, len(lines))):
-            stripped = lines[i].strip()
+    # ── Helper: find issue in roadmap and return metadata ────────────────────
+    def _find_issue(issue_id, lines):
+        found_idx = -1
+        for i, line in enumerate(lines):
             if (
-                stripped.startswith("- **Status:**")
-                or stripped.startswith("- ✅ **Done**")
-                or stripped.startswith("- 🟡 **In Progress**")
-                or "Status:" in stripped
-                or "✅ **Done**" in stripped
+                f"**#{issue_id}" in line
+                or f"#{issue_id} " in line
+                or f"[#{issue_id}]" in line
             ):
-                status_idx = i
-                print(f"   Current: {stripped}")
-                # Capture existing indentation
-                indent = lines[i][
-                    : lines[i].find(stripped) + 2
-                ]  # rough guess or just use standard
-                if lines[i].startswith("    -"):
-                    indent = "    - "
-                elif lines[i].startswith("\t-"):
-                    indent = "\t- "
+                found_idx = i
                 break
 
-    # Ask for new status
+        if found_idx == -1:
+            return found_idx, False, -1, "    - "
+
+        is_table_row = lines[found_idx].strip().startswith("|")
+        status_idx = -1
+        indent = "    - "
+
+        if is_table_row:
+            status_idx = found_idx
+            print(f"   Current row: {lines[found_idx].strip()}")
+        else:
+            for i in range(found_idx + 1, min(found_idx + 6, len(lines))):
+                stripped = lines[i].strip()
+                if (
+                    stripped.startswith("- **Status:**")
+                    or stripped.startswith("- ✅ **Done**")
+                    or stripped.startswith("- 🟡 **In Progress**")
+                    or "Status:" in stripped
+                    or "✅ **Done**" in stripped
+                ):
+                    status_idx = i
+                    print(f"   Current: {stripped}")
+                    if lines[i].startswith("    -"):
+                        indent = "    - "
+                    elif lines[i].startswith("\t-"):
+                        indent = "\t- "
+                    break
+
+        return found_idx, is_table_row, status_idx, indent
+
+    # ── Find all requested issues ─────────────────────────────────────────────
+    found_issues = []
+    for issue_id in issue_ids:
+        found_idx, is_table_row, status_idx, indent = _find_issue(issue_id, lines)
+        if found_idx == -1:
+            print(f"❌ Issue #{issue_id} not found in Roadmap.")
+        else:
+            print(f"✅ Found issue #{issue_id} at line {found_idx + 1}: {lines[found_idx].strip()}")
+            found_issues.append((issue_id, found_idx, is_table_row, status_idx, indent))
+
+    if not found_issues:
+        print("❌ None of the specified issues were found in the Roadmap.")
+        return
+
+    # ── Ask for status ONCE — applies to all found issues ────────────────────
+    issue_list = ", ".join(f"#{x[0]}" for x in found_issues)
+    print(f"\nSelecting status for {len(found_issues)} issue(s): {issue_list}")
     print("\nSelect new status:")
     print("  [1] ✅ Done / Complete")
     print("  [2] 🟢 Ready")
@@ -1797,73 +1807,68 @@ def action_update_roadmap(state: LumaState, project: dict):
     print("  [4] 🔴 Blocked")
 
     status_choice = input("Select [1-4]: ").strip()
-
-    new_status_line = ""
-    new_table_status = ""
-
-    if status_choice == "1":
-        # Version prompt for 'Done'
-        version = input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
-        note = input("Enter Completion Note (Enter to skip): ").strip()
-
-        status_prefix = "✅ Complete" if is_table_row else "✅ **Done**"
-
-        if version and note:
-            new_table_status = f"{status_prefix} ({version}) - {note}"
-        elif version:
-            new_table_status = f"{status_prefix} ({version})"
-        elif note:
-            new_table_status = f"{status_prefix} - {note}"
-        else:
-            new_table_status = f"{status_prefix}"
-
-        new_status_line = (
-            f"{indent}✅ **Done**"
-            + (f" ({version})" if version else "")
-            + (f" - {note}" if note else "")
-        )
-
-    elif status_choice == "2":
-        new_table_status = "🟢 Ready"
-        new_status_line = f"{indent}**Status:** 🟢 **Ready**"
-    elif status_choice == "3":
-        new_table_status = "🔲 Todo" if is_table_row else "🟡 In Progress"
-        new_status_line = f"{indent}**Status:** 🟡 **In Progress**"
-    elif status_choice == "4":
-        new_table_status = "🔴 Blocked"
-        new_status_line = f"{indent}**Status:** 🔴 **Blocked**"
-    else:
+    if status_choice not in ("1", "2", "3", "4"):
         print("❌ Invalid selection")
         return
 
-    # Update logic
-    if is_table_row:
-        # Split by | and update the last column (or second to last if line ends with |)
-        parts = lines[found_idx].split("|")
+    version = ""
+    note = ""
+    if status_choice == "1":
+        version = input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
+        note = input("Enter Completion Note (Enter to skip): ").strip()
 
-        # Determine the status column index
-        # Usually format is: | Priority | ID | Title | Status |
-        # So it's typically the 4th column (index 4) if it starts and ends with |
-        status_col_index = -2 if lines[found_idx].rstrip().endswith("|") else -1
+    # ── Apply updates in reverse line order to preserve indices ──────────────
+    for issue_id, found_idx, is_table_row, status_idx, indent in sorted(
+        found_issues, key=lambda x: x[1], reverse=True
+    ):
+        if status_choice == "1":
+            status_prefix = "✅ Complete" if is_table_row else "✅ **Done**"
+            if version and note:
+                new_table_status = f"{status_prefix} ({version}) - {note}"
+            elif version:
+                new_table_status = f"{status_prefix} ({version})"
+            elif note:
+                new_table_status = f"{status_prefix} - {note}"
+            else:
+                new_table_status = f"{status_prefix}"
+            new_status_line = (
+                f"{indent}✅ **Done**"
+                + (f" ({version})" if version else "")
+                + (f" - {note}" if note else "")
+            )
+        elif status_choice == "2":
+            new_table_status = "🟢 Ready"
+            new_status_line = f"{indent}**Status:** 🟢 **Ready**"
+        elif status_choice == "3":
+            new_table_status = "🔲 Todo" if is_table_row else "🟡 In Progress"
+            new_status_line = f"{indent}**Status:** 🟡 **In Progress**"
+        else:  # "4"
+            new_table_status = "🔴 Blocked"
+            new_status_line = f"{indent}**Status:** 🔴 **Blocked**"
 
-        if len(parts) >= 3:  # To handle basic | ID | Title | Status |
-            parts[status_col_index] = f" {new_table_status} "
-            lines[found_idx] = "|".join(parts)
-            if not lines[found_idx].endswith("\n"):
-                lines[found_idx] += "\n"
+        if is_table_row:
+            parts = lines[found_idx].split("|")
+            status_col_index = -2 if lines[found_idx].rstrip().endswith("|") else -1
+            if len(parts) >= 3:
+                parts[status_col_index] = f" {new_table_status} "
+                lines[found_idx] = "|".join(parts)
+                if not lines[found_idx].endswith("\n"):
+                    lines[found_idx] += "\n"
+            else:
+                print(f"⚠️  Issue #{issue_id}: row does not have standard table formatting.")
+        elif status_idx != -1:
+            lines[status_idx] = new_status_line + "\n"
         else:
-            print("⚠️  Row does not seem to have the standard formatting.")
-    elif status_idx != -1:
-        lines[status_idx] = new_status_line + "\n"
-    else:
-        print("⚠️  Status line not found nearby. Appending new status line.")
-        lines.insert(found_idx + 2, new_status_line + "\n")
+            print(f"⚠️  Issue #{issue_id}: status line not found nearby. Appending.")
+            lines.insert(found_idx + 2, new_status_line + "\n")
 
-    # Write back
+        print(f"   ✅ Issue #{issue_id} → updated.")
+
+    # ── Write back once ───────────────────────────────────────────────────────
     try:
         with open(roadmap_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
-        print(f"✅ Roadmap updated successfully!")
+        print(f"\n✅ Roadmap updated successfully! ({len(found_issues)} issue(s))")
     except Exception as e:
         print(f"❌ Failed to write roadmap: {e}")
 
@@ -2153,7 +2158,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             pass
 
     cont = input(
-        "\n   Have you finished coding and verified the feature? (y/N): "
+        "\n   Have you finished coding and verified the feature2? (y/N): "
     ).lower()
     if cont != "y":
         print("\n⏳ Pausing workflow. Come back when you're done!")
