@@ -142,6 +142,11 @@ GEMINI_API_FALLBACK_MODELS = [
 # GitHub Configuration
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+# Akasa Notification Configuration
+AKASA_API_URL = os.getenv("AKASA_API_URL", "http://localhost:8000")
+AKASA_API_KEY = os.getenv("AKASA_API_KEY", "default-dev-key")
+AKASA_CHAT_ID = os.getenv("AKASA_CHAT_ID", "")
+
 # Default to current directory if not dynamically overridden
 TARGET_DIR = os.getcwd()
 

@@ -8,6 +8,7 @@ State-based Workflow Orchestrator with GitHub Project Integration
 import os
 import sys
 import json
+import time
 import argparse
 
 # Ensure luma_core is in path
@@ -16,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import luma_core.ui as ui
 import luma_core.actions as actions
 from luma_core.config import PROJECTS
+from luma_core.notifier import notify_task_complete
 
 from luma_core.state_manager import (
     LumaState, IssueData, WorkflowPhase,
@@ -122,6 +124,31 @@ pass
 # =============================================================================
 
 pass
+
+
+def run_with_notify(action_label: str, project_name: str, func, *args, **kwargs):
+    """Run an action and send Telegram notification on completion."""
+    start = time.time()
+    try:
+        result = func(*args, **kwargs)
+        elapsed = time.time() - start
+        notify_task_complete(
+            project=project_name,
+            task=action_label,
+            status="success",
+            duration=f"{elapsed:.0f}s",
+        )
+        return result
+    except Exception as e:
+        elapsed = time.time() - start
+        notify_task_complete(
+            project=project_name,
+            task=action_label,
+            status="failure",
+            duration=f"{elapsed:.0f}s",
+            message=str(e)[:200],
+        )
+        raise
 
 
 # =============================================================================
@@ -234,36 +261,36 @@ def main():
                 save_state(state, project["path"])
         
         elif choice == "3":
-            actions.action_refine_issue(state, project)
+            run_with_notify("Refine Issue", project["name"], actions.action_refine_issue, state, project)
             
         elif choice == "4":
-            actions.action_generate_spec(state, project)
+            run_with_notify("Generate Spec", project["name"], actions.action_generate_spec, state, project)
 
         elif choice == "5":
-            actions.action_generate_plan(state, project)
+            run_with_notify("Generate Plan", project["name"], actions.action_generate_plan, state, project)
 
         elif choice == "6":
-            actions.action_code_review(state, project)
+            run_with_notify("Code Review", project["name"], actions.action_code_review, state, project)
         
         elif choice == "7":
-            actions.action_update_docs(state, project)
+            run_with_notify("Update Docs", project["name"], actions.action_update_docs, state, project)
             
         elif choice.upper() == "B":
-            actions.action_sync_ai_brain(state, project)
+            run_with_notify("Sync AI Brain", project["name"], actions.action_sync_ai_brain, state, project)
             
         elif choice == "P": # Create/Sync PRs
-            actions.action_create_pr(state, project)
+            run_with_notify("Create/Sync PRs", project["name"], actions.action_create_pr, state, project)
             save_state(state, project["path"])
         
         elif choice == "8":
-            actions.action_create_pr(state, project)
+            run_with_notify("Create PR", project["name"], actions.action_create_pr, state, project)
             save_state(state, project["path"])
         
         elif choice.upper() == "U":
             actions.action_update_roadmap(state, project)
 
         elif choice.upper() == "A":
-            actions.action_guided_workflow(state, project)
+            run_with_notify("Auto Full Workflow", project["name"], actions.action_guided_workflow, state, project)
             save_state(state, project["path"])
 
         elif choice.upper() == "K":
