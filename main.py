@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import luma_core.ui as ui
 import luma_core.actions as actions
+import luma_core.usage_tracker as usage_tracker
 from luma_core.config import PROJECTS
 from luma_core.notifier import notify_task_complete
 
@@ -129,6 +130,13 @@ pass
 def run_with_notify(action_label: str, project_name: str, func, *args, **kwargs):
     """Run an action and send Telegram notification on completion."""
     start = time.time()
+    state_arg = next((a for a in args if isinstance(a, LumaState)), None)
+    project_arg = next(
+        (a for a in args if isinstance(a, dict) and "path" in a and "name" in a),
+        None,
+    )
+    usage_tracker.set_action(action_label)
+    usage_tracker.set_context(state_arg, project_arg)
     try:
         result = func(*args, **kwargs)
         elapsed = time.time() - start
@@ -149,6 +157,9 @@ def run_with_notify(action_label: str, project_name: str, func, *args, **kwargs)
             message=str(e)[:200],
         )
         raise
+    finally:
+        usage_tracker.clear_action()
+        usage_tracker.clear_context()
 
 
 # =============================================================================

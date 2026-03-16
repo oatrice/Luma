@@ -21,5 +21,6 @@ test_out.txt
 *.resolve
 dummy_task.md
 .luma_state.json
+.luma_ai_usage.jsonl
 .luma_global.json
 luma_failed_prompt_*.md

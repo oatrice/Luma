@@ -1,12 +1,17 @@
 import pytest
 from unittest.mock import patch
 from langchain_core.messages import HumanMessage
-from luma_core.llm import get_llm, GeminiCLIModel
+from luma_core.llm import get_llm, GeminiCLIModel, FallbackModel, TrackedModel
 
 def test_get_llm_returns_gemini_cli_model():
     with patch("luma_core.config.LLM_PROVIDER", "gemini_cli"):
         llm = get_llm()
-        assert isinstance(llm, GeminiCLIModel)
+        if isinstance(llm, FallbackModel):
+            assert any(isinstance(m, GeminiCLIModel) for m in llm.models)
+        elif isinstance(llm, TrackedModel):
+            assert isinstance(llm.model, GeminiCLIModel)
+        else:
+            assert isinstance(llm, GeminiCLIModel)
 
 @patch("subprocess.run")
 @patch("subprocess.Popen")
