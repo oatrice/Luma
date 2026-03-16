@@ -2235,6 +2235,30 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
     choice = input("\nSelect [0-6]: ").strip()
 
     if choice == "0":
+        feature_dir = None
+        if state.context.get("last_feature_dir"):
+            feature_dir = state.context.get("last_feature_dir")
+
+        if not feature_dir:
+            features_root = os.path.join(project["path"], "docs", "features")
+            if os.path.exists(features_root):
+                combined_number = "-".join([str(i.number) for i in state.active_issues])
+                for d in os.listdir(features_root):
+                    if (
+                        d.startswith(f"{combined_number}_")
+                        or f"issue-{combined_number}" in d
+                    ):
+                        feature_dir = os.path.join(features_root, d)
+                        break
+
+        feature_label = os.path.basename(feature_dir) if feature_dir else "[feature_dir]"
+        prompt_instruction_brief = (
+            f"ให้อ่านไฟล์ทั้งหมดใน `docs/features/{feature_label}` "
+            "(ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง)\n"
+            "มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement"
+        )
+        print("   💡 Prompt Instruction:")
+        print(f"   {prompt_instruction_brief}")
         return
 
     # Define agents config
