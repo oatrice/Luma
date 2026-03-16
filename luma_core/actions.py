@@ -2158,7 +2158,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             pass
 
     cont = input(
-        "\n   Have you finished coding and verified the feature2? (y/N): "
+        "\n   Have you finished coding and verified the feature? (y/N): "
     ).lower()
     if cont != "y":
         print("\n⏳ Pausing workflow. Come back when you're done!")
@@ -2342,6 +2342,18 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
         else:
             print("   ⚠️ No feature directory found. Using generic context.")
 
+        feature_label = os.path.basename(feature_dir) if feature_dir else "[feature_dir]"
+        prompt_instruction = (
+            f"ให้อ่านไฟล์ทั้งหมดใน `docs/features/{feature_label}` "
+            f"และไฟล์ `prompt_{agent_type}.txt` นี้ (ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง)\n"
+            "มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement"
+        )
+        prompt_instruction_brief = (
+            f"ให้อ่านไฟล์ทั้งหมดใน `docs/features/{feature_label}` "
+            "(ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง)\n"
+            "มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement"
+        )
+
         if generate_prompts_only:
             # Just generate the prompt text file
             prompt_file = os.path.join(project["path"], f"prompt_{agent_type}.txt")
@@ -2362,8 +2374,7 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
 # Task: {sub_task}
 {android_specific_instruction}
 **💡 คำสั่งสำหรับ AI Assistant (Cursor/Claude/etc):**
-ให้อ่านไฟล์ทั้งหมดใน `docs/features/{os.path.basename(feature_dir) if feature_dir else "[feature_dir]"}` และไฟล์ `prompt_{agent_type}.txt` นี้ (ระวังปัญหาติด .gitignore ให้ใช้วิธีอ่านไฟล์โดยตรง)
-มาวิเคราะห์ อธิบาย และถามคำถามเพื่อ clarify ก่อนที่จะเริ่มลงมือ implement
+{prompt_instruction}
 
 Please write the code for the following requirements.
 
@@ -2397,6 +2408,8 @@ Please explain your solution and comments in Thai only.
             with open(prompt_file, "w", encoding="utf-8") as f:
                 f.write(prompt_content)
             print(f"   📄 Generated prompt file: {os.path.basename(prompt_file)}")
+            print("   💡 Prompt Instruction:")
+            print(f"   {prompt_instruction}")
             continue
 
         # Create scoped state
@@ -2407,6 +2420,9 @@ Please explain your solution and comments in Thai only.
             "test_errors": "",
             "skip_coder": False,
         }
+
+        print("   💡 Prompt Instruction:")
+        print(f"   {prompt_instruction_brief}")
 
         # 2. Run Agent
         try:
