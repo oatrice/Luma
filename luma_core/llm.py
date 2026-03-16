@@ -1,7 +1,8 @@
 import os
 import subprocess
 import time
-from typing import Any, List, Optional
+import uuid
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
@@ -11,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import Field
 
 from . import config
+from . import usage_tracker
 
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
@@ -185,9 +187,8 @@ class FallbackModel(BaseChatModel):
         run_manager: Optional[Any] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        import time
-
         errors = []
+        chain_length = len(self.models)
 
         # Determine the start index using project-specific info
         current_path = os.getcwd()
@@ -217,12 +218,41 @@ class FallbackModel(BaseChatModel):
 
         for i in range(start_idx, len(self.models)):
             model = self.models[i]
+            call_id = uuid.uuid4().hex[:12]
+            start_time = time.time()
             try:
                 result = model._generate(messages, stop, run_manager, **kwargs)
+                duration_ms = (time.time() - start_time) * 1000
+                provider, model_name, model_type, purpose = _resolve_model_info(model)
+                usage_tracker.record_llm_event(
+                    provider=provider,
+                    model=model_name,
+                    model_type=model_type,
+                    purpose=purpose,
+                    status="success",
+                    duration_ms=duration_ms,
+                    call_id=call_id,
+                    chain_index=i,
+                    chain_length=chain_length,
+                )
                 # Success! Remember this index for THIS project
                 config.save_fallback_index(i, current_path)
                 return result
             except Exception as e:
+                duration_ms = (time.time() - start_time) * 1000
+                provider, model_name, model_type, purpose = _resolve_model_info(model)
+                usage_tracker.record_llm_event(
+                    provider=provider,
+                    model=model_name,
+                    model_type=model_type,
+                    purpose=purpose,
+                    status="error",
+                    duration_ms=duration_ms,
+                    error=str(e),
+                    call_id=call_id,
+                    chain_index=i,
+                    chain_length=chain_length,
+                )
                 model_type = getattr(model, "_llm_type", "unknown")
                 print(f"⚠️ Model {i + 1} ({model_type}) failed: {e}")
                 errors.append(f"Model {i + 1} ({model_type}): {str(e)}")
@@ -243,11 +273,44 @@ class FallbackModel(BaseChatModel):
             )
             for i in range(0, start_idx):
                 model = self.models[i]
+                call_id = uuid.uuid4().hex[:12]
+                start_time = time.time()
                 try:
                     result = model._generate(messages, stop, run_manager, **kwargs)
+                    duration_ms = (time.time() - start_time) * 1000
+                    provider, model_name, model_type, purpose = _resolve_model_info(
+                        model
+                    )
+                    usage_tracker.record_llm_event(
+                        provider=provider,
+                        model=model_name,
+                        model_type=model_type,
+                        purpose=purpose,
+                        status="success",
+                        duration_ms=duration_ms,
+                        call_id=call_id,
+                        chain_index=i,
+                        chain_length=chain_length,
+                    )
                     config.save_fallback_index(i, current_path)  # Remember this success
                     return result
                 except Exception as e:
+                    duration_ms = (time.time() - start_time) * 1000
+                    provider, model_name, model_type, purpose = _resolve_model_info(
+                        model
+                    )
+                    usage_tracker.record_llm_event(
+                        provider=provider,
+                        model=model_name,
+                        model_type=model_type,
+                        purpose=purpose,
+                        status="error",
+                        duration_ms=duration_ms,
+                        error=str(e),
+                        call_id=call_id,
+                        chain_index=i,
+                        chain_length=chain_length,
+                    )
                     model_type = getattr(model, "_llm_type", "unknown")
                     print(f"⚠️ Model {i + 1} ({model_type}) failed: {e}")
                     errors.append(f"Model {i + 1} ({model_type}): {str(e)}")
@@ -281,13 +344,15 @@ def _create_model(
             else config.OPENROUTER_GENERAL_MODEL
         )
         print(f"🔌 Initializing OpenRouter ({name})...")
-        return ChatOpenAI(
+        model = ChatOpenAI(
             model=name,
             openai_api_key=config.OPENROUTER_API_KEY,
             openai_api_base="https://openrouter.ai/api/v1",
             temperature=temperature,
             max_tokens=4000,
         )
+        _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        return model
     elif provider == "gemini":
         name = model_name or (
             config.GEMINI_CODE_MODEL
@@ -295,25 +360,31 @@ def _create_model(
             else config.GEMINI_GENERAL_MODEL
         )
         print(f"🔌 Initializing Gemini SDK ({name})...")
-        return ChatGoogleGenerativeAI(
+        model = ChatGoogleGenerativeAI(
             model=name,
             google_api_key=config.GOOGLE_API_KEY,
             temperature=temperature,
             request_timeout=120,
         )
+        _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        return model
     elif provider == "gemini_cli":
         name = model_name or config.GEMINI_CLI_MODEL
         print(f"🔌 Initializing Gemini CLI ({name})...")
-        return GeminiCLIModel(model=name, temperature=temperature)
+        model = GeminiCLIModel(model=name, temperature=temperature)
+        _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        return model
     elif provider == "openai":
         name = model_name or config.OPENAI_MODEL
         print(f"🔌 Initializing OpenAI ({name})...")
-        return ChatOpenAI(
+        model = ChatOpenAI(
             model=name,
             openai_api_key=config.OPENAI_API_KEY,
             temperature=temperature,
             max_tokens=4000,
         )
+        _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        return model
     else:
         raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
 
@@ -376,4 +447,100 @@ def get_llm(temperature=0.7, purpose="general"):
         print(f"🔗 Active Fallback Chain: {' -> '.join(chain_names)}")
         return FallbackModel(models=models)
 
-    return models[0]
+    return TrackedModel(model=models[0])
+
+
+def _attach_usage_metadata(
+    model: BaseChatModel,
+    *,
+    provider: Optional[str],
+    model_name: Optional[str],
+    purpose: Optional[str],
+) -> None:
+    try:
+        setattr(model, "_luma_provider", provider)
+        setattr(model, "_luma_model_name", model_name)
+        setattr(model, "_luma_purpose", purpose)
+    except Exception:
+        pass
+
+
+def _resolve_model_info(
+    model: BaseChatModel,
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    provider = getattr(model, "_luma_provider", None)
+    model_name = getattr(model, "_luma_model_name", None)
+    model_type = getattr(model, "_llm_type", None)
+    purpose = getattr(model, "_luma_purpose", None)
+    if not model_name:
+        model_name = getattr(model, "model", None) or getattr(model, "model_name", None)
+    if not provider and model_type:
+        if "openrouter" in str(model_type):
+            provider = "openrouter"
+        elif "openai" in str(model_type):
+            provider = "openai"
+        elif "gemini" in str(model_type):
+            provider = "gemini"
+    return provider, model_name, model_type, purpose
+
+
+class TrackedModel(BaseChatModel):
+    """Wrap a single model to record success/failure usage stats."""
+
+    model: BaseChatModel
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    @property
+    def _llm_type(self) -> str:
+        return getattr(self.model, "_llm_type", "tracked")
+
+    @property
+    def _identifying_params(self) -> Dict[str, Any]:
+        try:
+            return self.model._identifying_params  # type: ignore[attr-defined]
+        except Exception:
+            return {"model": getattr(self.model, "model", None)}
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        call_id = uuid.uuid4().hex[:12]
+        start_time = time.time()
+        try:
+            result = self.model._generate(messages, stop, run_manager, **kwargs)
+            duration_ms = (time.time() - start_time) * 1000
+            provider, model_name, model_type, purpose = _resolve_model_info(self.model)
+            usage_tracker.record_llm_event(
+                provider=provider,
+                model=model_name,
+                model_type=model_type,
+                purpose=purpose,
+                status="success",
+                duration_ms=duration_ms,
+                call_id=call_id,
+                chain_index=0,
+                chain_length=1,
+            )
+            return result
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            provider, model_name, model_type, purpose = _resolve_model_info(self.model)
+            usage_tracker.record_llm_event(
+                provider=provider,
+                model=model_name,
+                model_type=model_type,
+                purpose=purpose,
+                status="error",
+                duration_ms=duration_ms,
+                error=str(e),
+                call_id=call_id,
+                chain_index=0,
+                chain_length=1,
+            )
+            raise
