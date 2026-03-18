@@ -183,6 +183,7 @@ def record_llm_event(
     chain_length: Optional[int] = None,
     model_type: Optional[str] = None,
     purpose: Optional[str] = None,
+    error_type: Optional[str] = None,
 ) -> None:
     event: Dict[str, Any] = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -204,6 +205,8 @@ def record_llm_event(
         event["duration_ms"] = int(round(duration_ms))
     if error:
         event["error"] = str(error)[:500]
+    if error_type:
+        event["error_type"] = error_type
     if call_id:
         event["call_id"] = call_id
     if chain_index is not None:

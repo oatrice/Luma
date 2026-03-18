@@ -13,11 +13,20 @@ from pydantic import Field
 
 from . import config
 from . import usage_tracker
+from .error_classifier import classify_error, ErrorType, is_retryable
 
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
 _session_gemini_cli_tokens = 0
 _current_gemini_session_id = None
+
+MODEL_TIMEOUTS = {
+    "gemini-2.5-flash": 120,
+    "gemini-3-flash-preview": 180,
+    "gemini-2.5-pro": 300,
+    "gemini-3-pro-preview": 600,
+    "gemini-2.0-flash-lite-preview-02-05": 60,
+}
 
 
 class GeminiCLIModel(BaseChatModel):
@@ -70,11 +79,17 @@ class GeminiCLIModel(BaseChatModel):
                     text=True,
                 )
 
-                # Send prompt and wait for completion (timeout 5 minutes)
-                stdout, stderr = process.communicate(input=prompt, timeout=300)
+                # Send prompt and wait for completion
+                model_timeout = MODEL_TIMEOUTS.get(self.model, 300)
+                stdout, stderr = process.communicate(input=prompt, timeout=model_timeout)
 
                 if process.returncode != 0:
                     print(f"⚠️ Gemini CLI Error Output: {stderr}")
+
+                    error_type = classify_error(stderr)
+                    if error_type in (ErrorType.RATE_LIMIT, ErrorType.QUOTA_EXCEEDED):
+                        output = f"Error calling Gemini CLI: {stderr}"
+                        break # Skip retry and bubble up immediately
 
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
                     if attempt < max_retries - 1:
@@ -89,10 +104,11 @@ class GeminiCLIModel(BaseChatModel):
             except subprocess.TimeoutExpired:
                 if process is not None:
                     process.kill()
+                model_timeout = MODEL_TIMEOUTS.get(self.model, 300)
                 print(
-                    f"⚠️ Gemini CLI Timeout Expired (300s) - Attempt {attempt + 1}/{max_retries}"
+                    f"⚠️ Gemini CLI Timeout Expired ({model_timeout}s) - Attempt {attempt + 1}/{max_retries}"
                 )
-                output = "Error: Gemini CLI timed out after 5 minutes."
+                output = f"Error: Gemini CLI timed out after {model_timeout} seconds."
                 if attempt < max_retries - 1:
                     print("🔄 Retrying due to timeout...")
                     time.sleep(2)
@@ -241,6 +257,7 @@ class FallbackModel(BaseChatModel):
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
                 provider, model_name, model_type, purpose = _resolve_model_info(model)
+                error_type_enum = classify_error(str(e))
                 usage_tracker.record_llm_event(
                     provider=provider,
                     model=model_name,
@@ -249,12 +266,13 @@ class FallbackModel(BaseChatModel):
                     status="error",
                     duration_ms=duration_ms,
                     error=str(e),
+                    error_type=error_type_enum.value,
                     call_id=call_id,
                     chain_index=i,
                     chain_length=chain_length,
                 )
                 model_type = getattr(model, "_llm_type", "unknown")
-                print(f"⚠️ Model {i + 1} ({model_type}) failed: {e}")
+                print(f"⚠️ Model {i + 1} ({model_type}) failed [{error_type_enum.value}]: {e}")
                 errors.append(f"Model {i + 1} ({model_type}): {str(e)}")
                 if i < len(self.models) - 1:
                     next_model_type = getattr(
@@ -263,7 +281,8 @@ class FallbackModel(BaseChatModel):
                     print(
                         f"🔄 Switching to fallback model {i + 2} ({next_model_type})..."
                     )
-                    time.sleep(1)
+                    if is_retryable(error_type_enum):
+                        time.sleep(1)
 
         # Phase 2: If we started from a fallback (start_idx > 0) and failed,
         # retry the primary models (0 to start_idx - 1)
@@ -299,6 +318,7 @@ class FallbackModel(BaseChatModel):
                     provider, model_name, model_type, purpose = _resolve_model_info(
                         model
                     )
+                    error_type_enum = classify_error(str(e))
                     usage_tracker.record_llm_event(
                         provider=provider,
                         model=model_name,
@@ -307,12 +327,13 @@ class FallbackModel(BaseChatModel):
                         status="error",
                         duration_ms=duration_ms,
                         error=str(e),
+                        error_type=error_type_enum.value,
                         call_id=call_id,
                         chain_index=i,
                         chain_length=chain_length,
                     )
                     model_type = getattr(model, "_llm_type", "unknown")
-                    print(f"⚠️ Model {i + 1} ({model_type}) failed: {e}")
+                    print(f"⚠️ Model {i + 1} ({model_type}) failed [{error_type_enum.value}]: {e}")
                     errors.append(f"Model {i + 1} ({model_type}): {str(e)}")
                     if i < start_idx - 1:
                         next_model_type = getattr(
@@ -321,7 +342,8 @@ class FallbackModel(BaseChatModel):
                         print(
                             f"🔄 Switching to next primary fallback model {i + 2} ({next_model_type})..."
                         )
-                        time.sleep(1)
+                        if is_retryable(error_type_enum):
+                            time.sleep(1)
 
         print("❌ All models in fallback chain failed.")
         config.save_fallback_index(

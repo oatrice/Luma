@@ -32,3 +32,28 @@ def test_get_luma_version_returns_unknown_when_version_file_missing(monkeypatch)
     monkeypatch.setattr(usage_tracker.os.path, "exists", lambda _path: False)
 
     assert usage_tracker._get_luma_version() == "unknown"
+
+
+def test_record_llm_event_includes_error_type(tmp_path, monkeypatch):
+    log_path = tmp_path / ".luma_ai_usage.jsonl"
+
+    monkeypatch.setattr(usage_tracker, "get_log_path", lambda: str(log_path))
+    monkeypatch.setattr(usage_tracker, "_build_context", lambda: {})
+
+    usage_tracker.clear_action()
+    usage_tracker.clear_context()
+    usage_tracker.record_llm_event(
+        provider="gemini_cli",
+        model="gemini-2.5-pro",
+        status="error",
+        error="Some error message",
+        error_type="RATE_LIMIT",
+    )
+
+    lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+
+    event = json.loads(lines[0])
+    assert event["status"] == "error"
+    assert event["error_type"] == "RATE_LIMIT"
+

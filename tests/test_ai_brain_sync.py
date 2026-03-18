@@ -260,9 +260,9 @@ def test_action_sync_ai_brain_logic(mock_brain_dir, tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "y")
     
     state = LumaState(project_key="1")
-    state.active_issue = IssueData(
+    state.active_issues = [IssueData(
         number=45, title="Test", html_url="", body="", project_item_id="", project_id="", repository=""
-    )
+    )]
     
     project = {
         "name": "Test Project",

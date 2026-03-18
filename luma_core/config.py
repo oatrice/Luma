@@ -21,9 +21,9 @@ FALLBACK_LAST_RESET = 0.0
 # Gemini CLI Model Selection
 AVAILABLE_GEMINI_CLI_MODELS = [
     "gemini-3-flash-preview",
-    "gemini-3-pro-preview",
-    "gemini-2.5-pro",
     "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-3-pro-preview",
     "gemini-2.5-flash-lite",
 ]
 GEMINI_CLI_MODEL = os.getenv("GEMINI_CLI_MODEL", "gemini-3-flash-preview")
