@@ -12,6 +12,7 @@ _LOG_FILENAME = ".luma_ai_usage.jsonl"
 _SESSION_ID = uuid.uuid4().hex[:8]
 _current_action: Optional[str] = None
 _current_context: Optional[Dict[str, Any]] = None
+_current_sub_action: Optional[str] = None
 
 
 def set_action(action: Optional[str]) -> None:
@@ -19,9 +20,28 @@ def set_action(action: Optional[str]) -> None:
     _current_action = action
 
 
+def set_sub_action(sub_action: Optional[str]) -> None:
+    """
+    Set a more fine-grained label for the current action.
+
+    Example:
+        action: "Auto Full Workflow"
+        sub_action: "Planning/Spec", "Coding/Multi-Agent", "Create PR"
+    """
+    global _current_sub_action
+    _current_sub_action = sub_action
+
+
 def clear_action() -> None:
     global _current_action
     _current_action = None
+    # Also clear any lingering sub_action when main action ends
+    clear_sub_action()
+
+
+def clear_sub_action() -> None:
+    global _current_sub_action
+    _current_sub_action = None
 
 
 def set_context(state: Optional[LumaState] = None, project: Optional[Dict[str, Any]] = None) -> None:
@@ -169,6 +189,8 @@ def record_llm_event(
         event["chain_length"] = chain_length
     if _current_action:
         event["action"] = _current_action
+    if _current_sub_action:
+        event["sub_action"] = _current_sub_action
 
     context = _build_context()
     for key, value in context.items():
