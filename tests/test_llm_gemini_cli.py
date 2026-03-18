@@ -66,3 +66,53 @@ def test_gemini_cli_model_invoke(mock_subprocess_popen, mock_subprocess_run):
     
     # Check response parsing
     assert response.content == "This is a mock response from gemini cli"
+
+@patch("subprocess.Popen")
+def test_gemini_cli_uses_model_specific_timeout(mock_subprocess_popen):
+    from unittest.mock import MagicMock
+    import luma_core.llm as llm
+    
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = ("mock response", "")
+    mock_process.returncode = 0
+    mock_subprocess_popen.return_value = mock_process
+    
+    # flash-preview should have 180s
+    model = GeminiCLIModel(model="gemini-3-flash-preview", temperature=0.7)
+    messages = [HumanMessage(content="Hello")]
+    
+    # Mock _get_luma_version or others if needed since invoke might call usage tracker
+    with patch("luma_core.usage_tracker.record_llm_event"):
+        model.invoke(messages)
+        
+    mock_process.communicate.assert_called_once()
+    kwargs = mock_process.communicate.call_args[1]
+    assert kwargs.get("timeout") == 180
+
+@patch("subprocess.Popen")
+@patch("time.sleep")
+def test_gemini_cli_skips_retry_on_rate_limit(mock_sleep, mock_subprocess_popen):
+    from unittest.mock import MagicMock
+    
+    mock_process = MagicMock()
+    # Mock to return rate limit error on first try
+    mock_process.communicate.return_value = ("", "HTTP Error 429: Too Many Requests")
+    mock_process.returncode = 1
+    mock_subprocess_popen.return_value = mock_process
+    
+    model = GeminiCLIModel(model="gemini-2.5-flash", temperature=0.7)
+    messages = [HumanMessage(content="Hello")]
+    
+    import pytest
+    from luma_core.error_classifier import classify_error
+    
+    with pytest.raises(RuntimeError) as exc_info:
+        model.invoke(messages)
+        
+    assert "429: Too Many Requests" in str(exc_info.value)
+    
+    # Should only try once
+    assert mock_process.communicate.call_count == 1
+    # Should not sleep
+    mock_sleep.assert_not_called()
+

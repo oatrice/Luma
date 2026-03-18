@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import patch, mock_open
 from luma_core.actions import action_settings
 
-@patch("builtins.input", side_effect=["1", "2", "3"]) # 1: Change LLM, 2: OpenRouter, 3: Back
+@patch("builtins.input", side_effect=["1", "2", "4"]) # 1: Change LLM, 2: OpenRouter, 4: Back
 @patch("builtins.print")
 def test_action_settings_change_llm_provider(mock_print, mock_input):
     mock_file_content = "{}"
@@ -17,7 +17,7 @@ def test_action_settings_change_llm_provider(mock_print, mock_input):
             saved_config = json.loads(written_data)
             assert saved_config["LLM_PROVIDER"] == "openrouter"
 
-@patch("builtins.input", side_effect=["2", "1", "3"]) # 2: Change CLI, 1: Gemini CLI, 3: Back
+@patch("builtins.input", side_effect=["2", "1", "4"]) # 2: Change CLI, 1: Gemini CLI, 4: Back
 @patch("builtins.print")
 def test_action_settings_change_agent_cli(mock_print, mock_input):
     mock_file_content = "{}"
