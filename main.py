@@ -47,7 +47,6 @@ from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 # Configuration & Constants
 # =============================================================================
 
-BOX_WIDTH = 58
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
@@ -59,6 +58,16 @@ def check_luma_outdated():
     if STARTUP_GIT_INFO["hash"] != current_disk_info["hash"]:
         return True, current_disk_info
     return False, None
+
+
+def build_menu_title(is_outdated: bool) -> str:
+    """Build the interactive menu title, including restart notice when needed."""
+    if is_outdated:
+        return (
+            "⚠️  LUMA CODE UPDATED ON DISK! Please RESTART Luma to apply changes.\n"
+            "👉 Select an action:"
+        )
+    return "👉 Select an action:"
 
 
 def load_global_config():
@@ -216,16 +225,8 @@ def main():
     
     while True:
         # --- LUMA SELF-UPDATE CHECK ---
-        is_outdated, disk_info = check_luma_outdated()
-        if is_outdated:
-            print("\n" + "!" * BOX_WIDTH)
-            print(" ⚠️  LUMA CODE UPDATED ON DISK! ".center(BOX_WIDTH, " "))
-            print("-" * BOX_WIDTH)
-            print(f" Running: {STARTUP_GIT_INFO['hash'][:8]} ({STARTUP_GIT_INFO['date'][:16]})")
-            print(f" On Disk: {disk_info['hash'][:8]} ({disk_info['date'][:16]})")
-            print("-" * BOX_WIDTH)
-            print(" 👉 Please RESTART Luma to apply changes. ".center(BOX_WIDTH, " "))
-            print("!" * BOX_WIDTH + "\n")
+        is_outdated, _disk_info = check_luma_outdated()
+        menu_title = build_menu_title(is_outdated)
         # ------------------------------
 
         # Check and print Gemini CLI LLM session metrics from the previous action
@@ -244,13 +245,13 @@ def main():
         
         # Interactive Menu
         try:
-            choice = ui.select_menu_option(state, MENU_ACTIONS)
+            choice = ui.select_menu_option(state, MENU_ACTIONS, title=menu_title)
             # print(f"Selected: {choice}") # Optional feedback
         except Exception as e:
             # Fallback for environments where simple-term-menu might fail
             print(f"⚠️ Interactive menu unavailable: {e}")
             # ui.display_menu(state, MENU_ACTIONS) # StartLine 111 in ui.py was defined legacy
-            choice = input("\n👉 Select: ").strip()
+            choice = input(f"\n{menu_title}\n👉 Select: ").strip()
         
         if choice == "0":
             # Save state before exit
