@@ -104,7 +104,7 @@ def display_header(state: LumaState, project: dict):
 from simple_term_menu import TerminalMenu
 import sys
 
-def select_menu_option(state: LumaState, actions: dict = None) -> str:
+def select_menu_option(state: LumaState, actions: dict = None, title: str = "👉 Select an action:") -> str:
     """
     display interactive menu and return selected action key.
     Uses simple-term-menu for arrow key navigation.
@@ -137,7 +137,7 @@ def select_menu_option(state: LumaState, actions: dict = None) -> str:
     
     terminal_menu = TerminalMenu(
         menu_items,
-        title="👉 Select an action:",
+        title=title,
         menu_cursor="> ",
         menu_cursor_style=("fg_cyan", "bold"),
         menu_highlight_style=("bg_cyan", "fg_black"),
