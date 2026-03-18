@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.0] - 2026-03-19
+
+### Added
+- **[LLM Fallback]** Smart Fallback Strategy with Rate Limit detection and per-model timeout handling in `FallbackModel`.
+- **[Error Classifier]** New `error_classifier.py` for identifying HTTP 429, Quota, and Timeout strings instantly.
+- **[Usage Log]** Granular tracking of `error_type` in `usage_tracker.py` for LLM performance debugging.
+
+### Changed
+- **[Models]** Reordered `AVAILABLE_GEMINI_CLI_MODELS` to prioritize `gemini-2.5-flash` for overall speed/stability.
+- **[Core]** `_add_new_project` ID generation modified to use auto-increment from existing project sequences instead of Unix epoch timestamp.
+
 ## [1.3.0] - 2026-01-31
 
 ### Added

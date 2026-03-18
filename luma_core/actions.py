@@ -1492,10 +1492,19 @@ def _add_new_project(state: LumaState) -> str:
     repo = input("GitHub Repo (e.g. oatrice/Akasa) [Optional]: ").strip()
     kanban_number_str = input("GitHub Project Board Number [Optional]: ").strip()
 
-    # Generate a unique key
-    import time
+    # Generate a unique key based on auto-incrementing existing numeric keys
+    max_key = 0
+    for key in PROJECTS.keys():
+        try:
+            val = int(key)
+            # Ignore previously generated timestamp keys (Unix timestamps are ~1.7B)
+            # so we only auto-increment from standard project id sequences.
+            if val < 1000000:
+                max_key = max(max_key, val)
+        except ValueError:
+            pass
 
-    new_key = str(int(time.time()))
+    new_key = str(max_key + 1)
 
     new_project = {
         "name": name,
