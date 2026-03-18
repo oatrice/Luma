@@ -104,6 +104,7 @@ MENU_ACTIONS = {
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
+    "L": {"label": "📊 View Usage Log",            "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
@@ -158,6 +159,7 @@ def run_with_notify(action_label: str, project_name: str, func, *args, **kwargs)
         )
         raise
     finally:
+        # Ensure we always clear both high-level action and any nested sub_action
         usage_tracker.clear_action()
         usage_tracker.clear_context()
 
@@ -306,6 +308,9 @@ def main():
 
         elif choice.upper() == "K":
             actions.action_view_kanban(project)
+
+        elif choice.upper() == "L":
+            actions.action_view_stats_files(state, project)
         
         elif choice.upper() == "R":
             state = load_state(project["path"])

@@ -1,7 +1,10 @@
 import datetime
+import json
 import os
 import sys
+from collections import deque
 
+import luma_core.usage_tracker as usage_tracker
 from luma_core.agents.publisher import publisher_agent
 from luma_core.config import PROJECTS
 from luma_core.context_summarizer import ContextSummarizer
@@ -23,6 +26,7 @@ from luma_core.tools import (
     get_git_changed_files,
     update_multi_repo_docs,
 )
+from luma_core import usage_tracker
 
 # =============================================================================
 # Menu Actions
@@ -528,6 +532,160 @@ def action_list_active_issues(project: dict):
 
     print(f"{'─' * 70}")
     print(f"Total Active: {len(active_cards)} issues")
+
+
+def _safe_read_lines(path: str):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.readlines()
+    except UnicodeDecodeError:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.readlines()
+
+
+def _print_preview(lines, max_lines: int = 200):
+    total = len(lines)
+    if total == 0:
+        print("   (empty file)")
+        return
+
+    for line in lines[:max_lines]:
+        print(line.rstrip())
+
+    if total > max_lines:
+        print(f"\n... ({total - max_lines} more lines)")
+
+
+def _event_matches_project(event: dict, project: dict) -> bool:
+    if not project:
+        return True
+    if event.get("project_path") and event.get("project_path") == project.get("path"):
+        return True
+    if event.get("project_name") and event.get("project_name") == project.get("name"):
+        return True
+    if project.get("repo") and event.get("project_repo") == project.get("repo"):
+        return True
+    return False
+
+
+def _load_recent_usage_events(path: str, limit: int = 50, project: dict = None):
+    events = deque(maxlen=limit)
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if project and not _event_matches_project(event, project):
+                    continue
+                events.append(event)
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        print(f"⚠️ Failed to read usage log: {e}")
+        return []
+    return list(events)
+
+
+def _format_event_line(event: dict) -> str:
+    ts = event.get("ts", "")
+    if "T" in ts:
+        ts = ts.replace("T", " ")[:19]
+    status = event.get("status", "-")
+    provider = event.get("provider", "")
+    model = event.get("model", "")
+    model_desc = "/".join([p for p in [provider, model] if p]) or "-"
+    action = event.get("action", "-")
+    project = event.get("project_name") or event.get("project_key") or "-"
+    return f"{ts} | {status} | {model_desc} | {action} | {project}"
+
+
+def action_view_stats_files(state: LumaState, project: dict):
+    """View AI usage log."""
+    usage_path = usage_tracker.get_log_path()
+
+    while True:
+        print("\n📊 Usage Log Viewer")
+        print("===================")
+        print(f"  [1] View .luma_ai_usage.jsonl {'✅' if os.path.exists(usage_path) else '❌'}")
+        print("  [2] Show file path")
+        print("  [0] Back")
+
+        choice = input("\nSelect [0-2]: ").strip()
+
+        if choice == "0":
+            return
+
+        if choice == "1":
+            if not os.path.exists(usage_path):
+                print("\n❌ .luma_ai_usage.jsonl not found.")
+                input("\nPress Enter to return...")
+                continue
+
+            print("\n📄 Usage Log View")
+            print("  [1] Summary (current project)")
+            print("  [2] Summary (all projects)")
+            print("  [3] Raw tail (last 50 lines)")
+            print("  [0] Back")
+
+            sub = input("\nSelect [0-3]: ").strip()
+
+            if sub == "0":
+                continue
+
+            if sub == "1":
+                events = _load_recent_usage_events(usage_path, limit=50, project=project)
+                if not events:
+                    print("\nℹ️ No usage events for this project yet.")
+                else:
+                    print("\nTS | STATUS | MODEL | ACTION | PROJECT")
+                    print("-" * 70)
+                    for event in events:
+                        print(_format_event_line(event))
+
+            elif sub == "2":
+                events = _load_recent_usage_events(usage_path, limit=50, project=None)
+                if not events:
+                    print("\nℹ️ No usage events yet.")
+                else:
+                    print("\nTS | STATUS | MODEL | ACTION | PROJECT")
+                    print("-" * 70)
+                    for event in events:
+                        print(_format_event_line(event))
+
+            elif sub == "3":
+                tail = deque(maxlen=50)
+                try:
+                    with open(usage_path, "r", encoding="utf-8", errors="replace") as f:
+                        for line in f:
+                            tail.append(line.rstrip())
+                except Exception as e:
+                    print(f"⚠️ Failed to read usage log: {e}")
+                    input("\nPress Enter to return...")
+                    continue
+
+                print("\nLast 50 lines:")
+                print("-" * 70)
+                for line in tail:
+                    print(line)
+
+            else:
+                print("❌ Invalid option")
+
+            input("\nPress Enter to return...")
+            continue
+
+        if choice == "2":
+            print("\n📁 File Path")
+            print(f"  .luma_ai_usage.jsonl: {usage_path}")
+            input("\nPress Enter to return...")
+            continue
+
+        print("❌ Invalid option")
 
 
 def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False):
@@ -2105,6 +2263,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             should_run_analyst = True
 
         if should_run_analyst:
+            usage_tracker.set_sub_action("Auto:Planning/Analyst")
             action_refine_issue(state, project)
             # Update feature dir after analyst runs (it might have created it)
             feature_dir = get_feature_dir(project["path"], state.active_issue.number)
@@ -2120,6 +2279,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             should_run_spec = True
 
         if should_run_spec:
+            usage_tracker.set_sub_action("Auto:Planning/Spec+SBE")
             action_generate_spec(state, project)
             # Update feature dir
             if state.context.get("last_feature_dir"):
@@ -2138,6 +2298,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             # Ensure feature_dir is in context so action_generate_plan doesn't ask again
             if feature_dir:
                 state.context["last_feature_dir"] = feature_dir
+            usage_tracker.set_sub_action("Auto:Planning/Plan")
             action_generate_plan(state, project)
 
     # 3. Coding (User)
@@ -2145,6 +2306,7 @@ def action_guided_workflow(state: LumaState, project: dict):
     print("   🤖 AI Assist + 👤 Human Coding")
 
     # Offer Multi-Agent Swarm
+    usage_tracker.set_sub_action("Auto:Coding/Multi-Agent")
     action_run_multi_agent_coding(state, project)
 
     print("   - Use your IDE to implement the feature.")
@@ -2169,6 +2331,7 @@ def action_guided_workflow(state: LumaState, project: dict):
     # 4. Review & Docs & Roadmap
     print("\n🔹 Step 4: Quality, Documentation & Roadmap")
     if input("   Run Code Review? (Y/n): ").lower() != "n":
+        usage_tracker.set_sub_action("Auto:Quality/CodeReview")
         action_code_review(state, project)
 
         print("\n   " + "🔍" * 5 + " RE-VERIFY AFTER REVIEW " + "🔍" * 5)
@@ -2177,9 +2340,11 @@ def action_guided_workflow(state: LumaState, project: dict):
         print("   " + "-" * 75)
 
     if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != "n":
+        usage_tracker.set_sub_action("Auto:Quality/Docs")
         action_update_docs(state, project)
 
     if input("   Update Roadmap? (Y/n): ").lower() != "n":
+        usage_tracker.set_sub_action("Auto:Quality/Roadmap")
         action_update_roadmap(state, project)
 
     # 5. Archive Artifacts
@@ -2199,8 +2364,10 @@ def action_guided_workflow(state: LumaState, project: dict):
     )
 
     if choice == "a":
+        usage_tracker.set_sub_action("Auto:PR/Auto-Approve")
         action_create_pr(state, project, auto_approve=True)
     elif choice == "y" or choice == "":
+        usage_tracker.set_sub_action("Auto:PR/Interactive")
         action_create_pr(state, project, auto_approve=False)
 
     # Poll for Merge?
@@ -2216,6 +2383,8 @@ def action_guided_workflow(state: LumaState, project: dict):
         if pr_status["merged"]:
             print("✅ PR Merged confirmed!")
 
+    # Clear sub_action at the end of the auto workflow so future usage is clean
+    usage_tracker.set_sub_action(None)
     print("\n🎉 Workflow Completed! You can now select the next issue.")
 
 
