@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 1.3.0  
+> **Version:** 1.4.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -30,6 +30,7 @@ flowchart TB
 - **GitHub Project Sync:** Deep integration with GitHub Projects (Kanban).
 - **Pre-flight Checker:** Enforces definition of done (Tests, Lint, etc.) before PR.
 - **SBE Generator:** AI-powered Specification by Example for pre-coding phase. 🆕
+- **Smart Fallback:** Error Classification, Rate Limit circumvention, and specific per-model timeouts. 🆕
 - **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions.py`, `config.py`).
 
 ---
@@ -68,6 +69,7 @@ Luma/
 │   ├── state_manager.py     # State management
 │   ├── github_project.py    # GitHub Sync
 │   ├── preflight_checker.py # Validation
+│   ├── error_classifier.py  # [NEW] Error identification for Fallback 
 │   ├── tools.py             # Agent tools
 │   └── agents/
 │       ├── analyst.py       # Issue analysis agent
@@ -109,4 +111,5 @@ python main.py
 - [x] **Modular Architecture**: Easy to extend and maintain.
 - [x] **SBE Generator**: AI-powered Specification by Example (Menu: S).
 - [x] **Draft Code Review**: Generate rich PR context with one click (Menu: D).
-- [x] **Spec-Driven Dev**: Native integration of GitHub Spec Kit (Spec -> Plan -> Build). 🆕
+- [x] **Spec-Driven Dev**: Native integration of GitHub Spec Kit (Spec -> Plan -> Build).
+- [x] **Smart Fallback**: Optimized fallback chain with intelligent Rate Limit handling. 🆕
