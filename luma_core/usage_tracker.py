@@ -10,6 +10,7 @@ from .state_manager import LumaState, load_state
 
 _LOG_FILENAME = ".luma_ai_usage.jsonl"
 _SESSION_ID = uuid.uuid4().hex[:8]
+_LUMA_VERSION_CACHE: Optional[str] = None
 _current_action: Optional[str] = None
 _current_context: Optional[Dict[str, Any]] = None
 _current_sub_action: Optional[str] = None
@@ -60,6 +61,27 @@ def clear_context() -> None:
 def get_log_path() -> str:
     luma_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(luma_root, _LOG_FILENAME)
+
+
+def _get_luma_version() -> str:
+    global _LUMA_VERSION_CACHE
+    if _LUMA_VERSION_CACHE is not None:
+        return _LUMA_VERSION_CACHE
+
+    version = "unknown"
+    try:
+        luma_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        version_path = os.path.join(luma_root, "VERSION")
+        if os.path.exists(version_path):
+            with open(version_path, "r", encoding="utf-8") as f:
+                parsed = f.read().strip()
+                if parsed:
+                    version = parsed
+    except Exception:
+        pass
+
+    _LUMA_VERSION_CACHE = version
+    return _LUMA_VERSION_CACHE
 
 
 def _load_global_config() -> Dict[str, Any]:
@@ -167,6 +189,7 @@ def record_llm_event(
         "event": "llm_call",
         "status": status,
         "session_id": _SESSION_ID,
+        "luma_version": _get_luma_version(),
     }
 
     if provider:
