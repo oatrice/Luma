@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.1] - 2026-03-19
+
+### Fixed
+- **[Config]** Resolved an issue where nested dictionary configurations were being overwritten instead of deep-merged, preventing potential data loss in project-specific settings.
+
 ## [1.4.0] - 2026-03-19
 
 ### Added

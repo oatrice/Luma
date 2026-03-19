@@ -63,7 +63,7 @@ stateDiagram-v2
 Luma/
 ├── luma_core/
 │   ├── actions.py           # Business logic for menu actions
-│   ├── config.py            # Centralized configuration
+│   ├── config.py            # Centralized configuration (supports deep merging)
 │   ├── sbe.py               # [NEW] SBE core module
 │   ├── ui.py                # UI & Display logic
 │   ├── state_manager.py     # State management
