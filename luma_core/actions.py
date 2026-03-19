@@ -6,7 +6,7 @@ from collections import deque
 
 import luma_core.usage_tracker as usage_tracker
 from luma_core.agents.publisher import publisher_agent
-from luma_core.config import PROJECTS
+from luma_core.config import PROJECTS, get_status_workflow, normalize_project_entry
 from luma_core.context_summarizer import ContextSummarizer
 from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
 from luma_core.github_project import (
@@ -35,6 +35,45 @@ from luma_core import usage_tracker
 # =============================================================================
 
 
+def _status_key(status: str) -> str:
+    return (status or "").strip().lower()
+
+
+def _status_priority(order: list) -> dict:
+    return {_status_key(status): idx for idx, status in enumerate(order)}
+
+
+def _get_status_icon(status: str, workflow: dict) -> str:
+    for configured_status, icon in workflow.get("status_icons", {}).items():
+        if _status_key(configured_status) == _status_key(status):
+            return icon
+    return ""
+
+
+def _get_selectable_cards(cards: list, project: dict, exclude_numbers: set = None) -> list:
+    workflow = get_status_workflow(project)
+    selectable_statuses = {
+        _status_key(status) for status in workflow.get("selectable_statuses", [])
+    }
+    selection_priority = _status_priority(workflow.get("selection_order", []))
+    exclude_numbers = exclude_numbers or set()
+
+    selectable_cards = [
+        card
+        for card in cards
+        if _status_key(card.status) in selectable_statuses
+        and card.issue_number not in exclude_numbers
+    ]
+
+    selectable_cards.sort(
+        key=lambda card: (
+            selection_priority.get(_status_key(card.status), 999),
+            card.issue_number,
+        )
+    )
+    return selectable_cards
+
+
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""
     print("\n🔍 Fetching issues from Kanban...")
@@ -55,36 +94,17 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
 
     # Fetch all cards
     all_cards = fetch_kanban_cards(project["kanban_number"])
-
-    # Filter for Ready, In Progress, or Todo
-    valid_statuses = ["Ready", "In Progress", "Todo"]
-    selectable_issues = []
-
-    for card in all_cards:
-        # Case-insensitive check
-        if any(s.lower() == card.status.lower() for s in valid_statuses):
-            selectable_issues.append(card)
+    workflow = get_status_workflow(project)
+    selectable_issues = _get_selectable_cards(all_cards, project)
 
     if not selectable_issues:
-        print("📭 No 'Ready', 'In Progress', or 'Todo' issues found on Kanban.")
+        allowed = "', '".join(workflow.get("selectable_statuses", []))
+        print(f"📭 No '{allowed}' issues found on Kanban.")
         return False
-
-    # Sort: In Progress -> Ready -> Todo
-    def sort_key(c):
-        status = c.status.lower()
-        if status == "in progress":
-            return (0, c.issue_number)
-        elif status == "ready":
-            return (1, c.issue_number)
-        elif status == "todo":
-            return (2, c.issue_number)
-        return (3, c.issue_number)
-
-    selectable_issues.sort(key=sort_key)
 
     print("\n--- 📋 Select Issue to Work On ---")
     for i, card in enumerate(selectable_issues, 1):
-        status_icon = "🔥" if card.status.lower() == "in progress" else "✅"
+        status_icon = _get_status_icon(card.status, workflow) or "✅"
         print(
             f"  [{i}] {status_icon} #{card.issue_number}: {card.title[:50]} ({card.status})"
         )
@@ -273,6 +293,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
 
     if ok:
         issue_display = ", ".join(f"#{c.issue_number}" for c in cards)
+        workflow = get_status_workflow(project)
         print(f"\n✅ Started: {issue_display}")
         for c in cards:
             print(f"   🎯 #{c.issue_number}: {c.title[:50]}")
@@ -344,7 +365,10 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 if i == 0:
                     print("🔄 Syncing Kanban status...")
                 sync_kanban_on_action(
-                    "select_issue", project["kanban_id"], card.item_id
+                    "select_issue",
+                    project["kanban_id"],
+                    card.item_id,
+                    workflow.get("action_status_map"),
                 )
 
         return True
@@ -360,6 +384,7 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
         return False
 
     print("\n\u2795 Add Issue to Current Work Session")
+    workflow = get_status_workflow(project)
     if state.active_issues:
         print(
             f"   Current issues: {', '.join(f'#{i.number}' for i in state.active_issues)}"
@@ -367,14 +392,7 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
 
     all_cards = fetch_kanban_cards(project["kanban_number"])
     active_nums = {i.number for i in state.active_issues}
-
-    valid_statuses = ["Ready", "In Progress", "Todo"]
-    selectable = [
-        c
-        for c in all_cards
-        if any(s.lower() == c.status.lower() for s in valid_statuses)
-        and c.issue_number not in active_nums
-    ]
+    selectable = _get_selectable_cards(all_cards, project, exclude_numbers=active_nums)
 
     if not selectable:
         print("\ud83d\udced No additional issues available.")
@@ -410,7 +428,10 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
             # Sync Kanban
             if card.item_id and project.get("kanban_id"):
                 sync_kanban_on_action(
-                    "select_issue", project["kanban_id"], card.item_id
+                    "select_issue",
+                    project["kanban_id"],
+                    card.item_id,
+                    workflow.get("action_status_map"),
                 )
             return True
     except ValueError:
@@ -455,6 +476,8 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
 def action_view_kanban(project: dict):
     """View Kanban status"""
     print(f"\n📊 Fetching {project['name']} Kanban...")
+    workflow = get_status_workflow(project)
+    board_priority = _status_priority(workflow.get("board_order", []))
 
     cards = fetch_kanban_cards(project["kanban_number"])
 
@@ -471,7 +494,12 @@ def action_view_kanban(project: dict):
         by_status[status].append(card)
 
     print(f"\n{'─' * 60}")
-    for status, items in by_status.items():
+    sorted_statuses = sorted(
+        by_status.keys(),
+        key=lambda status: (board_priority.get(_status_key(status), 999), _status_key(status)),
+    )
+    for status in sorted_statuses:
+        items = by_status[status]
         print(f"\n📌 {status} ({len(items)})")
         for card in items[:5]:
             print(f"   #{card.issue_number}: {card.title[:45]}")
@@ -484,6 +512,7 @@ def action_view_kanban(project: dict):
 def action_list_active_issues(project: dict):
     """List all active issues (Backlog, Ready, In Progress)"""
     print(f"\n📋 Fetching Active Issues for {project['name']}...")
+    workflow = get_status_workflow(project)
 
     cards = fetch_kanban_cards(project["kanban_number"])
 
@@ -491,19 +520,21 @@ def action_list_active_issues(project: dict):
         print("📭 No cards found")
         return
 
-    # Filter out Done/Closed
-    ignored_statuses = ["Done", "Closed"]
-    active_cards = [c for c in cards if c.status not in ignored_statuses]
+    active_statuses = {_status_key(status) for status in workflow.get("active_statuses", [])}
+    if active_statuses:
+        active_cards = [c for c in cards if _status_key(c.status) in active_statuses]
+    else:
+        done_statuses = {_status_key(status) for status in workflow.get("done_statuses", [])}
+        active_cards = [c for c in cards if _status_key(c.status) not in done_statuses]
 
     if not active_cards:
         print("✅ No active issues! All done.")
         return
 
-    # Sort Logic: In Progress -> Ready -> Todo -> Backlog -> Others
-    priority = {"In Progress": 0, "Ready": 1, "Todo": 2, "Backlog": 3}
+    priority = _status_priority(workflow.get("active_sort_order", []))
 
     def get_priority(card):
-        return priority.get(card.status, 99)
+        return priority.get(_status_key(card.status), 99)
 
     active_cards.sort(key=lambda c: (get_priority(c), c.issue_number))
 
@@ -516,16 +547,7 @@ def action_list_active_issues(project: dict):
         title = card.title[:38] + ".." if len(card.title) > 40 else card.title
 
         # Colorize status (simulated with emojis)
-        status_icon = ""
-        if card.status == "In Progress":
-            status_icon = "🔥 "
-        elif card.status == "Ready":
-            status_icon = "✅ "
-        elif card.status == "Todo":
-            status_icon = "📝 "
-        elif card.status == "Backlog":
-            status_icon = "📥 "
-
+        status_icon = _get_status_icon(card.status, workflow)
         display_status = f"{status_icon}{card.status}"
 
         print(
@@ -1558,13 +1580,13 @@ def _add_new_project(state: LumaState) -> str:
 
     new_key = str(max_key + 1)
 
-    new_project = {
+    new_project = normalize_project_entry({
         "name": name,
         "path": path,
         "repo": repo if repo else "",
         "kanban_number": int(kanban_number_str) if kanban_number_str.isdigit() else 1,
         "kanban_id": "",  # Cannot easily infer this via CLI right now
-    }
+    })
 
     # 1. Add to current session runtime
     PROJECTS[new_key] = new_project
