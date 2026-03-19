@@ -139,6 +139,7 @@ def _build_code_review_followup_prompt(multi_repo: bool = False) -> str:
 
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""
+    print("\n💡 เช็ค gh cli, Roadmap.md ว่าต้องทำ issue ไหนต่อ")
     print("\n🔍 Fetching issues from Kanban...")
 
     # Handle Self-Test / Dummy Mode
