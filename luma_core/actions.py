@@ -74,6 +74,23 @@ def _get_selectable_cards(cards: list, project: dict, exclude_numbers: set = Non
     return selectable_cards
 
 
+def _build_code_review_followup_prompt(multi_repo: bool = False) -> str:
+    if multi_repo:
+        return (
+            "นำ code review จาก code_review.md "
+            "(อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) ในทุก repo มาอธิบาย "
+            "และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย "
+            "ถ้า code_review.md ไม่ make sense ให้ใช้ draft_code_review.md แทน"
+        )
+
+    return (
+        "นำ code review จาก code_review.md "
+        "(อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย "
+        "และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย "
+        "ถ้า code_review.md ไม่ make sense ให้ใช้ draft_code_review.md แทน"
+    )
+
+
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""
     print("\n🔍 Fetching issues from Kanban...")
@@ -1355,10 +1372,9 @@ def action_code_review(state: LumaState, project: dict):
             print("\n" + "=" * 60)
             print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
             print("=" * 60)
-            if len(target_projects) > 1:
-                prompt_text = "นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) ในทุก repo มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย"
-            else:
-                prompt_text = "นำ code review จาก terminal และ code_review.md (อาจจะติด gitignored ต้องเข้าไปอ่านตรงๆ) มาอธิบาย และถามเพื่อ clarify ด้วย และให้ทำตาม Test suggestion ทั้งหมดด้วย"
+            prompt_text = _build_code_review_followup_prompt(
+                multi_repo=len(target_projects) > 1
+            )
             print(prompt_text)
             print("=" * 60)
 
