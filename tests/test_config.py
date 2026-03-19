@@ -38,4 +38,4 @@ def test_config_defaults():
         # Should default to gemini_cli LLM provider and gemini_cli AGENT_CLI
         assert config.LLM_PROVIDER == "gemini_cli"
         assert config.AGENT_CLI == "gemini_cli"
-
+        assert config.GEMINI_CLI_MODEL == "gemini-2.5-flash"

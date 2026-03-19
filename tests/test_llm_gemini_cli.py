@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch
 from langchain_core.messages import HumanMessage
+from langchain_core.language_models.chat_models import BaseChatModel
 from luma_core.llm import get_llm, GeminiCLIModel, FallbackModel, TrackedModel
 
 def test_get_llm_returns_gemini_cli_model():
@@ -116,3 +117,27 @@ def test_gemini_cli_skips_retry_on_rate_limit(mock_sleep, mock_subprocess_popen)
     # Should not sleep
     mock_sleep.assert_not_called()
 
+
+class FailingModel(BaseChatModel):
+    model: str = "gemini-2.5-flash"
+
+    @property
+    def _llm_type(self) -> str:
+        return "gemini-cli:gemini-2.5-flash"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        raise RuntimeError("Request timed out after 120 seconds.")
+
+
+def test_tracked_model_logs_error_type_on_failure():
+    model = TrackedModel(model=FailingModel())
+    messages = [HumanMessage(content="Hello")]
+
+    with patch("luma_core.usage_tracker.record_llm_event") as mock_record:
+        with pytest.raises(RuntimeError):
+            model.invoke(messages)
+
+    assert mock_record.called
+    kwargs = mock_record.call_args.kwargs
+    assert kwargs["status"] == "error"
+    assert kwargs["error_type"] == "TIMEOUT"

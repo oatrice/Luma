@@ -553,6 +553,7 @@ class TrackedModel(BaseChatModel):
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             provider, model_name, model_type, purpose = _resolve_model_info(self.model)
+            error_type_enum = classify_error(str(e))
             usage_tracker.record_llm_event(
                 provider=provider,
                 model=model_name,
@@ -561,6 +562,7 @@ class TrackedModel(BaseChatModel):
                 status="error",
                 duration_ms=duration_ms,
                 error=str(e),
+                error_type=error_type_enum.value,
                 call_id=call_id,
                 chain_index=0,
                 chain_length=1,

@@ -26,7 +26,7 @@ AVAILABLE_GEMINI_CLI_MODELS = [
     "gemini-3-pro-preview",
     "gemini-2.5-flash-lite",
 ]
-GEMINI_CLI_MODEL = os.getenv("GEMINI_CLI_MODEL", "gemini-3-flash-preview")
+GEMINI_CLI_MODEL = os.getenv("GEMINI_CLI_MODEL", "gemini-2.5-flash")
 
 # Load overrides from global config
 if os.path.exists(GLOBAL_CONFIG_FILE):
