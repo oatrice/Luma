@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import sys
+from dataclasses import asdict
 from collections import deque
 
 import luma_core.usage_tracker as usage_tracker
@@ -16,6 +17,16 @@ from luma_core.github_project import (
     sync_kanban_on_action,
 )
 from luma_core.preflight_checker import PreflightChecker
+from luma_core.issue_metrics import (
+    EFFORT_LEVELS,
+    IssueMetricsRecord,
+    format_metric_datetime,
+    get_issue_metrics,
+    list_issue_metrics,
+    parse_metric_datetime,
+    save_issue_metrics,
+    validate_effort_level,
+)
 from luma_core.state_manager import (
     IssueData,
     LumaState,
@@ -621,6 +632,292 @@ def action_list_active_issues(project: dict):
 
     print(f"{'─' * 70}")
     print(f"Total Active: {len(active_cards)} issues")
+
+
+_KEEP_METRIC_VALUE = object()
+
+
+def _project_sort_key(project_key: str):
+    if str(project_key).isdigit():
+        return (0, int(project_key))
+    return (1, str(project_key))
+
+
+def _select_project_for_metrics(current_project: dict) -> dict:
+    print("\n📁 Select Project for Issue Metrics")
+    print("  [Enter] Current project")
+    print("  [0] Back")
+    for key in sorted(PROJECTS.keys(), key=_project_sort_key):
+        candidate = PROJECTS[key]
+        marker = " (current)" if candidate.get("path") == current_project.get("path") else ""
+        print(f"  [{key}] {candidate['name']}{marker}")
+
+    choice = input("\nSelect project: ").strip()
+    if not choice:
+        return current_project
+    if choice == "0":
+        return None
+    if choice in PROJECTS:
+        return PROJECTS[choice]
+
+    print("❌ Invalid project selection")
+    return None
+
+
+def _get_metrics_project_cards(project: dict) -> list:
+    cards = fetch_kanban_cards(project["kanban_number"])
+    repo = project.get("repo")
+    if repo:
+        cards = [card for card in cards if card.repository == repo]
+
+    workflow = get_status_workflow(project)
+    board_priority = _status_priority(workflow.get("board_order", []))
+    cards.sort(
+        key=lambda card: (
+            board_priority.get(_status_key(card.status), 999),
+            card.issue_number,
+        )
+    )
+    return cards
+
+
+def _select_issue_card_for_metrics(project: dict):
+    cards = _get_metrics_project_cards(project)
+    if not cards:
+        print("📭 No GitHub issues found for this project.")
+        return None
+
+    print(f"\n🎯 Issues in {project['name']}")
+    print(f"{'Idx':<5} {'#':<6} {'Title':<38} {'Status'}")
+    print("─" * 72)
+    for idx, card in enumerate(cards, 1):
+        title = card.title[:36] + ".." if len(card.title) > 38 else card.title
+        print(f"{idx:<5} #{card.issue_number:<5} {title:<38} {card.status}")
+
+    choice = input("\nSelect index or use #issue-number [0=Back]: ").strip()
+    if choice == "0":
+        return None
+
+    if choice.startswith("#") and choice[1:].isdigit():
+        issue_number = int(choice[1:])
+        return next((card for card in cards if card.issue_number == issue_number), None)
+
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(cards):
+            return cards[idx]
+
+    print("❌ Invalid issue selection")
+    return None
+
+
+def _display_tracked_issue_summary(project: dict):
+    records = list_issue_metrics(project["path"])
+    if not records:
+        print(f"\nℹ️ No tracked issues yet for {project['name']}.")
+        return []
+
+    print(f"\n📋 Tracked Issues for {project['name']}")
+    print(
+        f"{'Idx':<5} {'#':<6} {'Title':<26} {'Pts':<5} {'EstMD':<7} "
+        f"{'ActMD':<7} {'Due':<19} {'Effort':<7}"
+    )
+    print("─" * 96)
+    for idx, record in enumerate(records, 1):
+        title = (
+            record.issue_title[:24] + ".."
+            if len(record.issue_title) > 26
+            else record.issue_title
+        )
+        print(
+            f"{idx:<5} #{record.issue_number:<5} {title:<26} "
+            f"{(record.estimate_points if record.estimate_points is not None else '-'): <5} "
+            f"{(record.estimated_mandays if record.estimated_mandays is not None else '-'): <7} "
+            f"{(record.actual_mandays if record.actual_mandays is not None else '-'): <7} "
+            f"{format_metric_datetime(record.due_date):<19} "
+            f"{(record.effort_level or '-'): <7}"
+        )
+    print("─" * 96)
+    print(f"Total tracked: {len(records)}")
+    return records
+
+
+def _select_tracked_issue_record(project: dict):
+    records = _display_tracked_issue_summary(project)
+    if not records:
+        return None
+
+    choice = input("\nSelect index or use #issue-number [0=Back]: ").strip()
+    if choice == "0":
+        return None
+
+    if choice.startswith("#") and choice[1:].isdigit():
+        issue_number = int(choice[1:])
+        return next((record for record in records if record.issue_number == issue_number), None)
+
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(records):
+            return records[idx]
+
+    print("❌ Invalid tracked issue selection")
+    return None
+
+
+def _format_metric_value(value):
+    if value in (None, ""):
+        return "-"
+    if isinstance(value, str) and "T" in value:
+        return format_metric_datetime(value)
+    return str(value)
+
+
+def _parse_optional_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError("Estimate Points must be an integer.") from exc
+    if parsed < 0:
+        raise ValueError("Estimate Points must be 0 or greater.")
+    return parsed
+
+
+def _parse_optional_float(value: str, label: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be numeric.") from exc
+    if parsed < 0:
+        raise ValueError(f"{label} must be 0 or greater.")
+    return parsed
+
+
+def _prompt_metric_value(label: str, current_value, parser):
+    while True:
+        raw = input(
+            f"{label} [{_format_metric_value(current_value)}] "
+            "(Enter keep, - clear): "
+        ).strip()
+        if raw == "":
+            return _KEEP_METRIC_VALUE
+        if raw == "-":
+            return None
+        try:
+            return parser(raw)
+        except ValueError as e:
+            print(f"❌ {e}")
+
+
+def _edit_issue_metrics_record(project: dict, record: IssueMetricsRecord, is_new: bool = False):
+    print(f"\n📝 Issue Metrics for #{record.issue_number} - {record.issue_title}")
+    print(f"   Project: {project['name']}")
+    print(f"   Repository: {record.repository or '-'}")
+    print(f"   Status: {record.issue_status or '-'}")
+    print("   Press Enter to keep the current value, or '-' to clear it.")
+
+    candidate = IssueMetricsRecord(**asdict(record))
+    changed = False
+
+    field_specs = [
+        ("estimate_points", "Estimate Points", _parse_optional_int),
+        (
+            "estimated_mandays",
+            "Estimated Mandays",
+            lambda value: _parse_optional_float(value, "Estimated Mandays"),
+        ),
+        (
+            "actual_mandays",
+            "Actual Mandays",
+            lambda value: _parse_optional_float(value, "Actual Mandays"),
+        ),
+        ("due_date", "Due Date/Time", parse_metric_datetime),
+        (
+            "actual_completion_date",
+            "Actual Completion Date/Time",
+            parse_metric_datetime,
+        ),
+        ("effort_level", f"Effort Level {EFFORT_LEVELS}", validate_effort_level),
+        ("notes", "Notes", lambda value: value),
+    ]
+
+    for field_name, label, parser in field_specs:
+        next_value = _prompt_metric_value(label, getattr(candidate, field_name), parser)
+        if next_value is _KEEP_METRIC_VALUE:
+            continue
+        if getattr(candidate, field_name) != next_value:
+            setattr(candidate, field_name, next_value)
+            changed = True
+
+    if not changed:
+        if is_new:
+            print("ℹ️ No tracking values entered. Nothing was saved.")
+        else:
+            print("ℹ️ No changes saved.")
+        return False
+
+    save_issue_metrics(project["path"], candidate)
+    print("✅ Issue metrics saved.")
+    return True
+
+
+def _build_issue_metrics_record(project: dict, card: KanbanCard) -> IssueMetricsRecord:
+    existing = get_issue_metrics(project["path"], card.repository, card.issue_number)
+    if existing:
+        existing.issue_title = card.title
+        existing.issue_url = card.url
+        existing.issue_status = card.status
+        existing.project_name = project["name"]
+        return existing
+
+    return IssueMetricsRecord(
+        issue_key=f"{card.repository}#{card.issue_number}",
+        issue_number=card.issue_number,
+        issue_title=card.title,
+        issue_url=card.url,
+        repository=card.repository,
+        project_name=project["name"],
+        issue_status=card.status,
+    )
+
+
+def action_manage_issue_metrics(state: LumaState, project: dict):
+    """Manage per-issue estimates and actuals in .luma_metrics.json files."""
+    selected_project = _select_project_for_metrics(project)
+    if not selected_project:
+        return
+
+    while True:
+        print(f"\n📏 Issue Metrics Tracker - {selected_project['name']}")
+        print("  [1] List tracked issues")
+        print("  [2] Select GitHub issue to view/edit metrics")
+        print("  [3] Open tracked issue")
+        print("  [0] Back")
+
+        choice = input("\nSelect [0-3]: ").strip()
+        if choice == "0":
+            return
+        if choice == "1":
+            _display_tracked_issue_summary(selected_project)
+            continue
+        if choice == "2":
+            card = _select_issue_card_for_metrics(selected_project)
+            if card:
+                _edit_issue_metrics_record(
+                    selected_project,
+                    _build_issue_metrics_record(selected_project, card),
+                    is_new=get_issue_metrics(
+                        selected_project["path"], card.repository, card.issue_number
+                    )
+                    is None,
+                )
+            continue
+        if choice == "3":
+            tracked_record = _select_tracked_issue_record(selected_project)
+            if tracked_record:
+                _edit_issue_metrics_record(selected_project, tracked_record, is_new=False)
+            continue
+
+        print("❌ Invalid selection")
 
 
 def _safe_read_lines(path: str):
