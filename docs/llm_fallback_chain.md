@@ -6,7 +6,7 @@
 Current Configuration:
   [1] LLM Provider:      gemini_cli
   [2] Agent CLI:         gemini_cli
-  [3] Gemini CLI Model:  gemini-3-flash-preview
+  [3] Gemini CLI Model:  gemini-2.5-flash
   [4] 🔙 Back
 ```
 
@@ -26,15 +26,15 @@ Current Configuration:
 
 | Model | หมายเหตุ |
 |-------|---------|
-| `gemini-3-flash-preview` | ค่าเริ่มต้น, เร็ว |
+| `gemini-2.5-flash` | ค่าเริ่มต้นสำหรับ production, เร็วและเสถียรกว่า |
+| `gemini-3-flash-preview` | ใช้ทดลองหรือ canary |
 | `gemini-3-pro-preview` | แรงสุด, ติดลิมิตง่าย |
 | `gemini-2.5-pro` | stable |
-| `gemini-2.5-flash` | เร็ว, quota สูง |
 | `gemini-2.5-flash-lite` | เบาสุด |
 
 ```json
 // .luma_global.json
-{ "GEMINI_CLI_MODEL": "gemini-3-flash-preview" }
+{ "GEMINI_CLI_MODEL": "gemini-2.5-flash" }
 ```
 
 ### Manual Verify: Gemini CLI Model
@@ -93,4 +93,3 @@ Current Configuration:
 - Chain builder: `luma_core/llm.py` → `get_llm()`
 - Fallback logic: `luma_core/llm.py` → `FallbackModel._generate()`
 - Config load/save: `luma_core/config.py` → `get_fallback_info()` / `save_fallback_index()`
-

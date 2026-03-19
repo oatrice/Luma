@@ -17,24 +17,22 @@ def test_available_gemini_cli_models_exists():
     assert hasattr(config, "AVAILABLE_GEMINI_CLI_MODELS")
     expected_models = [
         "gemini-3-flash-preview",
-        "gemini-3-pro-preview",
-        "gemini-2.5-pro",
         "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-3-pro-preview",
         "gemini-2.5-flash-lite",
     ]
     assert config.AVAILABLE_GEMINI_CLI_MODELS == expected_models
 
 
 # ===========================================================================
-# Test 2: config.py should have GEMINI_CLI_MODEL defaulting to gemini-3-flash-preview
+# Test 2: config.py should have GEMINI_CLI_MODEL defaulting to gemini-2.5-flash
 # ===========================================================================
 def test_gemini_cli_model_default():
-    """GEMINI_CLI_MODEL should default to 'gemini-3-flash-preview'."""
+    """GEMINI_CLI_MODEL should default to 'gemini-2.5-flash'."""
     from luma_core import config
     assert hasattr(config, "GEMINI_CLI_MODEL")
-    # Default value when no global config override exists
-    # We test the declared default, not the runtime-loaded value
-    assert config.GEMINI_CLI_MODEL is not None
+    assert config.GEMINI_CLI_MODEL == "gemini-2.5-flash"
 
 
 # ===========================================================================
@@ -53,7 +51,7 @@ def test_gemini_cli_model_loaded_from_global_config(tmp_path):
             # Simulate what happens when config loads: read from file
             with open(str(config_file), "r") as f:
                 cfg = json.load(f)
-            loaded_model = cfg.get("GEMINI_CLI_MODEL", "gemini-3-flash-preview")
+            loaded_model = cfg.get("GEMINI_CLI_MODEL", "gemini-2.5-flash")
             assert loaded_model == "gemini-2.5-flash"
     finally:
         config.GEMINI_CLI_MODEL = original

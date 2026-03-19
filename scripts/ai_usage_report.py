@@ -69,6 +69,10 @@ def _add_stat(bucket: Dict[str, Any], event: Dict[str, Any]) -> None:
     if isinstance(duration_ms, (int, float)):
         bucket["duration_ms_total"] += float(duration_ms)
         bucket["duration_ms_count"] += 1
+        bucket["duration_ms_values"].append(float(duration_ms))
+    error_type = event.get("error_type")
+    if isinstance(error_type, str) and error_type:
+        bucket["error_types"][error_type] += 1
 
 
 def _fmt_rate(success: int, total: int) -> str:
@@ -81,6 +85,38 @@ def _fmt_ms(total: float, count: int) -> str:
     if count <= 0:
         return "-"
     return f"{round(total / count):d}"
+
+
+def _fmt_ms_value(value: Optional[float]) -> str:
+    if value is None:
+        return "-"
+    return f"{round(value):d}"
+
+
+def _percentile(values: List[float], percentile: float) -> Optional[float]:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+
+    rank = (len(ordered) - 1) * (percentile / 100.0)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
+def _fmt_error_types(error_types: Dict[str, int]) -> str:
+    if not error_types:
+        return "-"
+    parts = [
+        f"{error_type}:{count}"
+        for error_type, count in sorted(
+            error_types.items(), key=lambda item: (-item[1], item[0])
+        )
+    ]
+    return ", ".join(parts)
 
 
 def _render_table(headers: List[str], rows: List[List[str]]) -> str:
@@ -116,15 +152,38 @@ def build_report(events: List[Dict[str, Any]]) -> str:
             "fail": 0,
             "duration_ms_total": 0.0,
             "duration_ms_count": 0,
+            "duration_ms_values": [],
+            "error_types": defaultdict(int),
         }
     )
     by_issue: Dict[str, Dict[str, Any]] = defaultdict(
         lambda: {
             "title": None,
-            "models": defaultdict(lambda: {"total": 0, "success": 0, "fail": 0}),
+            "models": defaultdict(
+                lambda: {
+                    "total": 0,
+                    "success": 0,
+                    "fail": 0,
+                    "duration_ms_total": 0.0,
+                    "duration_ms_count": 0,
+                    "duration_ms_values": [],
+                    "error_types": defaultdict(int),
+                }
+            ),
         }
     )
-    by_action = defaultdict(lambda: {"total": 0, "success": 0, "fail": 0})
+    by_action = defaultdict(
+        lambda: {
+            "total": 0,
+            "success": 0,
+            "fail": 0,
+            "duration_ms_total": 0.0,
+            "duration_ms_count": 0,
+            "duration_ms_values": [],
+            "error_types": defaultdict(int),
+        }
+    )
+    by_error_type = defaultdict(int)
 
     for event in events:
         provider, model = _model_key(event)
@@ -133,6 +192,9 @@ def build_report(events: List[Dict[str, Any]]) -> str:
 
         action = event.get("action") or "(unknown)"
         _add_stat(by_action[action], event)
+        error_type = event.get("error_type")
+        if isinstance(error_type, str) and error_type:
+            by_error_type[error_type] += 1
 
         for issue_num, title in _issue_keys(event):
             issue_bucket = by_issue[issue_num]
@@ -152,6 +214,9 @@ def build_report(events: List[Dict[str, Any]]) -> str:
                 str(stats["fail"]),
                 _fmt_rate(stats["success"], stats["total"]),
                 _fmt_ms(stats["duration_ms_total"], stats["duration_ms_count"]),
+                _fmt_ms_value(_percentile(stats["duration_ms_values"], 50)),
+                _fmt_ms_value(_percentile(stats["duration_ms_values"], 95)),
+                _fmt_error_types(stats["error_types"]),
             ]
         )
 
@@ -166,8 +231,16 @@ def build_report(events: List[Dict[str, Any]]) -> str:
                 str(stats["success"]),
                 str(stats["fail"]),
                 _fmt_rate(stats["success"], stats["total"]),
+                _fmt_ms(stats["duration_ms_total"], stats["duration_ms_count"]),
             ]
         )
+
+    error_rows = [
+        [error_type, str(count)]
+        for error_type, count in sorted(
+            by_error_type.items(), key=lambda item: (-item[1], item[0])
+        )
+    ]
 
     issue_blocks: List[str] = []
     for issue_num in sorted(by_issue.keys(), key=lambda x: (x == "none", x)):
@@ -207,11 +280,27 @@ def build_report(events: List[Dict[str, Any]]) -> str:
         "",
         "Overall by Model",
         _render_table(
-            ["Model", "Total", "Success", "Fail", "Success%", "Avg ms"], overall_rows
+            [
+                "Model",
+                "Total",
+                "Success",
+                "Fail",
+                "Success%",
+                "Avg ms",
+                "P50 ms",
+                "P95 ms",
+                "Error Types",
+            ],
+            overall_rows,
         ),
         "",
         "By Action",
-        _render_table(["Action", "Total", "Success", "Fail", "Success%"], action_rows),
+        _render_table(
+            ["Action", "Total", "Success", "Fail", "Success%", "Avg ms"], action_rows
+        ),
+        "",
+        "Error Breakdown",
+        _render_table(["Error Type", "Count"], error_rows),
         "",
         "By Issue",
         "\n\n".join(issue_blocks),
