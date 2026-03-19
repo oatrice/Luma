@@ -1,4 +1,5 @@
 import unicodedata
+from luma_core.doc_updates import get_pending_doc_updates, pending_doc_update_summary
 from luma_core.state_manager import LumaState, WorkflowPhase, get_phase_display, get_next_step_recommendation
 
 # =============================================================================
@@ -92,6 +93,14 @@ def display_header(state: LumaState, project: dict):
             branch = branch[:max_branch_len] + "..."
             
         _print_boxed_line(format_row("🌿", "Branch ", branch), BOX_WIDTH)
+
+    pending_status = get_pending_doc_updates(state)
+    pending_summary = pending_doc_update_summary(pending_status)
+    if pending_summary:
+        max_pending_len = 35
+        if len(pending_summary) > max_pending_len:
+            pending_summary = pending_summary[:max_pending_len] + "..."
+        _print_boxed_line(format_row("📝", "Pending", pending_summary), BOX_WIDTH)
     
     print("╠" + "═" * (BOX_WIDTH + 2) + "╣")
     

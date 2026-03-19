@@ -8,6 +8,7 @@ import luma_core.usage_tracker as usage_tracker
 from luma_core.agents.publisher import publisher_agent
 from luma_core.config import PROJECTS
 from luma_core.context_summarizer import ContextSummarizer
+from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
 from luma_core.github_project import (
     KanbanCard,
     fetch_kanban_cards,
@@ -743,6 +744,10 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             transition_to(state, WorkflowPhase.CODING)
             return
 
+    if not _confirm_pending_doc_updates_before_pr(state, project, auto_approve=auto_approve):
+        transition_to(state, WorkflowPhase.CODING)
+        return
+
     # 3. Ask for Mode if not auto-approved already
     if not auto_approve:
         print("\n🤖 PR Creation Mode:")
@@ -1348,7 +1353,50 @@ def action_code_review(state: LumaState, project: dict):
             print(f"   ❌ Error during code review for {proj['name']}: {e}")
 
 
-def action_update_docs(state: LumaState, project: dict):
+def _confirm_pending_doc_updates_before_pr(
+    state: LumaState, project: dict, auto_approve: bool = False
+) -> bool:
+    status = refresh_pending_doc_updates(state, project)
+    summary = pending_doc_update_summary(status)
+    if not summary:
+        return True
+
+    print("\n⚠️ Pending docs/version updates detected before PR.")
+    print(f"   Missing: {summary}")
+
+    if auto_approve:
+        print("   ℹ️ Auto-Approve mode: continuing without forcing docs update.")
+        return True
+
+    choice = (
+        input(
+            "   [u] Update now\n"
+            "   [c] Continue anyway\n"
+            "   [b] Back to Coding\n"
+            "   Select (Default=u): "
+        )
+        .strip()
+        .lower()
+    )
+
+    if choice in ("", "u"):
+        action_update_docs(state, project, skip_confirm=True)
+        status = refresh_pending_doc_updates(state, project)
+        summary = pending_doc_update_summary(status)
+        if not summary:
+            return True
+
+        print(f"   ⚠️ Still pending after docs update: {summary}")
+        return input("   Continue PR anyway? (y/N): ").strip().lower() == "y"
+
+    if choice == "c":
+        return True
+
+    print("⏳ Back to Coding so you can keep refining before the docs/version update.")
+    return False
+
+
+def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = False):
     """Update documentation (Changelog, Version, README)"""
     print("\n📝 Documentation Update")
     print(f"   Project: {project['name']}")
@@ -1381,9 +1429,10 @@ def action_update_docs(state: LumaState, project: dict):
     for repo in target_repos:
         print(f"   - {repo['name']}")
 
-    confirm = input("\nProceed with docs update? (y/N): ").lower()
-    if confirm != "y":
-        return
+    if not skip_confirm:
+        confirm = input("\nProceed with docs update? (y/N): ").lower()
+        if confirm != "y":
+            return []
 
     # 2. Run Update
     print("\n⏳ Updating docs (AI-powered)...")
@@ -1404,6 +1453,8 @@ def action_update_docs(state: LumaState, project: dict):
         print(f"   {status} {r['name']}: {msg}")
 
     print("\n✅ Done.")
+    refresh_pending_doc_updates(state, project)
+    return results
 
 
 def action_refine_issue(state: LumaState, project: dict):
