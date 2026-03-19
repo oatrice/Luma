@@ -90,9 +90,16 @@ def save_global_config(config):
         if os.path.exists(GLOBAL_CONFIG_FILE):
              with open(GLOBAL_CONFIG_FILE, "r") as f:
                   current_config = json.load(f)
-        
-        # Merge new config into current
-        current_config.update(config)
+
+        # Merge nested maps so we do not clobber file updates that happened
+        # after the caller loaded an older in-memory snapshot.
+        for key, value in config.items():
+            if isinstance(value, dict) and isinstance(current_config.get(key), dict):
+                merged_value = current_config[key].copy()
+                merged_value.update(value)
+                current_config[key] = merged_value
+            else:
+                current_config[key] = value
         
         with open(GLOBAL_CONFIG_FILE, "w") as f:
             json.dump(current_config, f, indent=2)
