@@ -138,6 +138,7 @@ MENU_ACTIONS = {
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "L": {"label": "📊 View Usage Log",            "valid_phases": "ALL"},
+    "M": {"label": "📏 Track Issue Metrics",       "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
@@ -331,6 +332,9 @@ def main():
 
         elif choice.upper() == "L":
             actions.action_view_stats_files(state, project)
+
+        elif choice.upper() == "M":
+            actions.action_manage_issue_metrics(state, project)
         
         elif choice.upper() == "R":
             state = load_state(project["path"])
