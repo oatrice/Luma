@@ -12,6 +12,7 @@ from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_do
 from luma_core.github_project import (
     KanbanCard,
     fetch_kanban_cards,
+    run_gh_command,
     sync_kanban_on_action,
 )
 from luma_core.preflight_checker import PreflightChecker
@@ -1936,28 +1937,57 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         print(f"❌ No valid issue numbers found in: {issue_input!r}")
         return
 
-    import subprocess
+    def _fetch_issue_from_github(issue_id: str):
+        gh_args = ["issue", "view", issue_id, "--json", "number,title,state,url"]
+        repo_name = project.get("repo")
+        if repo_name:
+            gh_args.extend(["--repo", repo_name])
 
-    # ── Verify each issue via gh CLI ──────────────────────────────────────────
-    for issue_id in issue_ids:
-        print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
+        output = run_gh_command(gh_args, timeout=15)
+        if output:
+            try:
+                return json.loads(output)
+            except json.JSONDecodeError as e:
+                print(f"   ⚠️ Failed to parse gh output for issue #{issue_id}: {e}")
+
+        import subprocess
+
         try:
+            fallback_cmd = ["gh", "issue", "view", issue_id, "--json", "number,title,state,url"]
+            if repo_name:
+                fallback_cmd.extend(["--repo", repo_name])
+
             gh_res = subprocess.run(
-                [
-                    "gh", "issue", "view", issue_id,
-                    "--json", "title,state",
-                    "-t", "{{.title}} ({{.state}})",
-                ],
+                fallback_cmd,
                 cwd=project["path"],
                 capture_output=True,
                 text=True,
             )
             if gh_res.returncode == 0:
-                print(f"   ✅ Found: {gh_res.stdout.strip()}")
-            else:
-                print(f"   ⚠️ Could not verify issue via gh: {gh_res.stderr.strip()}")
+                return json.loads(gh_res.stdout)
+
+            error_text = gh_res.stderr.strip()
+            if error_text:
+                print(f"   ⚠️ Could not verify issue via gh: {error_text}")
         except Exception as e:
             print(f"   ⚠️ GitHub CLI check failed: {e}")
+
+        return None
+
+    verified_issues = {}
+
+    # ── Verify each issue via gh CLI and keep metadata for sync ──────────────
+    for issue_id in issue_ids:
+        print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
+        issue_data = _fetch_issue_from_github(issue_id)
+        if issue_data:
+            verified_issues[issue_id] = issue_data
+            issue_number = issue_data.get("number", issue_id)
+            title = (issue_data.get("title") or "").replace("\n", " ").strip() or "(Untitled issue)"
+            state_name = issue_data.get("state", "UNKNOWN")
+            print(f"   ✅ Found: #{issue_number} {title} ({state_name})")
+        else:
+            print(f"   ⚠️ Could not verify issue #{issue_id}. Existing Roadmap entry can still be updated.")
 
     # ── Helper: find issue in roadmap and return metadata ────────────────────
     def _find_issue(issue_id, lines):
@@ -2001,23 +2031,59 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
 
         return found_idx, is_table_row, status_idx, indent
 
+    def _ensure_synced_issue_section(lines):
+        section_title = "## Synced From GitHub"
+
+        for idx, line in enumerate(lines):
+            if line.strip().lower() == section_title.lower():
+                for next_idx in range(idx + 1, len(lines)):
+                    if lines[next_idx].startswith("## "):
+                        return next_idx
+                return len(lines)
+
+        if lines and lines[-1].strip():
+            lines.append("\n")
+        lines.append(section_title + "\n")
+        lines.append("\n")
+        return len(lines)
+
+    def _build_missing_issue_block(issue_data, status_line):
+        issue_number = issue_data.get("number", "")
+        title = (issue_data.get("title") or "").replace("\n", " ").strip() or "(Untitled issue)"
+        issue_url = (issue_data.get("url") or "").strip()
+        issue_state = (issue_data.get("state") or "UNKNOWN").strip()
+
+        block = [f"### Issue #{issue_number} - {title}\n"]
+        if issue_url:
+            block.append(f"- **GitHub:** [#{issue_number}]({issue_url})\n")
+        block.append(f"- **State:** {issue_state}\n")
+        block.append(status_line.strip() + "\n")
+        block.append("\n")
+        return block
+
     # ── Find all requested issues ─────────────────────────────────────────────
     found_issues = []
+    missing_issues = []
     for issue_id in issue_ids:
         found_idx, is_table_row, status_idx, indent = _find_issue(issue_id, lines)
         if found_idx == -1:
-            print(f"❌ Issue #{issue_id} not found in Roadmap.")
+            if issue_id in verified_issues:
+                print(f"⚠️  Issue #{issue_id} not found in Roadmap. Will append it from GitHub metadata.")
+                missing_issues.append(issue_id)
+            else:
+                print(f"⚠️  Issue #{issue_id} not found in Roadmap and could not be verified via gh. Skipping.")
         else:
             print(f"✅ Found issue #{issue_id} at line {found_idx + 1}: {lines[found_idx].strip()}")
             found_issues.append((issue_id, found_idx, is_table_row, status_idx, indent))
 
-    if not found_issues:
-        print("❌ None of the specified issues were found in the Roadmap.")
+    if not found_issues and not missing_issues:
+        print("❌ No requested issues could be updated in the Roadmap.")
         return
 
     # ── Ask for status ONCE — applies to all found issues ────────────────────
-    issue_list = ", ".join(f"#{x[0]}" for x in found_issues)
-    print(f"\nSelecting status for {len(found_issues)} issue(s): {issue_list}")
+    issues_to_update = [x[0] for x in found_issues] + missing_issues
+    issue_list = ", ".join(f"#{issue_id}" for issue_id in issues_to_update)
+    print(f"\nSelecting status for {len(issues_to_update)} issue(s): {issue_list}")
     print("\nSelect new status:")
     print("  [1] ✅ Done / Complete")
     print("  [2] 🟢 Ready")
@@ -2035,10 +2101,7 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         version = input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
         note = input("Enter Completion Note (Enter to skip): ").strip()
 
-    # ── Apply updates in reverse line order to preserve indices ──────────────
-    for issue_id, found_idx, is_table_row, status_idx, indent in sorted(
-        found_issues, key=lambda x: x[1], reverse=True
-    ):
+    def _build_status_strings(is_table_row, indent):
         if status_choice == "1":
             status_prefix = "✅ Complete" if is_table_row else "✅ **Done**"
             if version and note:
@@ -2060,9 +2123,16 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         elif status_choice == "3":
             new_table_status = "🔲 Todo" if is_table_row else "🟡 In Progress"
             new_status_line = f"{indent}**Status:** 🟡 **In Progress**"
-        else:  # "4"
+        else:
             new_table_status = "🔴 Blocked"
             new_status_line = f"{indent}**Status:** 🔴 **Blocked**"
+        return new_table_status, new_status_line
+
+    # ── Apply updates in reverse line order to preserve indices ──────────────
+    for issue_id, found_idx, is_table_row, status_idx, indent in sorted(
+        found_issues, key=lambda x: x[1], reverse=True
+    ):
+        new_table_status, new_status_line = _build_status_strings(is_table_row, indent)
 
         if is_table_row:
             parts = lines[found_idx].split("|")
@@ -2082,11 +2152,27 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
 
         print(f"   ✅ Issue #{issue_id} → updated.")
 
+    added_issue_count = 0
+    if missing_issues:
+        insert_at = _ensure_synced_issue_section(lines)
+        new_issue_lines = []
+        for issue_id in missing_issues:
+            issue_data = verified_issues.get(issue_id)
+            if not issue_data:
+                continue
+            _, new_status_line = _build_status_strings(False, "- ")
+            new_issue_lines.extend(_build_missing_issue_block(issue_data, new_status_line))
+            added_issue_count += 1
+            print(f"   ✅ Issue #{issue_id} → added to Roadmap from GitHub.")
+        if new_issue_lines:
+            lines[insert_at:insert_at] = new_issue_lines
+
     # ── Write back once ───────────────────────────────────────────────────────
     try:
         with open(roadmap_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
-        print(f"\n✅ Roadmap updated successfully! ({len(found_issues)} issue(s))")
+        updated_count = len(found_issues) + added_issue_count
+        print(f"\n✅ Roadmap updated successfully! ({updated_count} issue(s))")
     except Exception as e:
         print(f"❌ Failed to write roadmap: {e}")
 
