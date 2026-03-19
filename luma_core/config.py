@@ -1,3 +1,4 @@
+import copy
 import os
 
 from dotenv import load_dotenv
@@ -154,6 +155,164 @@ TARGET_DIR = os.getcwd()
 # Project Configuration
 # =============================================================================
 
+DEFAULT_STATUS_WORKFLOW = {
+    "selectable_statuses": ["Ready", "In Progress", "Todo"],
+    "selection_order": ["In Progress", "Ready", "Todo"],
+    "active_statuses": ["Backlog", "Ready", "Todo", "In Progress", "In Review"],
+    "active_sort_order": ["In Progress", "Ready", "Todo", "In Review", "Backlog"],
+    "board_order": ["Backlog", "Ready", "Todo", "In Progress", "In Review", "Done", "Closed"],
+    "done_statuses": ["Done", "Closed"],
+    "status_icons": {
+        "Backlog": "📥 ",
+        "Ready": "✅ ",
+        "Todo": "📝 ",
+        "In Progress": "🔥 ",
+        "In Review": "👀 ",
+        "Done": "✅ ",
+        "Closed": "✅ ",
+    },
+    "action_status_map": {
+        "select_issue": "In Progress",
+        "create_pr": "In Review",
+        "pr_merged": "Done",
+    },
+}
+
+LUMA_STATUS_WORKFLOW = {
+    "selectable_statuses": ["Ready", "In Progress"],
+    "selection_order": ["In Progress", "Ready"],
+    "active_statuses": ["Backlog", "Ready", "In Progress", "In Review"],
+    "active_sort_order": ["In Progress", "Ready", "In Review", "Backlog"],
+    "board_order": ["Backlog", "Ready", "In Progress", "In Review", "Done"],
+    "done_statuses": ["Done"],
+}
+
+CANONICAL_KANBAN_BY_REPO = {
+    "oatrice/JarWise-Root": {
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "oatrice/JarWise-Web": {
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "oatrice/JarWise-Backend": {
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "oatrice/JarWise-Android": {
+        "kanban_number": 7,
+        "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+    },
+    "oatrice/Tetris-Battle": {
+        "kanban_number": 6,
+        "kanban_id": "PVT_kwHOATfKEM4BKZK5",
+    },
+    "oatrice/Luma": {
+        "kanban_number": 5,
+        "kanban_id": "PVT_kwHOATfKEM4BKOOI",
+    },
+    "oatrice/TheMiddleWay-Metadata": {
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "oatrice/TheMiddleWay-Web": {
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "oatrice/TheMiddleWay-Android": {
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "oatrice/TheMiddleWay-IOS": {
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "oatrice/TheMiddleWay-Backend": {
+        "kanban_number": 8,
+        "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+    },
+    "oatrice/Akasa": {
+        "kanban_number": 9,
+        "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
+    },
+}
+
+STATUS_WORKFLOW_BY_REPO = {
+    "oatrice/Luma": LUMA_STATUS_WORKFLOW,
+}
+
+
+def _merge_status_workflow(base: dict, override: dict) -> dict:
+    merged = copy.deepcopy(base)
+
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        elif isinstance(value, list):
+            merged[key] = list(value)
+        else:
+            merged[key] = value
+
+    return merged
+
+
+def get_status_workflow(project: dict) -> dict:
+    """Resolve the status workflow for a project."""
+    workflow = _merge_status_workflow(
+        DEFAULT_STATUS_WORKFLOW,
+        project.get("status_workflow", {}),
+    )
+
+    repo = project.get("repo")
+    canonical = STATUS_WORKFLOW_BY_REPO.get(repo)
+    if canonical:
+        workflow = _merge_status_workflow(workflow, canonical)
+
+    return workflow
+
+
+def normalize_project_entry(project: dict) -> dict:
+    """Fill canonical Kanban metadata and workflow for known repositories."""
+    normalized = dict(project)
+    repo = normalized.get("repo")
+    canonical = CANONICAL_KANBAN_BY_REPO.get(repo)
+
+    if canonical:
+        normalized["kanban_number"] = canonical["kanban_number"]
+        normalized["kanban_id"] = canonical["kanban_id"]
+
+    normalized["status_workflow"] = get_status_workflow(normalized)
+
+    return normalized
+
+
+def detect_project_key_for_path(current_path: str, projects: dict = None):
+    """Infer the most specific project key that owns the current path."""
+    if not current_path:
+        return None
+
+    projects = projects or PROJECTS
+    resolved_path = os.path.realpath(current_path)
+    matches = []
+
+    for key, project in projects.items():
+        project_path = project.get("path")
+        if not project_path:
+            continue
+
+        resolved_project_path = os.path.realpath(project_path)
+        if resolved_path == resolved_project_path or resolved_path.startswith(
+            resolved_project_path + os.sep
+        ):
+            matches.append((len(resolved_project_path), key))
+
+    if not matches:
+        return None
+
+    matches.sort(reverse=True)
+    return matches[0][1]
+
 PROJECTS = {
     "1": {
         "name": "JarWise-Root",
@@ -242,7 +401,16 @@ PROJECTS = {
         "kanban_number": 9,
         "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
     },
+    "12": {
+        "name": "Luma",
+        "path": "/Users/oatrice/Software-projects/Luma",
+        "repo": "oatrice/Luma",
+        "kanban_number": 5,
+        "kanban_id": "PVT_kwHOATfKEM4BKOOI",
+    },
 }
+
+PROJECTS = {key: normalize_project_entry(val) for key, val in PROJECTS.items()}
 
 # --- Load Custom Projects from Global Config ---
 try:
@@ -254,6 +422,6 @@ try:
             # Custom projects might overwrite existing keys if not careful,
             # ideally keys are unique or sequential.
             for key, val in custom_projects_data.items():
-                PROJECTS[key] = val
+                PROJECTS[key] = normalize_project_entry(val)
 except Exception:
     pass

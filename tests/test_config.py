@@ -39,3 +39,65 @@ def test_config_defaults():
         assert config.LLM_PROVIDER == "gemini_cli"
         assert config.AGENT_CLI == "gemini_cli"
         assert config.GEMINI_CLI_MODEL == "gemini-2.5-flash"
+
+
+def test_config_normalizes_known_custom_project_kanban():
+    mock_data = json.dumps(
+        {
+            "custom_projects": {
+                "12": {
+                    "name": "Luma",
+                    "path": "/Users/oatrice/Software-projects/Luma",
+                    "repo": "oatrice/Luma",
+                    "kanban_number": 1,
+                    "kanban_id": "",
+                }
+            }
+        }
+    )
+
+    original_exists = os.path.exists
+
+    def mock_exists(path):
+        if "luma_global.json" in path:
+            return True
+        return original_exists(path)
+
+    with patch("builtins.open", mock_open(read_data=mock_data)), patch(
+        "os.path.exists", side_effect=mock_exists
+    ):
+        importlib.reload(config)
+        assert config.PROJECTS["12"]["kanban_number"] == 5
+        assert config.PROJECTS["12"]["kanban_id"] == "PVT_kwHOATfKEM4BKOOI"
+
+
+def test_detect_project_key_for_path_prefers_most_specific_match():
+    projects = {
+        "1": {"path": "/Users/oatrice/Software-projects"},
+        "12": {"path": "/Users/oatrice/Software-projects/Luma"},
+    }
+
+    detected = config.detect_project_key_for_path(
+        "/Users/oatrice/Software-projects/Luma/luma_core",
+        projects,
+    )
+
+    assert detected == "12"
+
+
+def test_get_status_workflow_uses_luma_specific_lanes():
+    workflow = config.get_status_workflow(
+        {
+            "name": "Luma",
+            "repo": "oatrice/Luma",
+        }
+    )
+
+    assert workflow["board_order"] == [
+        "Backlog",
+        "Ready",
+        "In Progress",
+        "In Review",
+        "Done",
+    ]
+    assert workflow["selectable_statuses"] == ["Ready", "In Progress"]

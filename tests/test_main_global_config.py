@@ -51,3 +51,23 @@ def test_save_global_config_merges_nested_dicts_without_losing_custom_projects(
         "/existing": "1",
         "/new": "12",
     }
+
+
+def test_resolve_project_key_falls_back_to_cwd_detection(monkeypatch):
+    monkeypatch.setattr(
+        main,
+        "PROJECTS",
+        {
+            "1": {"name": "JarWise"},
+            "12": {"name": "Luma"},
+        },
+    )
+    monkeypatch.setattr(main, "detect_project_key_for_path", lambda cwd: "12")
+
+    project_key = main.resolve_project_key(
+        "1",
+        None,
+        "/Users/oatrice/Software-projects/Luma",
+    )
+
+    assert project_key == "12"

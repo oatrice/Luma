@@ -113,6 +113,9 @@ def _resolve_project_from_global_config() -> Tuple[Optional[str], Optional[Dict[
     if not project_key:
         project_key = cfg.get("last_project")
 
+    if not project_key or project_key not in config.PROJECTS:
+        project_key = config.detect_project_key_for_path(cwd)
+
     if project_key and project_key in config.PROJECTS:
         return project_key, config.PROJECTS[project_key]
     return project_key, None

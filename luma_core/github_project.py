@@ -405,7 +405,8 @@ def get_ready_issues(
 def sync_kanban_on_action(
     action: str,
     project_id: str,
-    item_id: str
+    item_id: str,
+    status_map: Optional[Dict[str, str]] = None,
 ) -> bool:
     """
     Auto-sync Kanban based on Luma action
@@ -418,7 +419,7 @@ def sync_kanban_on_action(
     Returns:
         True if synced successfully
     """
-    status_map = {
+    status_map = status_map or {
         "select_issue": "In Progress",
         "create_pr": "In Review",
         "pr_merged": "Done",

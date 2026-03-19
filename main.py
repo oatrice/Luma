@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import luma_core.ui as ui
 import luma_core.actions as actions
 import luma_core.usage_tracker as usage_tracker
-from luma_core.config import PROJECTS
+from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow
 from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
 from luma_core.notifier import notify_task_complete
 
@@ -105,6 +105,21 @@ def save_global_config(config):
             json.dump(current_config, f, indent=2)
     except Exception as e:
         print(f"Warning: Failed to save global config: {e}")
+
+
+def resolve_project_key(cli_project_key: str, stored_project: str, current_cwd: str) -> str:
+    """Resolve project key from CLI arg, saved mapping, cwd inference, then fallback."""
+    if cli_project_key != "1" and cli_project_key in PROJECTS:
+        return cli_project_key
+
+    if stored_project and stored_project in PROJECTS:
+        return stored_project
+
+    inferred_project = detect_project_key_for_path(current_cwd)
+    if inferred_project and inferred_project in PROJECTS:
+        return inferred_project
+
+    return "1"
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
@@ -206,17 +221,7 @@ def main():
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
     
-    # Priority: CLI Arg > CWD Map > Default "1"
-    if args.project != "1":
-        project_key = args.project
-    elif stored_project and stored_project in PROJECTS:
-        project_key = stored_project
-    else:
-        project_key = "1"
-        
-    # Validation
-    if project_key not in PROJECTS:
-        project_key = "1"
+    project_key = resolve_project_key(args.project, stored_project, current_cwd)
 
     project = PROJECTS[project_key]
     
@@ -381,7 +386,8 @@ def main():
                                 sync_kanban_on_action(
                                     "pr_merged",
                                     ai_issue.project_id,
-                                    ai_issue.project_item_id
+                                    ai_issue.project_item_id,
+                                    get_status_workflow(project).get("action_status_map"),
                                 )
                     
                     # Reset state to IDLE
