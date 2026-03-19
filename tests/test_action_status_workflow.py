@@ -55,3 +55,22 @@ def test_action_list_active_issues_includes_in_review_for_luma(mock_fetch, capsy
     assert "Done Task" not in output
     assert output.index("Progress Task") < output.index("Ready Task")
     assert output.index("Ready Task") < output.index("Review Task")
+
+
+@patch("luma_core.actions.fetch_kanban_cards")
+def test_action_select_issue_shows_blocking_status_summary(mock_fetch, capsys):
+    mock_fetch.return_value = [
+        KanbanCard(item_id="1", issue_number=7, title="Upgrade Luma v2 from cli to Web UI", status="Backlog", repository="r", url="u"),
+        KanbanCard(item_id="2", issue_number=8, title="Add Support for OpenRouter LLM Provider", status="Backlog", repository="r", url="u"),
+        KanbanCard(item_id="3", issue_number=9, title="Tracking Estimate Points", status="Backlog", repository="r", url="u"),
+    ]
+
+    result = action_select_issue(LumaState(), _luma_project())
+    output = capsys.readouterr().out
+
+    assert result is False
+    assert "No 'Ready', 'In Progress' issues found on Kanban." in output
+    assert "Available elsewhere on the board:" in output
+    assert "- Backlog: 3" in output
+    assert "#7: Upgrade Luma v2 from cli to Web UI" in output
+    assert "Move a card to Ready or In Progress" in output

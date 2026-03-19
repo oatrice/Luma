@@ -74,6 +74,52 @@ def _get_selectable_cards(cards: list, project: dict, exclude_numbers: set = Non
     return selectable_cards
 
 
+def _display_selection_blockers(
+    cards: list,
+    workflow: dict,
+    exclude_numbers: set = None,
+) -> None:
+    """Explain why the board looks empty when no cards match the selectable lanes."""
+    exclude_numbers = exclude_numbers or set()
+    selectable_statuses = {
+        _status_key(status) for status in workflow.get("selectable_statuses", [])
+    }
+    board_priority = _status_priority(workflow.get("board_order", []))
+    blocked_by_status = {}
+
+    for card in cards:
+        if card.issue_number in exclude_numbers:
+            continue
+        if _status_key(card.status) in selectable_statuses:
+            continue
+        blocked_by_status.setdefault(card.status or "Unknown", []).append(card)
+
+    if not blocked_by_status:
+        print("   The board currently has no other issue cards.")
+        return
+
+    print("   Available elsewhere on the board:")
+    sorted_statuses = sorted(
+        blocked_by_status.keys(),
+        key=lambda status: (
+            board_priority.get(_status_key(status), 999),
+            _status_key(status),
+        ),
+    )
+
+    for status in sorted_statuses:
+        items = blocked_by_status[status]
+        print(f"   - {status}: {len(items)}")
+        for card in items[:3]:
+            print(f"     #{card.issue_number}: {card.title[:55]}")
+        if len(items) > 3:
+            print(f"     ... and {len(items) - 3} more")
+
+    allowed = " or ".join(workflow.get("selectable_statuses", []))
+    if allowed:
+        print(f"   Move a card to {allowed} on the GitHub Project board, then try again.")
+
+
 def _build_code_review_followup_prompt(multi_repo: bool = False) -> str:
     if multi_repo:
         return (
@@ -117,6 +163,7 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     if not selectable_issues:
         allowed = "', '".join(workflow.get("selectable_statuses", []))
         print(f"📭 No '{allowed}' issues found on Kanban.")
+        _display_selection_blockers(all_cards, workflow)
         return False
 
     print("\n--- 📋 Select Issue to Work On ---")
