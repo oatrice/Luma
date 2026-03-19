@@ -18,6 +18,7 @@ import luma_core.ui as ui
 import luma_core.actions as actions
 import luma_core.usage_tracker as usage_tracker
 from luma_core.config import PROJECTS
+from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
 from luma_core.notifier import notify_task_complete
 
 from luma_core.state_manager import (
@@ -60,14 +61,15 @@ def check_luma_outdated():
     return False, None
 
 
-def build_menu_title(is_outdated: bool) -> str:
+def build_menu_title(is_outdated: bool, pending_summary: str = "") -> str:
     """Build the interactive menu title, including restart notice when needed."""
+    lines = []
     if is_outdated:
-        return (
-            "⚠️  LUMA CODE UPDATED ON DISK! Please RESTART Luma to apply changes.\n"
-            "👉 Select an action:"
-        )
-    return "👉 Select an action:"
+        lines.append("⚠️  LUMA CODE UPDATED ON DISK! Please RESTART Luma to apply changes.")
+    if pending_summary:
+        lines.append(f"📝 Pending docs/version update: {pending_summary}")
+    lines.append("👉 Select an action:")
+    return "\n".join(lines)
 
 
 def load_global_config():
@@ -226,7 +228,11 @@ def main():
     while True:
         # --- LUMA SELF-UPDATE CHECK ---
         is_outdated, _disk_info = check_luma_outdated()
-        menu_title = build_menu_title(is_outdated)
+        pending_status = refresh_pending_doc_updates(state, project)
+        menu_title = build_menu_title(
+            is_outdated,
+            pending_doc_update_summary(pending_status),
+        )
         # ------------------------------
 
         # Check and print Gemini CLI LLM session metrics from the previous action
@@ -288,6 +294,7 @@ def main():
         
         elif choice == "7":
             run_with_notify("Update Docs", project["name"], actions.action_update_docs, state, project)
+            save_state(state, project["path"])
             
         elif choice.upper() == "B":
             run_with_notify("Sync AI Brain", project["name"], actions.action_sync_ai_brain, state, project)
