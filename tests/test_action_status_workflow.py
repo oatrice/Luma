@@ -22,6 +22,7 @@ def test_action_select_issue_respects_luma_workflow(
     mock_fetch,
     mock_start_issues,
     _mock_input,
+    capsys,
 ):
     mock_fetch.return_value = [
         KanbanCard(item_id="1", issue_number=1, title="Backlog Task", status="Backlog", repository="r", url="u"),
@@ -32,8 +33,10 @@ def test_action_select_issue_respects_luma_workflow(
     ]
 
     result = action_select_issue(LumaState(), _luma_project())
+    output = capsys.readouterr().out
 
     assert result is True
+    assert "เช็ค gh cli, Roadmap.md ว่าต้องทำ issue ไหนต่อ" in output
     selected_cards = mock_start_issues.call_args.args[1]
     assert [card.issue_number for card in selected_cards] == [4]
 
@@ -69,6 +72,7 @@ def test_action_select_issue_shows_blocking_status_summary(mock_fetch, capsys):
     output = capsys.readouterr().out
 
     assert result is False
+    assert "เช็ค gh cli, Roadmap.md ว่าต้องทำ issue ไหนต่อ" in output
     assert "No 'Ready', 'In Progress' issues found on Kanban." in output
     assert "Available elsewhere on the board:" in output
     assert "- Backlog: 3" in output
