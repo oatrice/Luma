@@ -24,3 +24,4 @@ dummy_task.md
 .luma_ai_usage.jsonl
 .luma_global.json
 luma_failed_prompt_*.md
+.luma_dev.json
