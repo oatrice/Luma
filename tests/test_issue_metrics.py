@@ -1,9 +1,13 @@
+import os
+import subprocess
+
 from luma_core.issue_metrics import (
     IssueMetricsRecord,
     format_metric_datetime,
     get_issue_metrics,
     list_issue_metrics,
     parse_metric_datetime,
+    prefill_metrics_from_roadmap,
     save_issue_metrics,
 )
 
@@ -89,3 +93,217 @@ def test_parse_metric_datetime_requires_time_component():
         assert "Use date/time format" in str(exc)
     else:
         raise AssertionError("Expected ValueError for date-only input")
+
+
+def test_prefill_metrics_from_roadmap_merges_without_overwriting_manual_values(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "### Issue #33 - Prefilled issue\n"
+        "- **Status:** 🟢 **Ready**\n"
+        "- Estimate Points: 5\n"
+        "- Estimated Mandays: 2.5\n"
+        "- Due Date: 2026-03-21 09:30\n",
+        encoding="utf-8",
+    )
+
+    save_issue_metrics(
+        str(tmp_path),
+        IssueMetricsRecord(
+            issue_key="oatrice/Luma#33",
+            issue_number=33,
+            issue_title="Old title",
+            issue_url="https://github.com/oatrice/Luma/issues/33",
+            repository="oatrice/Luma",
+            actual_mandays=7.0,
+        ),
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 33)
+
+    assert result["updated"] == 1
+    assert loaded is not None
+    assert loaded.issue_title == "Prefilled issue"
+    assert loaded.issue_status == "🟢 Ready"
+    assert loaded.estimate_points == 5
+    assert loaded.estimated_mandays == 2.5
+    assert loaded.due_date == "2026-03-21T09:30:00"
+    assert loaded.actual_mandays == 7.0
+
+
+def test_prefill_metrics_from_roadmap_reads_issue_table_rows(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "| ID | Title | Status |\n"
+        "|---|---|---|\n"
+        "| [#12](#12) | Table issue | ✅ Complete |\n",
+        encoding="utf-8",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 12)
+
+    assert result["created"] == 1
+    assert loaded is not None
+    assert loaded.issue_title == "Table issue"
+    assert loaded.issue_status == "✅ Complete"
+    assert loaded.issue_url == "https://github.com/oatrice/Luma/issues/12"
+    assert loaded.estimate_points is not None
+    assert loaded.estimated_mandays is not None
+    assert loaded.actual_mandays == loaded.estimated_mandays
+    assert loaded.effort_level in ("Low", "Medium", "High")
+
+
+def test_prefill_metrics_from_roadmap_assigns_zero_actuals_for_todo_items(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "| ID | Title | Status |\n"
+        "|---|---|---|\n"
+        "| [#101](#101) | [Feature] Tech Polish: Mindful haptics & HealthKit integration | 🔲 Todo |\n",
+        encoding="utf-8",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 101)
+
+    assert result["created"] == 1
+    assert loaded is not None
+    assert loaded.estimate_points is not None
+    assert loaded.estimated_mandays is not None
+    assert loaded.actual_mandays == 0.0
+    assert loaded.effort_level in ("Low", "Medium", "High")
+
+
+def _init_git_repo_with_commit(tmp_path, subject, commit_date):
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Codex Tests"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "codex-tests@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (tmp_path / "README.md").write_text("# test repo\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "README.md"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    env = os.environ.copy()
+    env["GIT_AUTHOR_DATE"] = commit_date
+    env["GIT_COMMITTER_DATE"] = commit_date
+    subprocess.run(
+        ["git", "commit", "-m", subject],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def test_prefill_metrics_from_roadmap_uses_git_history_and_changelog_dates(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "| ID | Title | Status |\n"
+        "|---|---|---|\n"
+        "| [#111](#111) | [Preflight] Media Source Policy + Content Fields (Audio/Video) | ✅ Complete |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        "## [0.19.0] - 2026-03-19\n\n"
+        "### Added\n"
+        "- [Docs] Added preflight analysis for media source policy (issue #111)\n",
+        encoding="utf-8",
+    )
+    _init_git_repo_with_commit(
+        tmp_path,
+        "docs: add preflight analysis for media source policy (#111)",
+        "2026-03-19T08:57:18+07:00",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 111)
+
+    assert result["created"] == 1
+    assert loaded is not None
+    assert loaded.actual_completion_date == "2026-03-19T08:57:18"
+    assert loaded.due_date == "2026-03-19T23:59:59"
+
+
+def test_prefill_metrics_from_roadmap_projects_due_date_from_latest_release(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "| ID | Title | Status |\n"
+        "|---|---|---|\n"
+        "| [#101](#101) | [Feature] Tech Polish: Mindful haptics & HealthKit integration | 🔲 Todo |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        "## [0.18.0] - 2026-03-18\n\n"
+        "- Previous release notes\n\n"
+        "## [0.19.0] - 2026-03-19\n\n"
+        "- Current release notes\n",
+        encoding="utf-8",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 101)
+
+    assert result["created"] == 1
+    assert loaded is not None
+    assert loaded.estimated_mandays == 3.0
+    assert loaded.actual_completion_date is None
+    assert loaded.due_date == "2026-03-22T23:59:59"
+
+
+def test_prefill_metrics_from_roadmap_can_fuzzy_match_completion_commit(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "| ID | Title | Status |\n"
+        "|---|---|---|\n"
+        "| [#65](#65) | Automate Issue to Project Board Workflow | ✅ Complete |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        "## [0.11.0] - 2026-03-05\n\n"
+        "- Added a GitHub Actions workflow to automatically add new issues to the project board.\n",
+        encoding="utf-8",
+    )
+    _init_git_repo_with_commit(
+        tmp_path,
+        "Add GitHub workflow to automatically add new issues to the project board",
+        "2026-03-05T09:15:00+07:00",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 65)
+
+    assert result["created"] == 1
+    assert loaded is not None
+    assert loaded.actual_completion_date == "2026-03-05T09:15:00"
+    assert loaded.due_date == "2026-03-05T23:59:59"
