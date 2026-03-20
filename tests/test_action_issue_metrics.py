@@ -26,7 +26,10 @@ def test_action_manage_issue_metrics_lists_tracked_issues(monkeypatch, tmp_path,
         ),
     )
 
-    monkeypatch.setattr("luma_core.actions._select_project_for_metrics", lambda _: project)
+    monkeypatch.setattr(
+        "luma_core.actions.prefill_metrics_from_roadmap",
+        lambda path, name, repo: {"created": 0, "updated": 0},
+    )
     inputs = iter(["1", "0"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
@@ -47,7 +50,10 @@ def test_action_manage_issue_metrics_saves_selected_issue(monkeypatch, tmp_path)
         "status_workflow": {},
     }
 
-    monkeypatch.setattr("luma_core.actions._select_project_for_metrics", lambda _: project)
+    monkeypatch.setattr(
+        "luma_core.actions.prefill_metrics_from_roadmap",
+        lambda path, name, repo: {"created": 0, "updated": 0},
+    )
     monkeypatch.setattr(
         "luma_core.actions.fetch_kanban_cards",
         lambda _kanban_number: [
@@ -98,3 +104,35 @@ def test_action_manage_issue_metrics_saves_selected_issue(monkeypatch, tmp_path)
     assert saved.actual_completion_date == "2026-03-21T18:00:00"
     assert saved.effort_level == "High"
     assert saved.notes == "Ready to ship"
+
+
+def test_action_manage_issue_metrics_prefills_from_roadmap(monkeypatch, tmp_path, capsys):
+    project = {
+        "name": "Metrics Repo",
+        "path": str(tmp_path),
+        "repo": "oatrice/Metrics",
+        "kanban_number": 99,
+        "status_workflow": {},
+    }
+
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "| ID | Title | Status |\n"
+        "|---|---|---|\n"
+        "| [#77](#77) | Prefilled from roadmap | 🔲 Todo |\n",
+        encoding="utf-8",
+    )
+
+    inputs = iter(["1", "0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    action_manage_issue_metrics(LumaState(), project)
+    output = capsys.readouterr().out
+    saved = get_issue_metrics(str(tmp_path), "oatrice/Metrics", 77)
+
+    assert "Prefilled issue metrics from ROADMAP.md" in output
+    assert saved is not None
+    assert saved.issue_title == "Prefilled from roadmap"
+    assert saved.issue_status == "🔲 Todo"

@@ -24,6 +24,7 @@ from luma_core.issue_metrics import (
     get_issue_metrics,
     list_issue_metrics,
     parse_metric_datetime,
+    prefill_metrics_from_roadmap,
     save_issue_metrics,
     validate_effort_level,
 )
@@ -637,33 +638,6 @@ def action_list_active_issues(project: dict):
 _KEEP_METRIC_VALUE = object()
 
 
-def _project_sort_key(project_key: str):
-    if str(project_key).isdigit():
-        return (0, int(project_key))
-    return (1, str(project_key))
-
-
-def _select_project_for_metrics(current_project: dict) -> dict:
-    print("\n📁 Select Project for Issue Metrics")
-    print("  [Enter] Current project")
-    print("  [0] Back")
-    for key in sorted(PROJECTS.keys(), key=_project_sort_key):
-        candidate = PROJECTS[key]
-        marker = " (current)" if candidate.get("path") == current_project.get("path") else ""
-        print(f"  [{key}] {candidate['name']}{marker}")
-
-    choice = input("\nSelect project: ").strip()
-    if not choice:
-        return current_project
-    if choice == "0":
-        return None
-    if choice in PROJECTS:
-        return PROJECTS[choice]
-
-    print("❌ Invalid project selection")
-    return None
-
-
 def _get_metrics_project_cards(project: dict) -> list:
     cards = fetch_kanban_cards(project["kanban_number"])
     repo = project.get("repo")
@@ -882,9 +856,17 @@ def _build_issue_metrics_record(project: dict, card: KanbanCard) -> IssueMetrics
 
 def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
-    selected_project = _select_project_for_metrics(project)
-    if not selected_project:
-        return
+    selected_project = project
+    prefill_result = prefill_metrics_from_roadmap(
+        selected_project["path"],
+        selected_project.get("name"),
+        selected_project.get("repo"),
+    )
+    if prefill_result["created"] or prefill_result["updated"]:
+        print(
+            "\n🗺️  Prefilled issue metrics from ROADMAP.md "
+            f"(created {prefill_result['created']}, updated {prefill_result['updated']})."
+        )
 
     while True:
         print(f"\n📏 Issue Metrics Tracker - {selected_project['name']}")
