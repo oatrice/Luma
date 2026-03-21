@@ -985,6 +985,54 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
         print("❌ Invalid selection")
 
 
+def action_generate_project_report(state: LumaState, project: dict):
+    """Generate Weekly/Monthly Project Report."""
+    print(f"\n📊 Generate Project Report - {project['name']}")
+    print("  [1] Weekly Report (Based on today's week)")
+    print("  [2] Monthly Report (Based on today's month)")
+    print("  [0] Back")
+
+    choice = input("\nSelect [0-2]: ").strip()
+    if choice == "0":
+        return
+    
+    period = "weekly" if choice == "1" else "monthly" if choice == "2" else None
+    if not period:
+        print("❌ Invalid selection")
+        return
+
+    custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
+    
+    print(f"\n🚀 Generating {period} report...")
+    try:
+        from luma_core.report_generator import generate_report
+        import os
+        from datetime import date
+        
+        ref_date = date.fromisoformat(custom_date) if custom_date else date.today()
+        report_content = generate_report(project["path"], period=period, reference_date=ref_date)
+        
+        base_dir = os.path.join(project["path"], "docs", "reports")
+        os.makedirs(base_dir, exist_ok=True)
+        
+        if period == "weekly":
+            year, week, _ = ref_date.isocalendar()
+            filename = f"weekly_{year}-W{week:02d}.md"
+        else:
+            filename = f"monthly_{ref_date.strftime('%Y-%m')}.md"
+            
+        output_path = os.path.join(base_dir, filename)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(report_content)
+        
+        print(f"✅ Report generated successfully at: {output_path}")
+        
+    except ValueError:
+        print("❌ Invalid date format. Please use YYYY-MM-DD.")
+    except Exception as e:
+        print(f"❌ Failed to generate report: {e}")
+
+
 def _safe_read_lines(path: str):
     try:
         with open(path, "r", encoding="utf-8") as f:
