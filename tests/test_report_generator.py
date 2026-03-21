@@ -11,7 +11,8 @@ def create_mock_issue(
     actual_completion_date: str = None,
     points: int = 2,
     actual_mandays: float = 2.0,
-    estimated_mandays: float = 2.0
+    estimated_mandays: float = 2.0,
+    created_at: str = "2026-03-01T10:00:00"
 ) -> IssueMetricsRecord:
     return IssueMetricsRecord(
         issue_key=f"mock/Repo#{issue_number}",
@@ -26,7 +27,8 @@ def create_mock_issue(
         actual_mandays=actual_mandays,
         due_date=due_date,
         actual_completion_date=actual_completion_date,
-        effort_level="Low"
+        effort_level="Low",
+        created_at=created_at,
     )
 
 @patch("luma_core.report_generator.list_issue_metrics")
@@ -139,8 +141,12 @@ def test_empty_metrics_returns_empty_report(mock_get_roadmap_path, mock_list_met
 def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_metrics):
     mock_get_roadmap_path.return_value = None
     mock_list_metrics.return_value = [
-        create_mock_issue(10, "✅ Complete", actual_completion_date="2026-03-18T10:00:00", points=3),
-        create_mock_issue(11, "✅ Complete", actual_completion_date="2026-03-20T14:00:00", points=5),
+        create_mock_issue(10, "✅ Complete",
+            actual_completion_date="2026-03-18T10:00:00", points=3,
+            due_date="2026-03-20T23:59:59", created_at="2026-03-10T08:00:00"),
+        create_mock_issue(11, "✅ Complete",
+            actual_completion_date="2026-03-20T14:00:00", points=5,
+            due_date="2026-03-25T23:59:59", created_at="2026-03-12T09:00:00"),
         create_mock_issue(12, "🔲 Todo", due_date="2026-03-25T10:00:00")
     ]
     
@@ -152,8 +158,14 @@ def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_
     assert "Mock Issue 10" in report
     assert "#11" in report
     assert "Mock Issue 11" in report
+    # Should show dates (Created, Due, Completed)
+    completed_section = report.split("## Completed Issues")[1].split("##")[0]
+    assert "Created:" in completed_section
+    assert "Due:" in completed_section
+    assert "Completed:" in completed_section
+    assert "03-18" in completed_section  # completion date of #10
     # Not-completed issue should NOT appear in that section
-    assert "Mock Issue 12" not in report.split("## Completed Issues")[1].split("##")[0]
+    assert "Mock Issue 12" not in completed_section
 
 @patch("luma_core.report_generator.list_issue_metrics")
 @patch("luma_core.report_generator.get_roadmap_path")

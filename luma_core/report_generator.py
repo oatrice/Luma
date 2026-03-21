@@ -49,6 +49,16 @@ def _is_complete(status: Optional[str]) -> bool:
     status_lower = status.lower()
     return "complete" in status_lower or "done" in status_lower or "released" in status_lower
 
+def _format_short_date(dt_str: Optional[str]) -> str:
+    """Format ISO datetime string to short date like '2026-03-18'."""
+    if not dt_str:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(dt_str)
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        return dt_str[:10] if len(dt_str) >= 10 else dt_str
+
 def _parse_roadmap_phases(roadmap_path: str) -> Tuple[List[Dict[str, object]], str]:
     phases = []
     replan_history_lines = []
@@ -175,7 +185,11 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     if this_period_completed:
         for iss in this_period_completed:
             pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
+            created_str = _format_short_date(getattr(iss, 'created_at', None))
+            due_str = _format_short_date(iss.due_date)
+            completed_str = _format_short_date(iss.actual_completion_date)
             lines.append(f"- **#{iss.issue_number}** {iss.issue_title}{pts_str}")
+            lines.append(f"  - Created: {created_str} | Due: {due_str} | Completed: {completed_str}")
     else:
         lines.append("- No issues completed in this period.")
     lines.append("")
