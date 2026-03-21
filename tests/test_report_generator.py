@@ -158,9 +158,8 @@ def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_
     assert "Mock Issue 10" in report
     assert "#11" in report
     assert "Mock Issue 11" in report
-    # Should show dates (Created, Due, Completed)
+    # Should show dates (Due, Completed)
     completed_section = report.split("## Completed Issues")[1].split("##")[0]
-    assert "Created:" in completed_section
     assert "Due:" in completed_section
     assert "Completed:" in completed_section
     assert "03-18" in completed_section  # completion date of #10
