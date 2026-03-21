@@ -136,9 +136,10 @@ def test_empty_metrics_returns_empty_report(mock_get_roadmap_path, mock_list_met
     assert "Velocity Summary" in report
     assert "**Issues completed in this period:** 0" in report
 
+@patch("luma_core.report_generator._fetch_gh_created_dates")
 @patch("luma_core.report_generator.list_issue_metrics")
 @patch("luma_core.report_generator.get_roadmap_path")
-def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_metrics):
+def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_metrics, mock_gh_dates):
     mock_get_roadmap_path.return_value = None
     mock_list_metrics.return_value = [
         create_mock_issue(10, "✅ Complete",
@@ -149,6 +150,10 @@ def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_
             due_date="2026-03-25T23:59:59", created_at="2026-03-12T09:00:00"),
         create_mock_issue(12, "🔲 Todo", due_date="2026-03-25T10:00:00")
     ]
+    mock_gh_dates.return_value = {
+        10: "2026-03-05T08:00:00Z",
+        11: "2026-03-08T09:00:00Z",
+    }
     
     report = generate_report("/mock/path", period="weekly", reference_date=date(2026, 3, 21))
     
@@ -158,8 +163,10 @@ def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_
     assert "Mock Issue 10" in report
     assert "#11" in report
     assert "Mock Issue 11" in report
-    # Should show dates (Due, Completed)
+    # Should show dates (Created, Due, Completed)
     completed_section = report.split("## Completed Issues")[1].split("##")[0]
+    assert "Created:" in completed_section
+    assert "2026-03-05" in completed_section  # GH created date of #10
     assert "Due:" in completed_section
     assert "Completed:" in completed_section
     assert "03-18" in completed_section  # completion date of #10
