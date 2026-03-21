@@ -86,3 +86,37 @@ def test_action_update_roadmap_updates_existing_and_missing_issues_together(monk
     assert "### Issue #12 - Existing roadmap item" in updated
     assert updated.count("**Status:** 🟡 **In Progress**") == 2
     assert "### Issue #77 - Missing roadmap item" in updated
+
+
+def test_action_update_roadmap_auto_sync_closed_issues(monkeypatch, tmp_path):
+    project, roadmap_path = _make_project_with_roadmap(
+        tmp_path,
+        (
+            "# Roadmap\n\n"
+            "## Current\n\n"
+            "### Issue #42 - Feature X\n"
+            "- **Status:** 🟡 **In Progress**\n"
+        ),
+    )
+
+    # Empty string at second input simulates user pressing Enter to accept default Option 1 Mode
+    inputs = iter(["42", "", "v1.2.0", "Auto fixed"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    monkeypatch.setattr(
+        "luma_core.actions.run_gh_command",
+        lambda args, timeout=15: json.dumps(
+            {
+                "number": 42,
+                "title": "Feature X",
+                "state": "CLOSED",
+                "url": "https://github.com/oatrice/Test-Repo/issues/42",
+            }
+        ),
+    )
+
+    action_update_roadmap(LumaState(), project)
+
+    updated = roadmap_path.read_text(encoding="utf-8")
+    assert "✅ **Done** (v1.2.0) - Auto fixed" in updated
+

@@ -1150,6 +1150,8 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
     screenshot_md = ""
     feature_dir = state.context.get("last_feature_dir")
     screenshots_to_sync = []
+    
+    created_prs = []
 
     if feature_dir:
         sc_dir = os.path.join(feature_dir, "screenshots")
@@ -1369,6 +1371,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
         if pr_url:
             print(f"   ✅ PR Created: {pr_url}")
+            created_prs.append((proj["name"], pr_url))
             # Update state with the created PR url
             if proj == project:
                 ok, msg = transition_to(state, WorkflowPhase.PR_PENDING, pr_url=pr_url)
@@ -1376,6 +1379,11 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                     print("   🔄 State updated to PR_PENDING")
         else:
             print(f"   ⚠️ Publisher finished but no known PR URL.")
+
+    if created_prs:
+        print("\n📋 PR Summary:")
+        for name, url in created_prs:
+            print(f"  ✅ {name:<20} → {url}")
 
 
 def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
@@ -2449,13 +2457,31 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     issues_to_update = [x[0] for x in found_issues] + missing_issues
     issue_list = ", ".join(f"#{issue_id}" for issue_id in issues_to_update)
     print(f"\nSelecting status for {len(issues_to_update)} issue(s): {issue_list}")
-    print("\nSelect new status:")
+    # Check if all verified issues being updated are CLOSED
+    all_closed = False
+    if verified_issues:
+        states = [
+            verified_issues[i].get("state", "OPEN").upper() 
+            for i in issues_to_update if i in verified_issues
+        ]
+        if states and all(s == "CLOSED" for s in states):
+            all_closed = True
+
+    if all_closed:
+        print("\n💡 GitHub state is CLOSED, auto-selecting ✅ Done (press Enter to confirm, or choose manually)")
+        prompt_str = "Select [1-4] (Enter for '1'): "
+    else:
+        print("\nSelect new status:")
+        prompt_str = "Select [1-4]: "
+
     print("  [1] ✅ Done / Complete")
     print("  [2] 🟢 Ready")
     print("  [3] 🟡 In Progress / Todo")
     print("  [4] 🔴 Blocked")
 
-    status_choice = input("Select [1-4]: ").strip()
+    status_choice = input(prompt_str).strip()
+    if all_closed and status_choice == "":
+        status_choice = "1"
     if status_choice not in ("1", "2", "3", "4"):
         print("❌ Invalid selection")
         return
@@ -2701,116 +2727,148 @@ def action_guided_workflow(state: LumaState, project: dict):
     # 2. Planning (Refine -> Spec -> Plan)
     print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
 
-    # Check for existing artifacts
-    combined_number = "-".join([str(i.number) for i in state.active_issues])
-    feature_dir = get_feature_dir(project["path"], combined_number)
-    # Also check context if just created
-    if not feature_dir and state.context.get("last_feature_dir"):
-        feature_dir = state.context.get("last_feature_dir")
+    target_planning_repos = [project]
+    if project.get("sibling_repos"):
+        print("\n   📂 Select repos for Planning:")
+        print(f"   [1] ✅ {project['name']} (current)")
+        
+        selectable_repos = [project]
+        # We need to access global PROJECTS dictionary if it's available, otherwise skip sibling lookup
+        from luma_core.actions import PROJECTS
+        for sib_id in project["sibling_repos"]:
+            if sib_id in PROJECTS:
+                selectable_repos.append(PROJECTS[sib_id])
+                
+        for i, sib in enumerate(selectable_repos[1:], start=2):
+            print(f"   [{i}] ☐  {sib['name']}")
+            
+        repo_choice = input("   Select (e.g. 1,2,3 or 'a' for all, Enter for current only): ").strip().lower()
+        if repo_choice == 'a':
+            target_planning_repos = selectable_repos
+        elif repo_choice:
+            selected_indices = [idx.strip() for idx in repo_choice.split(",") if idx.strip().isdigit()]
+            new_targets = []
+            for idx_str in selected_indices:
+                idx = int(idx_str) - 1
+                if 0 <= idx < len(selectable_repos):
+                    new_targets.append(selectable_repos[idx])
+            if new_targets:
+                target_planning_repos = new_targets
 
-    # Save to context immediately so action_generate_plan will use it
-    if feature_dir:
-        state.context["last_feature_dir"] = feature_dir
+    for planning_proj in target_planning_repos:
+        if len(target_planning_repos) > 1:
+            print(f"\n   ────────────── Planning for {planning_proj['name']} ──────────────")
 
-    artifacts_status = check_planning_artifacts(feature_dir)
-    has_any = any(artifacts_status.values())
+        # Check for existing artifacts
+        combined_number = "-".join([str(i.number) for i in state.active_issues])
+        feature_dir = get_feature_dir(planning_proj["path"], combined_number)
+        # Also check context if just created
+        if not feature_dir and state.context.get("last_feature_dir"):
+            feature_dir = state.context.get("last_feature_dir")
 
-    run_planning = True
-    planning_mode = "all"  # all, missing, selective
-    selected_steps = ["analysis", "spec", "plan"]
-
-    if has_any:
-        print(
-            f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:"
-        )
-        for k, exists in artifacts_status.items():
-            icon = "[x]" if exists else "[ ]"
-            print(f"      {icon} {k.capitalize()} ({k}.md)")
-
-        print("\n   Select action:")
-        print("   [1] Run All (Overwrite)")
-        print("   [2] Generate Missing Only")
-        print("   [3] Select Specific Documents")
-        print("   [0] Skip Planning Phase")
-
-        p_choice = input("\n   Select [0-3]: ").strip()
-
-        if p_choice == "0":
-            run_planning = False
-        elif p_choice == "2":
-            planning_mode = "missing"
-        elif p_choice == "3":
-            planning_mode = "selective"
-            # Ask for selection
-            selected_steps = []
-            if input("      - Run Analysis? (y/N): ").lower() == "y":
-                selected_steps.append("analysis")
-            if input("      - Run Spec? (y/N): ").lower() == "y":
-                selected_steps.append("spec")
-            if input("      - Run Plan? (y/N): ").lower() == "y":
-                selected_steps.append("plan")
-            if not selected_steps:
-                print("      (No steps selected, skipping planning)")
-                run_planning = False
-        else:
-            # Default to Run All
-            planning_mode = "all"
-
-    else:
-        # Standard flow
-        if input("   Run Planning Phase? (Y/n): ").lower() == "n":
-            run_planning = False
-
-    if run_planning:
-        # Execute based on mode/selection
-
-        # 1. Analyst
-        should_run_analyst = False
-        if planning_mode == "all":
-            should_run_analyst = True
-        elif planning_mode == "missing" and not artifacts_status["analysis"]:
-            should_run_analyst = True
-        elif planning_mode == "selective" and "analysis" in selected_steps:
-            should_run_analyst = True
-
-        if should_run_analyst:
-            usage_tracker.set_sub_action("Auto:Planning/Analyst")
-            action_refine_issue(state, project)
-            # Update feature dir after analyst runs (it might have created it)
-            feature_dir = get_feature_dir(project["path"], state.active_issue.number)
+        # Save to context immediately so action_generate_plan will use it
+        if feature_dir:
             state.context["last_feature_dir"] = feature_dir
 
-        # 2. Spec
-        should_run_spec = False
-        if planning_mode == "all":
-            should_run_spec = True
-        elif planning_mode == "missing" and not artifacts_status["spec"]:
-            should_run_spec = True
-        elif planning_mode == "selective" and "spec" in selected_steps:
-            should_run_spec = True
+        artifacts_status = check_planning_artifacts(feature_dir)
+        has_any = any(artifacts_status.values())
 
-        if should_run_spec:
-            usage_tracker.set_sub_action("Auto:Planning/Spec+SBE")
-            action_generate_spec(state, project)
-            # Update feature dir
-            if state.context.get("last_feature_dir"):
-                feature_dir = state.context.get("last_feature_dir")
+        run_planning = True
+        planning_mode = "all"  # all, missing, selective
+        selected_steps = ["analysis", "spec", "plan"]
 
-        # 3. Plan
-        should_run_plan = False
-        if planning_mode == "all":
-            should_run_plan = True
-        elif planning_mode == "missing" and not artifacts_status["plan"]:
-            should_run_plan = True
-        elif planning_mode == "selective" and "plan" in selected_steps:
-            should_run_plan = True
+        if has_any:
+            print(
+                f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:"
+            )
+            for k, exists in artifacts_status.items():
+                icon = "[x]" if exists else "[ ]"
+                print(f"      {icon} {k.capitalize()} ({k}.md)")
 
-        if should_run_plan:
-            # Ensure feature_dir is in context so action_generate_plan doesn't ask again
-            if feature_dir:
+            print("\n   Select action:")
+            print("   [1] Run All (Overwrite)")
+            print("   [2] Generate Missing Only")
+            print("   [3] Select Specific Documents")
+            print("   [0] Skip Planning Phase")
+
+            p_choice = input("\n   Select [0-3]: ").strip()
+
+            if p_choice == "0":
+                run_planning = False
+            elif p_choice == "2":
+                planning_mode = "missing"
+            elif p_choice == "3":
+                planning_mode = "selective"
+                # Ask for selection
+                selected_steps = []
+                if input("      - Run Analysis? (y/N): ").lower() == "y":
+                    selected_steps.append("analysis")
+                if input("      - Run Spec? (y/N): ").lower() == "y":
+                    selected_steps.append("spec")
+                if input("      - Run Plan? (y/N): ").lower() == "y":
+                    selected_steps.append("plan")
+                if not selected_steps:
+                    print("      (No steps selected, skipping planning)")
+                    run_planning = False
+            else:
+                # Default to Run All
+                planning_mode = "all"
+
+        else:
+            # Standard flow
+            if input("   Run Planning Phase? (Y/n): ").lower() == "n":
+                run_planning = False
+
+        if run_planning:
+            # Execute based on mode/selection
+
+            # 1. Analyst
+            should_run_analyst = False
+            if planning_mode == "all":
+                should_run_analyst = True
+            elif planning_mode == "missing" and not artifacts_status["analysis"]:
+                should_run_analyst = True
+            elif planning_mode == "selective" and "analysis" in selected_steps:
+                should_run_analyst = True
+
+            if should_run_analyst:
+                usage_tracker.set_sub_action("Auto:Planning/Analyst")
+                action_refine_issue(state, planning_proj)
+                # Update feature dir after analyst runs (it might have created it)
+                feature_dir = get_feature_dir(planning_proj["path"], state.active_issues[0].number if state.active_issues else combined_number)
                 state.context["last_feature_dir"] = feature_dir
-            usage_tracker.set_sub_action("Auto:Planning/Plan")
-            action_generate_plan(state, project)
+
+            # 2. Spec
+            should_run_spec = False
+            if planning_mode == "all":
+                should_run_spec = True
+            elif planning_mode == "missing" and not artifacts_status["spec"]:
+                should_run_spec = True
+            elif planning_mode == "selective" and "spec" in selected_steps:
+                should_run_spec = True
+
+            if should_run_spec:
+                usage_tracker.set_sub_action("Auto:Planning/Spec+SBE")
+                action_generate_spec(state, planning_proj)
+                # Update feature dir
+                if state.context.get("last_feature_dir"):
+                    feature_dir = state.context.get("last_feature_dir")
+
+            # 3. Plan
+            should_run_plan = False
+            if planning_mode == "all":
+                should_run_plan = True
+            elif planning_mode == "missing" and not artifacts_status["plan"]:
+                should_run_plan = True
+            elif planning_mode == "selective" and "plan" in selected_steps:
+                should_run_plan = True
+
+            if should_run_plan:
+                # Ensure feature_dir is in context so action_generate_plan doesn't ask again
+                if feature_dir:
+                    state.context["last_feature_dir"] = feature_dir
+                usage_tracker.set_sub_action("Auto:Planning/Plan")
+                action_generate_plan(state, planning_proj)
 
     # 3. Coding (User)
     print("\n🔹 Step 3: Coding Phase")
@@ -2884,7 +2942,72 @@ def action_guided_workflow(state: LumaState, project: dict):
     # Poll for Merge?
     if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
         print(f"\n⏳ PR Created: {state.pr_url}")
-        print("   Please merge the PR on GitHub.")
+
+        # 7. CI Check
+        print("\n🔹 Step 7: Check CI Status")
+        if input("   Check CI status? (Y/n): ").strip().lower() != "n":
+            from luma_core.ci_checker import check_pr_ci_status, get_ci_failure_logs
+            from luma_core.notifier import notify_task_complete
+            import time
+            
+            parts = state.pr_url.split("/")
+            if len(parts) >= 7 and "github.com" in state.pr_url:
+                ci_repo = f"{parts[-4]}/{parts[-3]}"
+                ci_pr_num = parts[-1]
+                
+                max_polls = 20
+                for attempt in range(1, max_polls + 1):
+                    display_str = f"   ⏳ Waiting for CI... ({attempt}/{max_polls})"
+                    print(display_str, end="\r")
+                    
+                    status = check_pr_ci_status(ci_pr_num, ci_repo)
+                    if status["all_passed"]:
+                        print(f"\r   ✅ All CI checks passed!{' ' * 20}")
+                        notify_task_complete(
+                            project=project.get("name", "Unknown"),
+                            task=f"CI Check for PR #{ci_pr_num}",
+                            status="success",
+                            link=state.pr_url
+                        )
+                        break
+                    elif len(status["failed_checks"]) > 0:
+                        print(f"\r   ❌ CI Failed:{' ' * 20}")
+                        for fc in status["failed_checks"]:
+                            print(f"      - {fc.get('name', 'Unknown')} ({fc.get('conclusion', 'failure').lower()})")
+                        
+                        first_fail = status["failed_checks"][0].get("name")
+                        if first_fail:
+                            print(f"\n   📋 Error Log ({first_fail}):")
+                            fail_log = get_ci_failure_logs(ci_pr_num, ci_repo, first_fail)
+                            print(fail_log)
+                            
+                            ai_context = f"The CI check `{first_fail}` failed for my PR on {ci_repo}.\nHere is the log:\n```\n{fail_log}\n```\nHow should I fix this?"
+                            print("\n   💡 Sending error logs to Akasa Telegram Bot...")
+                            
+                            notify_task_complete(
+                                project=project.get("name", "Unknown"),
+                                task=f"CI Check for PR #{ci_pr_num} ({first_fail})",
+                                status="failure",
+                                message=ai_context,
+                                link=state.pr_url
+                            )
+                            print("   ✅ Notification sent!")
+                            break # break poll loop to ask user
+                    
+                    time.sleep(30)
+                else:
+                    print(f"\r   ⚠️ CI check timed out ending polls.{' ' * 20}")
+                    notify_task_complete(
+                        project=project.get("name", "Unknown"),
+                        task=f"CI Check for PR #{ci_pr_num}",
+                        status="failure",
+                        message="CI check timed out after 10 minutes.",
+                        link=state.pr_url
+                    )
+            else:
+                print("   ⚠️ Could not parse PR URL to check CI.")
+
+        print("\n   Please merge the PR on GitHub.")
         input("   Press Enter AFTER you have merged the PR...")
 
         # Use the refresh check logic from main loop or just assume
