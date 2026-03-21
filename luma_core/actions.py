@@ -1191,7 +1191,7 @@ def action_view_stats_files(state: LumaState, project: dict):
         print("❌ Invalid option")
 
 
-def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False):
+def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None):
     """Create Pull Request with Pre-flight Checks"""
     # Allow if Coding OR (PR_Pending to sync other repos) OR Preflight (Retry)
     allowed_phases = [
@@ -1271,15 +1271,20 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             auto_approve = True
 
     # Determine target repos (Multi-Repo Support)
-    target_projects = [project]
-    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
-        try:
-            for sibling_key in project.get("sibling_repos", []):
-                if sibling_key in PROJECTS:
-                    target_projects.append(PROJECTS[sibling_key])
-        except Exception:
-            pass
+    if target_repos is not None:
+        target_projects = target_repos
+        if len(target_projects) > 1:
+            print("   Mode: Multi-Repo (JarWise) - Using explicitly selected repos...")
+    else:
+        target_projects = [project]
+        if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+            print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
+            try:
+                for sibling_key in project.get("sibling_repos", []):
+                    if sibling_key in PROJECTS:
+                        target_projects.append(PROJECTS[sibling_key])
+            except Exception:
+                pass
 
     # --- SCREENSHOT LOGIC ---
     screenshot_md = ""
@@ -3090,10 +3095,10 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     if choice == "a":
         usage_tracker.set_sub_action("Auto:PR/Auto-Approve")
-        action_create_pr(state, project, auto_approve=True)
+        action_create_pr(state, project, auto_approve=True, target_repos=target_planning_repos)
     elif choice == "y" or choice == "":
         usage_tracker.set_sub_action("Auto:PR/Interactive")
-        action_create_pr(state, project, auto_approve=False)
+        action_create_pr(state, project, auto_approve=False, target_repos=target_planning_repos)
 
     # Poll for Merge?
     if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
