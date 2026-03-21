@@ -1003,7 +1003,16 @@ def action_generate_project_report(state: LumaState, project: dict):
 
     custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
     
-    print(f"\n🚀 Generating {period} report...")
+    print(f"\n🔄 Syncing metrics from ROADMAP...")
+    prefill_result = prefill_metrics_from_roadmap(
+        project["path"],
+        project.get("name"),
+        project.get("repo"),
+    )
+    if prefill_result["created"] or prefill_result["updated"]:
+        print(f"   🗺️  Synced (created {prefill_result['created']}, updated {prefill_result['updated']})")
+    
+    print(f"🚀 Generating {period} report...")
     try:
         from luma_core.report_generator import generate_report
         import os
