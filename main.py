@@ -141,6 +141,7 @@ MENU_ACTIONS = {
     "D": {"label": "📊 Usage & Metrics Dashboard",  "valid_phases": "ALL"},
     "T": {"label": "🧪 Test Telegram Notification", "valid_phases": "ALL"},
     "M": {"label": "📏 Track Issue Metrics",       "valid_phases": "ALL"},
+    "G": {"label": "📊 Generate Project Report",    "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
@@ -343,6 +344,9 @@ def main():
 
         elif choice.upper() == "M":
             actions.action_manage_issue_metrics(state, project)
+
+        elif choice.upper() == "G":
+            actions.action_generate_project_report(state, project)
         
         elif choice.upper() == "R":
             state = load_state(project["path"])
