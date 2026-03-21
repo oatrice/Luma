@@ -170,6 +170,36 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     lines.append(f"- **Mandays (Completed):** {est_mandays:.1f} estimated vs {act_mandays:.1f} actual")
     lines.append("")
     
+    # Completed Issues Detail
+    lines.append("## Completed Issues")
+    if this_period_completed:
+        for iss in this_period_completed:
+            pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
+            lines.append(f"- **#{iss.issue_number}** {iss.issue_title}{pts_str}")
+    else:
+        lines.append("- No issues completed in this period.")
+    lines.append("")
+    
+    # Human-readable Summary  — insert right after header
+    summary_parts = []
+    summary_parts.append(f"ในช่วง{report_type.lower()} นี้ ทีมทำงานเสร็จทั้งหมด {len(this_period_completed)} issues")
+    if this_period_completed:
+        summary_parts.append(f" รวม {this_points} points")
+        if this_points > prev_points:
+            summary_parts.append(" ซึ่งดีขึ้นกว่าช่วงก่อนหน้า")
+        elif this_points < prev_points:
+            summary_parts.append(" ซึ่งลดลงจากช่วงก่อนหน้า")
+    if overdue_issues:
+        summary_parts.append(f" โดยมี {len(overdue_issues)} issues ที่เลยกำหนดส่ง")
+    if upcoming_issues:
+        summary_parts.append(f" และมี {len(upcoming_issues)} issues ที่จะถึงกำหนดเร็วๆ นี้")
+    summary_text = "".join(summary_parts) + "."
+    
+    # Insert summary right after header (position 3 = after header + date range + blank line)
+    lines.insert(3, "## Summary")
+    lines.insert(4, summary_text)
+    lines.insert(5, "")
+    
     # On-time Delivery Rate
     lines.append("## On-time Delivery Rate")
     total_completed = len(this_period_completed)
