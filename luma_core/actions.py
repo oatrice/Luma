@@ -854,6 +854,31 @@ def _build_issue_metrics_record(project: dict, card: KanbanCard) -> IssueMetrics
     )
 
 
+def action_test_telegram_notification(state: LumaState, project: dict):
+    """Test sending a Telegram notification directly from the CLI."""
+    from luma_core import ui
+    from luma_core.notifier import notify_task_complete
+    
+    ui.display_header(state, project)
+    
+    project_name = project["name"] if project else "Luma"
+    
+    result = notify_task_complete(
+        project=project_name,
+        task="Test Telegram Notification",
+        status="success",
+        duration="1s",
+        message="🧪 ทดสอบการส่งข้อความจากเมนู Luma CLI"
+    )
+    
+    if result:
+        print(f"\n✅ Notification sent successfully!")
+    else:
+        print(f"\n❌ Failed to send notification (Check AKASA_CHAT_ID or backend config).")
+    
+    input(f"\nPress Enter to return to menu...")
+
+
 def action_view_dashboard(state: LumaState, project: dict):
     """Display Usage & Metrics Dashboard in terminal."""
     from luma_core.metrics_summarizer import (
