@@ -32,11 +32,15 @@ def main():
         
         if args.period == "weekly":
             year, week, _ = ref_date.isocalendar()
-            filename = f"weekly_{year}-W{week:02d}.md"
+            base_name = f"weekly_{year}-W{week:02d}"
         else:
-            filename = f"monthly_{ref_date.strftime('%Y-%m')}.md"
+            base_name = f"monthly_{ref_date.strftime('%Y-%m')}"
             
-        output_path = os.path.join(base_dir, filename)
+        output_path = os.path.join(base_dir, f"{base_name}.md")
+        counter = 1
+        while os.path.exists(output_path):
+            output_path = os.path.join(base_dir, f"{base_name}({counter}).md")
+            counter += 1
         
     # ensure parent dir exists for explicit output paths
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
