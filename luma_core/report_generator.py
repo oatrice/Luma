@@ -1,5 +1,7 @@
 import os
 import re
+import json
+import subprocess
 from typing import Optional, List, Tuple, Dict
 from datetime import date, datetime, timedelta
 import calendar
@@ -54,10 +56,31 @@ def _format_short_date(dt_str: Optional[str]) -> str:
     if not dt_str:
         return "-"
     try:
-        dt = datetime.fromisoformat(dt_str)
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
         return dt.strftime("%Y-%m-%d")
     except ValueError:
         return dt_str[:10] if len(dt_str) >= 10 else dt_str
+
+def _fetch_gh_created_dates(issues: List[IssueMetricsRecord]) -> Dict[int, str]:
+    """Fetch issue creation dates from GitHub via gh CLI.
+    Returns dict mapping issue_number -> createdAt ISO string.
+    """
+    result = {}
+    for iss in issues:
+        repo = getattr(iss, 'repository', None)
+        if not repo or not iss.issue_number:
+            continue
+        try:
+            proc = subprocess.run(
+                ["gh", "issue", "view", str(iss.issue_number),
+                 "--repo", repo, "--json", "createdAt", "--jq", ".createdAt"],
+                capture_output=True, text=True, timeout=10
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                result[iss.issue_number] = proc.stdout.strip()
+        except Exception:
+            continue
+    return result
 
 def _parse_roadmap_phases(roadmap_path: str) -> Tuple[List[Dict[str, object]], str]:
     phases = []
@@ -183,13 +206,15 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     # Completed Issues Detail
     lines.append("## Completed Issues")
     if this_period_completed:
+        gh_created = _fetch_gh_created_dates(this_period_completed)
         this_period_completed.sort(key=lambda iss: _parse_datetime(iss.actual_completion_date) or datetime.min)
         for iss in this_period_completed:
             pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
+            created_str = _format_short_date(gh_created.get(iss.issue_number))
             due_str = _format_short_date(iss.due_date)
             completed_str = _format_short_date(iss.actual_completion_date)
             lines.append(f"- **#{iss.issue_number}** {iss.issue_title}{pts_str}")
-            lines.append(f"  - Due: {due_str} | Completed: {completed_str}")
+            lines.append(f"  - Created: {created_str} | Due: {due_str} | Completed: {completed_str}")
     else:
         lines.append("- No issues completed in this period.")
     lines.append("")
