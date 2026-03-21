@@ -61,9 +61,9 @@ def _format_short_date(dt_str: Optional[str]) -> str:
     except ValueError:
         return dt_str[:10] if len(dt_str) >= 10 else dt_str
 
-def _fetch_gh_created_dates(issues: List[IssueMetricsRecord]) -> Dict[int, str]:
-    """Fetch issue creation dates from GitHub via gh CLI.
-    Returns dict mapping issue_number -> createdAt ISO string.
+def _fetch_gh_issue_dates(issues: List[IssueMetricsRecord]) -> Dict[int, Dict[str, str]]:
+    """Fetch issue dates from GitHub via gh CLI.
+    Returns dict mapping issue_number -> {"createdAt": ..., "closedAt": ...}.
     """
     result = {}
     for iss in issues:
@@ -73,11 +73,15 @@ def _fetch_gh_created_dates(issues: List[IssueMetricsRecord]) -> Dict[int, str]:
         try:
             proc = subprocess.run(
                 ["gh", "issue", "view", str(iss.issue_number),
-                 "--repo", repo, "--json", "createdAt", "--jq", ".createdAt"],
+                 "--repo", repo, "--json", "createdAt,closedAt"],
                 capture_output=True, text=True, timeout=10
             )
             if proc.returncode == 0 and proc.stdout.strip():
-                result[iss.issue_number] = proc.stdout.strip()
+                data = json.loads(proc.stdout.strip())
+                result[iss.issue_number] = {
+                    "createdAt": data.get("createdAt", ""),
+                    "closedAt": data.get("closedAt", ""),
+                }
         except Exception:
             continue
     return result
@@ -206,13 +210,14 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     # Completed Issues Detail
     lines.append("## Completed Issues")
     if this_period_completed:
-        gh_created = _fetch_gh_created_dates(this_period_completed)
+        gh_dates = _fetch_gh_issue_dates(this_period_completed)
         this_period_completed.sort(key=lambda iss: _parse_datetime(iss.actual_completion_date) or datetime.min)
         for iss in this_period_completed:
             pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
-            created_str = _format_short_date(gh_created.get(iss.issue_number))
+            iss_gh = gh_dates.get(iss.issue_number, {})
+            created_str = _format_short_date(iss_gh.get("createdAt"))
             due_str = _format_short_date(iss.due_date)
-            completed_str = _format_short_date(iss.actual_completion_date)
+            completed_str = _format_short_date(iss_gh.get("closedAt") or iss.actual_completion_date)
             lines.append(f"- **#{iss.issue_number}** {iss.issue_title}{pts_str}")
             lines.append(f"  - Created: {created_str} | Due: {due_str} | Completed: {completed_str}")
     else:

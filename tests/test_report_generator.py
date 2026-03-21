@@ -136,7 +136,7 @@ def test_empty_metrics_returns_empty_report(mock_get_roadmap_path, mock_list_met
     assert "Velocity Summary" in report
     assert "**Issues completed in this period:** 0" in report
 
-@patch("luma_core.report_generator._fetch_gh_created_dates")
+@patch("luma_core.report_generator._fetch_gh_issue_dates")
 @patch("luma_core.report_generator.list_issue_metrics")
 @patch("luma_core.report_generator.get_roadmap_path")
 def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_metrics, mock_gh_dates):
@@ -151,8 +151,8 @@ def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_
         create_mock_issue(12, "🔲 Todo", due_date="2026-03-25T10:00:00")
     ]
     mock_gh_dates.return_value = {
-        10: "2026-03-05T08:00:00Z",
-        11: "2026-03-08T09:00:00Z",
+        10: {"createdAt": "2026-03-05T08:00:00Z", "closedAt": "2026-03-18T14:30:00Z"},
+        11: {"createdAt": "2026-03-08T09:00:00Z", "closedAt": "2026-03-20T16:00:00Z"},
     }
     
     report = generate_report("/mock/path", period="weekly", reference_date=date(2026, 3, 21))
@@ -163,13 +163,14 @@ def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_
     assert "Mock Issue 10" in report
     assert "#11" in report
     assert "Mock Issue 11" in report
-    # Should show dates (Created, Due, Completed)
+    # Should show dates from GitHub (Created + Completed) and metrics (Due)
     completed_section = report.split("## Completed Issues")[1].split("##")[0]
     assert "Created:" in completed_section
     assert "2026-03-05" in completed_section  # GH created date of #10
     assert "Due:" in completed_section
     assert "Completed:" in completed_section
-    assert "03-18" in completed_section  # completion date of #10
+    assert "2026-03-18" in completed_section  # GH closedAt of #10 (not fuzzy 03-17)
+    assert "2026-03-20" in completed_section  # GH closedAt of #11
     # Not-completed issue should NOT appear in that section
     assert "Mock Issue 12" not in completed_section
 
