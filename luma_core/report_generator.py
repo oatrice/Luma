@@ -186,11 +186,10 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
         this_period_completed.sort(key=lambda iss: _parse_datetime(iss.actual_completion_date) or datetime.min)
         for iss in this_period_completed:
             pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
-            created_str = _format_short_date(getattr(iss, 'created_at', None))
             due_str = _format_short_date(iss.due_date)
             completed_str = _format_short_date(iss.actual_completion_date)
             lines.append(f"- **#{iss.issue_number}** {iss.issue_title}{pts_str}")
-            lines.append(f"  - Created: {created_str} | Due: {due_str} | Completed: {completed_str}")
+            lines.append(f"  - Due: {due_str} | Completed: {completed_str}")
     else:
         lines.append("- No issues completed in this period.")
     lines.append("")
