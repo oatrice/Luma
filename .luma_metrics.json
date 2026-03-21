@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "issues": {
+    "oatrice/Luma#9": {
+      "issue_key": "oatrice/Luma#9",
+      "issue_number": 9,
+      "issue_title": "Feature tracking estimate points mandays and effort",
+      "issue_url": "https://github.com/oatrice/Luma/issues/9",
+      "repository": "oatrice/Luma",
+      "project_name": "Luma",
+      "issue_status": null,
+      "estimate_points": 2,
+      "estimated_mandays": 2.0,
+      "actual_mandays": 0.0,
+      "due_date": "2026-03-30T23:59:59",
+      "actual_completion_date": null,
+      "effort_level": "Low",
+      "notes": null,
+      "created_at": "2026-03-20T20:59:53.657961",
+      "updated_at": "2026-03-20T20:59:53.657966"
+    }
+  }
+}

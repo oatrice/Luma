@@ -307,3 +307,62 @@ def test_prefill_metrics_from_roadmap_can_fuzzy_match_completion_commit(tmp_path
     assert loaded is not None
     assert loaded.actual_completion_date == "2026-03-05T09:15:00"
     assert loaded.due_date == "2026-03-05T23:59:59"
+
+
+def test_prefill_metrics_from_roadmap_reads_bullet_issue_blocks(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "## Current\n\n"
+        "- **#46 Draft Transaction Review (Android)**\n"
+        "    - **Status:** 📝 Planned\n"
+        "- **#68 Report Filters**\n"
+        "    - ✅ **Done** (v1.8.0)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        "## [1.8.0] - 2026-03-10\n\n"
+        "- Released report filters\n",
+        encoding="utf-8",
+    )
+    _init_git_repo_with_commit(
+        tmp_path,
+        "feat: report filters (#68)",
+        "2026-03-09T10:30:00+07:00",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "JarWise", "oatrice/JarWise-Root")
+    planned = get_issue_metrics(str(tmp_path), "oatrice/JarWise-Root", 46)
+    done = get_issue_metrics(str(tmp_path), "oatrice/JarWise-Root", 68)
+
+    assert result["created"] == 2
+    assert planned is not None
+    assert planned.issue_title == "Draft Transaction Review (Android)"
+    assert "Planned" in (planned.issue_status or "")
+    assert planned.actual_completion_date is None
+    assert planned.due_date == "2026-03-17T23:59:59"
+    assert done is not None
+    assert "Done" in (done.issue_status or "")
+    assert done.actual_completion_date == "2026-03-09T10:30:00"
+
+
+def test_prefill_metrics_from_feature_dirs_without_roadmap(tmp_path):
+    features_dir = tmp_path / "docs" / "features"
+    features_dir.mkdir(parents=True)
+    (features_dir / "8_issue-9_feature-tracking-estimate-points-mandays-and-effort").mkdir()
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        "## [1.4.1] - 2026-03-19\n\n"
+        "- Maintenance release\n",
+        encoding="utf-8",
+    )
+
+    result = prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 9)
+
+    assert result["created"] == 1
+    assert loaded is not None
+    assert loaded.issue_title == "Feature tracking estimate points mandays and effort"
+    assert loaded.due_date == "2026-03-26T23:59:59"

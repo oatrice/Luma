@@ -517,9 +517,21 @@ def _clean_status(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+def _clean_bullet_text(text: str) -> str:
+    return _clean_status(re.sub(r"^[-*]\s+", "", text or "").strip())
+
+
 def _status_is_complete(status: Optional[str]) -> bool:
     normalized = (status or "").lower()
     return "complete" in normalized or "done" in normalized or "released" in normalized
+
+
+def _humanize_feature_slug(text: str) -> str:
+    humanized = re.sub(r"[_-]+", " ", text or "").strip()
+    humanized = re.sub(r"\s+", " ", humanized)
+    if not humanized:
+        return "Untitled issue"
+    return humanized[0].upper() + humanized[1:]
 
 
 def _infer_story_profile(title: str) -> Dict[str, object]:
@@ -639,13 +651,15 @@ def apply_artifact_defaults(
     latest_release_date = evidence.get("latest_release_date")
     cadence_days = int(evidence.get("release_cadence_days") or 7)
 
-    release_date = changelog_issue_dates.get(record.issue_number)
-    if release_date is None:
-        release_date = _best_fuzzy_date_match(
+    explicit_release_date = changelog_issue_dates.get(record.issue_number)
+    fuzzy_release_date = None
+    if _status_is_complete(record.issue_status):
+        fuzzy_release_date = _best_fuzzy_date_match(
             record.issue_title,
             changelog_entries,
             minimum_overlap=2,
         )
+    release_date = explicit_release_date or fuzzy_release_date
 
     completion_date = git_issue_dates.get(record.issue_number)
     if completion_date is None and _status_is_complete(record.issue_status):
@@ -664,11 +678,14 @@ def apply_artifact_defaults(
     if record.due_date not in (None, ""):
         return record
 
-    if release_date:
-        record.due_date = _date_to_end_of_day(release_date)
+    if explicit_release_date:
+        record.due_date = _date_to_end_of_day(explicit_release_date)
         return record
 
     if _status_is_complete(record.issue_status):
+        if release_date:
+            record.due_date = _date_to_end_of_day(release_date)
+            return record
         if record.actual_completion_date:
             try:
                 actual_dt = datetime.fromisoformat(record.actual_completion_date)
@@ -750,6 +767,9 @@ def parse_roadmap_issue_metrics(
         r"^\|\s*\[#?(?P<number>\d+)\]\((?P<url>[^)]*)\)\s*\|\s*(?P<title>[^|]+?)\s*\|\s*(?P<status>[^|]+?)\s*\|"
     )
     block_issue_re = re.compile(r"^###\s+Issue\s+#(?P<number>\d+)\s*-\s*(?P<title>.+)$", re.IGNORECASE)
+    bullet_issue_re = re.compile(
+        r"^-\s+\*\*#(?P<number>\d+)\s+(?P<title>.+?)\*\*(?:\s*\((?P<suffix>[^)]*)\))?\s*$"
+    )
     github_link_re = re.compile(r"\[#?(?P<number>\d+)\]\((?P<url>https?://[^)]+)\)")
     status_re = re.compile(r"\*\*Status:\*\*\s*(?P<status>.+)$", re.IGNORECASE)
     state_re = re.compile(r"\*\*State:\*\*\s*(?P<status>.+)$", re.IGNORECASE)
@@ -799,6 +819,24 @@ def parse_roadmap_issue_metrics(
             )
             continue
 
+        bullet_match = bullet_issue_re.match(stripped)
+        if bullet_match:
+            _append_current_block()
+            issue_number = int(bullet_match.group("number"))
+            title = bullet_match.group("title").strip()
+            suffix = (bullet_match.group("suffix") or "").strip()
+            if suffix:
+                title = f"{title} ({suffix})"
+            current_block = IssueMetricsRecord(
+                issue_key=issue_key_for(repository or "", issue_number),
+                issue_number=issue_number,
+                issue_title=title,
+                issue_url=_normalize_issue_url("", repository, issue_number),
+                repository=repository or "",
+                project_name=project_name,
+            )
+            continue
+
         if current_block is None:
             continue
 
@@ -809,6 +847,15 @@ def parse_roadmap_issue_metrics(
         status_match = status_re.search(stripped) or state_re.search(stripped)
         if status_match:
             current_block.issue_status = _clean_status(status_match.group("status"))
+        elif stripped.startswith("- ") and (
+            "done" in stripped.lower()
+            or "complete" in stripped.lower()
+            or "planned" in stripped.lower()
+            or "todo" in stripped.lower()
+            or "in progress" in stripped.lower()
+            or "blocked" in stripped.lower()
+        ):
+            current_block.issue_status = _clean_bullet_text(stripped)
 
         _maybe_parse_metric_line(current_block, stripped)
 
@@ -819,10 +866,53 @@ def parse_roadmap_issue_metrics(
     return list(candidates.values())
 
 
+def parse_feature_dir_issue_metrics(
+    project_path: str, project_name: Optional[str], repository: Optional[str]
+) -> List[IssueMetricsRecord]:
+    features_root = os.path.join(project_path, "docs", "features")
+    if not os.path.isdir(features_root):
+        return []
+
+    issue_token_re = re.compile(r"issue-(?P<numbers>\d+(?:-\d+)*)", re.IGNORECASE)
+    candidates: Dict[str, IssueMetricsRecord] = {}
+
+    for entry in sorted(os.listdir(features_root)):
+        full_path = os.path.join(features_root, entry)
+        if not os.path.isdir(full_path):
+            continue
+
+        match = issue_token_re.search(entry)
+        if not match:
+            continue
+
+        numbers = [int(part) for part in match.group("numbers").split("-") if part.isdigit()]
+        slug = entry[match.end():].strip(" _-")
+        title = _humanize_feature_slug(slug)
+
+        for issue_number in numbers:
+            record = IssueMetricsRecord(
+                issue_key=issue_key_for(repository or "", issue_number),
+                issue_number=issue_number,
+                issue_title=title,
+                issue_url=_normalize_issue_url("", repository, issue_number),
+                repository=repository or "",
+                project_name=project_name,
+            )
+            candidates[record.issue_key] = record
+
+    return list(candidates.values())
+
+
 def prefill_metrics_from_roadmap(
     project_path: str, project_name: Optional[str], repository: Optional[str]
 ) -> Dict[str, int]:
-    candidates = parse_roadmap_issue_metrics(project_path, project_name, repository)
+    candidates_by_key: Dict[str, IssueMetricsRecord] = {}
+    for candidate in parse_roadmap_issue_metrics(project_path, project_name, repository):
+        candidates_by_key[candidate.issue_key] = candidate
+    for candidate in parse_feature_dir_issue_metrics(project_path, project_name, repository):
+        candidates_by_key.setdefault(candidate.issue_key, candidate)
+
+    candidates = list(candidates_by_key.values())
     if not candidates:
         return {"created": 0, "updated": 0}
 
