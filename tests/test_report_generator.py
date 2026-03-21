@@ -133,3 +133,41 @@ def test_empty_metrics_returns_empty_report(mock_get_roadmap_path, mock_list_met
     assert "Weekly Report" in report
     assert "Velocity Summary" in report
     assert "**Issues completed in this period:** 0" in report
+
+@patch("luma_core.report_generator.list_issue_metrics")
+@patch("luma_core.report_generator.get_roadmap_path")
+def test_completed_issues_are_listed_in_report(mock_get_roadmap_path, mock_list_metrics):
+    mock_get_roadmap_path.return_value = None
+    mock_list_metrics.return_value = [
+        create_mock_issue(10, "✅ Complete", actual_completion_date="2026-03-18T10:00:00", points=3),
+        create_mock_issue(11, "✅ Complete", actual_completion_date="2026-03-20T14:00:00", points=5),
+        create_mock_issue(12, "🔲 Todo", due_date="2026-03-25T10:00:00")
+    ]
+    
+    report = generate_report("/mock/path", period="weekly", reference_date=date(2026, 3, 21))
+    
+    # Should have a "Completed Issues" section listing each done issue
+    assert "## Completed Issues" in report
+    assert "#10" in report
+    assert "Mock Issue 10" in report
+    assert "#11" in report
+    assert "Mock Issue 11" in report
+    # Not-completed issue should NOT appear in that section
+    assert "Mock Issue 12" not in report.split("## Completed Issues")[1].split("##")[0]
+
+@patch("luma_core.report_generator.list_issue_metrics")
+@patch("luma_core.report_generator.get_roadmap_path")
+def test_human_readable_summary_section(mock_get_roadmap_path, mock_list_metrics):
+    mock_get_roadmap_path.return_value = None
+    mock_list_metrics.return_value = [
+        create_mock_issue(1, "✅ Complete", actual_completion_date="2026-03-18T10:00:00", points=3),
+        create_mock_issue(2, "✅ Complete", actual_completion_date="2026-03-20T14:00:00", points=5),
+        create_mock_issue(3, "🔲 Todo", due_date="2026-03-15T10:00:00"),  # overdue
+    ]
+    
+    report = generate_report("/mock/path", period="weekly", reference_date=date(2026, 3, 21))
+    
+    # Should have a summary section at the top with human-readable text
+    assert "## Summary" in report
+    # Summary should mention how many issues were completed
+    assert "2" in report.split("## Summary")[1].split("##")[0]
