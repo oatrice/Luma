@@ -211,11 +211,16 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     lines.append("## Completed Issues")
     if this_period_completed:
         gh_dates = _fetch_gh_issue_dates(this_period_completed)
-        this_period_completed.sort(
-            key=lambda iss: _parse_datetime(
+
+        def _sort_key(iss):
+            dt = _parse_datetime(
                 gh_dates.get(iss.issue_number, {}).get("closedAt") or iss.actual_completion_date
-            ) or datetime.min
-        )
+            )
+            if dt and dt.tzinfo:
+                dt = dt.replace(tzinfo=None)
+            return dt or datetime.min
+
+        this_period_completed.sort(key=_sort_key, reverse=True)
         for iss in this_period_completed:
             pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
             iss_gh = gh_dates.get(iss.issue_number, {})
