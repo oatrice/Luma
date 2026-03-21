@@ -854,6 +854,64 @@ def _build_issue_metrics_record(project: dict, card: KanbanCard) -> IssueMetrics
     )
 
 
+def action_view_dashboard(state: LumaState, project: dict):
+    """Display Usage & Metrics Dashboard in terminal."""
+    from luma_core.metrics_summarizer import (
+        summarize_usage_stats,
+        summarize_issue_metrics,
+        format_summary_message,
+    )
+
+    usage_path = usage_tracker.get_log_path()
+    metrics_path = os.path.join(project["path"], ".luma_metrics.json")
+
+    print("\n" + "╔" + "═" * 52 + "╗")
+    print("║  📊 Usage & Metrics Dashboard                      ║")
+    print("╠" + "═" * 52 + "╣")
+
+    # Usage Stats (current project)
+    usage = summarize_usage_stats(usage_path, project)
+    duration_s = (usage.get("total_duration_ms", 0) or 0) / 1000
+    if duration_s >= 60:
+        mins = int(duration_s // 60)
+        secs = int(duration_s % 60)
+        dur_str = f"{mins}m {secs}s"
+    else:
+        dur_str = f"{duration_s:.0f}s"
+
+    print("║                                                    ║")
+    print("║  🤖 AI Usage (this project)                        ║")
+    print(f"║    Total Calls: {usage['total_calls']:<35}║")
+    print(f"║    ✅ Success:  {usage['success_count']:<35}║")
+    print(f"║    ❌ Errors:   {usage['error_count']:<35}║")
+    print(f"║    ⏱  Duration: {dur_str:<34}║")
+
+    models = usage.get("unique_models", [])
+    if models:
+        models_str = ", ".join(models[:3])
+        if len(models_str) > 34:
+            models_str = models_str[:31] + "..."
+        print(f"║    🧠 Models:   {models_str:<34}║")
+
+    print("║                                                    ║")
+
+    # Issue Metrics
+    metrics = summarize_issue_metrics(metrics_path)
+    print("║  📏 Issue Metrics                                  ║")
+    print(f"║    Total Issues:    {metrics['total_issues']:<31}║")
+    print(f"║    ✅ Done:         {metrics['done_count']:<31}║")
+    print(f"║    🔄 In Progress:  {metrics['in_progress_count']:<31}║")
+    print(f"║    🔲 Todo:         {metrics['todo_count']:<31}║")
+    print(f"║    📊 Total Points: {metrics['total_points']:<31}║")
+    est_md = f"{metrics['total_estimated_mandays']:.1f}"
+    act_md = f"{metrics['total_actual_mandays']:.1f}"
+    print(f"║    📅 Mandays:      Est {est_md} / Act {act_md:<20}║")
+    print("║                                                    ║")
+    print("╚" + "═" * 52 + "╝")
+
+    input("\nPress Enter to return...")
+
+
 def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
     selected_project = project
@@ -3019,6 +3077,32 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     # Clear sub_action at the end of the auto workflow so future usage is clean
     usage_tracker.set_sub_action(None)
+
+    # 8. Send Summary to Telegram
+    try:
+        from luma_core.metrics_summarizer import (
+            summarize_usage_stats,
+            summarize_issue_metrics,
+            format_summary_message,
+        )
+        from luma_core.notifier import notify_task_complete as _notify
+
+        usage_summary = summarize_usage_stats(
+            usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID
+        )
+        metrics_path = os.path.join(project["path"], ".luma_metrics.json")
+        metrics_summary = summarize_issue_metrics(metrics_path)
+        summary_msg = format_summary_message(usage_summary, metrics_summary)
+        _notify(
+            project=project.get("name", "Unknown"),
+            task="Workflow Summary",
+            status="success",
+            message=summary_msg,
+        )
+        print("\n📊 Summary sent to Telegram!")
+    except Exception as e:
+        print(f"\n⚠️ Could not send summary: {e}")
+
     print("\n🎉 Workflow Completed! You can now select the next issue.")
 
 
