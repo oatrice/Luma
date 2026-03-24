@@ -20,6 +20,7 @@ def analyst_agent(state: AgentState):
     task = state.get('task')
     issue_data = state.get('issue_data', {})
     target_dir = state.get('target_dir', os.getcwd())
+    target_planning_repos = state.get('target_planning_repos', [])
     
     if not task:
         print("❌ No task/issue provided.")
@@ -52,6 +53,11 @@ def analyst_agent(state: AgentState):
         repo = issue_data.get('repository', '')
         if repo:
             issue_url = f"https://github.com/{repo}/issues/{issue_data.get('number')}"
+            
+    sibling_repos_ctx = ""
+    if target_planning_repos:
+        repo_names = [r.get('name', 'Unknown') for r in target_planning_repos]
+        sibling_repos_ctx = f"\n    - **Cross-Repository Scope**: This feature spans across multiple repositories: {', '.join(repo_names)}. Ensure your analysis considers the impact on ALL these repositories."
     
     system_prompt = f"""You are a Senior Technical Analyst. Your goal is to analyze the provided GitHub Issue and fill out the Technical Analysis Document based on the provided template.
     
@@ -61,7 +67,7 @@ def analyst_agent(state: AgentState):
     - For 'Impact Analysis', use the ACTUAL tech stack from the project context below — do NOT assume generic stacks.
     - Maintain the exact markdown structure of the template.
     - IMPORTANT: In the 'Feature Information' table, you MUST include an 'Issue URL' row with a markdown link to the GitHub issue.
-    - Use the current date for the 'Date' field.
+    - Use the current date for the 'Date' field.{sibling_repos_ctx}
     - Output ONLY the filled markdown content.
     
 {context_block}
