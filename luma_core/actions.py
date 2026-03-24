@@ -2031,6 +2031,7 @@ def action_refine_issue(state: LumaState, project: dict):
             "body": combined_body,
         },
         "target_dir": project["path"],
+        "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 
     print("\n🧠 Invoking Analyst Agent...")
@@ -2369,6 +2370,7 @@ def action_generate_spec(state: LumaState, project: dict):
             "repository": getattr(first_issue, "repository", ""),
         },
         "target_dir": project["path"],
+        "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 
     print("\n🧬 Invoking Spec Agent (Spec Kit)...")
@@ -2439,7 +2441,11 @@ def action_generate_plan(state: LumaState, project: dict):
         return
 
     # Create State
-    plan_state = {"feature_dir": feature_dir, "target_dir": project["path"]}
+    plan_state = {
+        "feature_dir": feature_dir, 
+        "target_dir": project["path"],
+        "target_planning_repos": state.context.get("target_planning_repos", []),
+    }
 
     print("\n🏗️ Invoking Architect Agent...")
     result = architect_agent(plan_state)

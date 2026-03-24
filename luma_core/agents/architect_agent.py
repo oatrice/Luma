@@ -12,6 +12,7 @@ def architect_agent(state: AgentState) -> dict:
 
     feature_dir = state.get('feature_dir')
     target_dir = state.get('target_dir', os.getcwd())
+    target_planning_repos = state.get('target_planning_repos', [])
     
     if not feature_dir or not os.path.exists(feature_dir):
         # Try to find recent feature dir
@@ -48,6 +49,11 @@ def architect_agent(state: AgentState) -> dict:
         print("   📦 Loaded project context (AGENTS.md/README.md)")
 
     # 3. Construct Prompt
+    sibling_repos_ctx = ""
+    if target_planning_repos:
+        repo_names = [r.get('name', 'Unknown') for r in target_planning_repos]
+        sibling_repos_ctx = f"\n- **Cross-Repository Scope**: This implementation spans multiple repositories: {', '.join(repo_names)}. Detail how each repository will be modified."
+
     system_prompt = f"""You are a Senior Software Architect.
 Your goal is to write a Technical Implementation Plan (`plan.md`) based on the provided Specification.
 
@@ -63,7 +69,7 @@ Your goal is to write a Technical Implementation Plan (`plan.md`) based on the p
 2. Fill out the **Implementation Plan Template**.
 3. **Step-by-Step**: Break down the implementation into atomic, testable steps.
 4. **Files**: Explicitly mention which files need creation or modification.
-5. **Verification**: Define how each step will be verified.
+5. **Verification**: Define how each step will be verified.{sibling_repos_ctx}
 6. Output ONLY the markdown content.
 """
 
