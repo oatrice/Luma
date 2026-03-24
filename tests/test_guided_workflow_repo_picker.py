@@ -9,9 +9,11 @@ from luma_core.state_manager import LumaState, WorkflowPhase
 @patch("luma_core.actions.action_run_multi_agent_coding")
 @patch("luma_core.actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
 @patch("luma_core.actions.get_feature_dir", return_value="/mock/feature/dir")
+@patch("luma_core.actions.auto_fill_issue_metrics")
+@patch("luma_core.issue_metrics.get_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_planning_multi_repo_picker(
-    mock_input, mock_get_feature_dir, mock_check_artifacts,
+    mock_input, mock_get_metrics, mock_auto_fill, mock_get_feature_dir, mock_check_artifacts,
     mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys
 ):
     from luma_core.actions import action_guided_workflow
@@ -19,8 +21,8 @@ def test_guided_workflow_planning_multi_repo_picker(
 
     # 1. Repo picker input ("1,2") - which means RootRepo and WebRepo
     # 2. y (Run planning for RootRepo)
-    # 3. y (Run planning for WebRepo)
-    inputs = iter(["1,2", "y", "y"])
+    # 3. n (Done coding?)
+    inputs = iter(["1,2", "y", "n"])
     mock_input.side_effect = lambda _: next(inputs)
 
     # Setup State
@@ -69,10 +71,16 @@ def test_guided_workflow_planning_multi_repo_picker(
     assert "[2] ☐  WebRepo" in captured.out
     assert "[3] ☐  BackendRepo" in captured.out
     
-    # Assert Planner agents were called twice (once for Root, once for Web)
-    assert mock_refine.call_count == 2
-    assert mock_spec.call_count == 2
-    assert mock_plan.call_count == 2
+    # Assert Planner agents were called exactly ONCE (for the root repo)
+    assert mock_refine.call_count == 1
+    assert mock_spec.call_count == 1
+    assert mock_plan.call_count == 1
+    
+    # Assert the context contains target_planning_repos
+    assert "target_planning_repos" in state.context
+    assert len(state.context["target_planning_repos"]) == 2
+    assert state.context["target_planning_repos"][0]["name"] == "RootRepo"
+    assert state.context["target_planning_repos"][1]["name"] == "WebRepo"
 
 
 @patch("luma_core.actions.transition_to", return_value=(True, ""))
@@ -82,15 +90,18 @@ def test_guided_workflow_planning_multi_repo_picker(
 @patch("luma_core.actions.action_run_multi_agent_coding")
 @patch("luma_core.actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
 @patch("luma_core.actions.get_feature_dir", return_value="/mock/feature/dir")
+@patch("luma_core.actions.auto_fill_issue_metrics")
+@patch("luma_core.issue_metrics.get_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_planning_single_repo(
-    mock_input, mock_get_feature_dir, mock_check_artifacts,
+    mock_input, mock_get_metrics, mock_auto_fill, mock_get_feature_dir, mock_check_artifacts,
     mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys
 ):
     from luma_core.actions import action_guided_workflow
 
     # 1. y (Run planning for SingleRepo)
-    inputs = iter(["y"])
+    # 2. n (Done coding?)
+    inputs = iter(["y", "n"])
     mock_input.side_effect = lambda _: next(inputs)
 
     # Setup State
