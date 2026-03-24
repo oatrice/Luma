@@ -3182,7 +3182,6 @@ def action_guided_workflow(state: LumaState, project: dict):
         if input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
             import subprocess
             import sys
-            import os
             
             parts = state.pr_url.split("/")
             if len(parts) >= 7 and "github.com" in state.pr_url:
