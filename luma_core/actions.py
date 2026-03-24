@@ -3179,65 +3179,35 @@ def action_guided_workflow(state: LumaState, project: dict):
 
         # 7. CI Check
         print("\n🔹 Step 7: Check CI Status")
-        if input("   Check CI status? (Y/n): ").strip().lower() != "n":
-            from luma_core.ci_checker import check_pr_ci_status, get_ci_failure_logs
-            from luma_core.notifier import notify_task_complete
-            import time
+        if input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
+            import subprocess
+            import sys
+            import os
             
             parts = state.pr_url.split("/")
             if len(parts) >= 7 and "github.com" in state.pr_url:
                 ci_repo = f"{parts[-4]}/{parts[-3]}"
                 ci_pr_num = parts[-1]
                 
-                max_polls = 20
-                for attempt in range(1, max_polls + 1):
-                    display_str = f"   ⏳ Waiting for CI... ({attempt}/{max_polls})"
-                    print(display_str, end="\r")
-                    
-                    status = check_pr_ci_status(ci_pr_num, ci_repo)
-                    if status["all_passed"]:
-                        print(f"\r   ✅ All CI checks passed!{' ' * 20}")
-                        notify_task_complete(
-                            project=project.get("name", "Unknown"),
-                            task=f"CI Check for PR #{ci_pr_num}",
-                            status="success",
-                            link=state.pr_url
-                        )
-                        break
-                    elif len(status["failed_checks"]) > 0:
-                        print(f"\r   ❌ CI Failed:{' ' * 20}")
-                        for fc in status["failed_checks"]:
-                            print(f"      - {fc.get('name', 'Unknown')} ({fc.get('conclusion', 'failure').lower()})")
-                        
-                        first_fail = status["failed_checks"][0].get("name")
-                        if first_fail:
-                            print(f"\n   📋 Error Log ({first_fail}):")
-                            fail_log = get_ci_failure_logs(ci_pr_num, ci_repo, first_fail)
-                            print(fail_log)
-                            
-                            ai_context = f"The CI check `{first_fail}` failed for my PR on {ci_repo}.\nHere is the log:\n```\n{fail_log}\n```\nHow should I fix this?"
-                            print("\n   💡 Sending error logs to Akasa Telegram Bot...")
-                            
-                            notify_task_complete(
-                                project=project.get("name", "Unknown"),
-                                task=f"CI Check for PR #{ci_pr_num} ({first_fail})",
-                                status="failure",
-                                message=ai_context,
-                                link=state.pr_url
-                            )
-                            print("   ✅ Notification sent!")
-                            break # break poll loop to ask user
-                    
-                    time.sleep(30)
-                else:
-                    print(f"\r   ⚠️ CI check timed out ending polls.{' ' * 20}")
-                    notify_task_complete(
-                        project=project.get("name", "Unknown"),
-                        task=f"CI Check for PR #{ci_pr_num}",
-                        status="failure",
-                        message="CI check timed out after 10 minutes.",
-                        link=state.pr_url
-                    )
+                print("   ✅ ส่งคำสั่งตรวจสอบ CI ไปทำงานเป็น Background แล้ว")
+                print("      (เมื่อพบว่า CI สำเร็จหรือผิดพลาด ระบบจะแจ้งเตือนผ่าน Telegram)")
+                
+                luma_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-m",
+                        "luma_core.ci_checker",
+                        ci_pr_num,
+                        ci_repo,
+                        project.get("name", "Unknown"),
+                        state.pr_url
+                    ],
+                    cwd=luma_root,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
             else:
                 print("   ⚠️ Could not parse PR URL to check CI.")
 
