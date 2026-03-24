@@ -170,7 +170,8 @@ def publisher_agent(state: AgentState):
             if not os.path.exists(screenshots_dir):
                  try:
                      os.makedirs(screenshots_dir, exist_ok=True)
-                 except Exception: pass
+                 except Exception:
+                     pass
             
             # Check for files
             def get_images():
