@@ -136,6 +136,22 @@ class TestTransitions:
         assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.SELECTING) == True
         assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.CODING) == False
         assert can_transition(WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT) == True
+        # Failing tests for new REVIEWING phase
+        assert can_transition(WorkflowPhase.CODING, WorkflowPhase.REVIEWING) == True
+        assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT) == True
+        assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.CODING) == True
+
+    def test_coding_to_reviewing(self):
+        state = LumaState(phase=WorkflowPhase.CODING)
+        ok, msg = transition_to(state, WorkflowPhase.REVIEWING)
+        assert ok == True
+        assert state.phase == WorkflowPhase.REVIEWING
+
+    def test_reviewing_to_preflight(self):
+        state = LumaState(phase=WorkflowPhase.REVIEWING)
+        ok, msg = transition_to(state, WorkflowPhase.PREFLIGHT)
+        assert ok == True
+        assert state.phase == WorkflowPhase.PREFLIGHT
 
 
 class TestDisplayFunctions:
