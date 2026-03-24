@@ -4,6 +4,7 @@ import re
 from langchain_core.messages import SystemMessage, HumanMessage
 from luma_core.llm import get_llm
 from luma_core.state import AgentState
+from luma_core.project_context import load_project_context, build_context_block
 
 def sanitize_filename(name: str) -> str:
     """Sanitize string for use in filename."""
@@ -35,7 +36,13 @@ def analyst_agent(state: AgentState):
         with open(template_path, 'r') as f:
             template_content = f.read()
 
-    # 2. Construct Prompt
+    # 2. Load Project Context (tech stack, agent rules)
+    ctx = load_project_context(target_dir)
+    context_block = build_context_block(ctx)
+    if context_block:
+        print("   📦 Loaded project context from README/AGENTS.md")
+
+    # 3. Construct Prompt
     print("🤖 Constructing LLM Prompt...")
     
     # Build Issue URL if we have enough info
@@ -46,16 +53,18 @@ def analyst_agent(state: AgentState):
         if repo:
             issue_url = f"https://github.com/{repo}/issues/{issue_data.get('number')}"
     
-    system_prompt = """You are a Senior Technical Analyst. Your goal is to analyze the provided GitHub Issue and fill out the Technical Analysis Document based on the provided template.
+    system_prompt = f"""You are a Senior Technical Analyst. Your goal is to analyze the provided GitHub Issue and fill out the Technical Analysis Document based on the provided template.
     
     Guidelines:
     - Be thorough and detailed.
     - If information is missing in the issue, make reasonable assumptions based on standard software practices, but note them.
-    - For 'Impact Analysis', consider a standard cross-platform app structure (React/Next.js Web, Kotlin Android, Swift iOS, Python/Go Backend).
+    - For 'Impact Analysis', use the ACTUAL tech stack from the project context below — do NOT assume generic stacks.
     - Maintain the exact markdown structure of the template.
     - IMPORTANT: In the 'Feature Information' table, you MUST include an 'Issue URL' row with a markdown link to the GitHub issue.
     - Use the current date for the 'Date' field.
     - Output ONLY the filled markdown content.
+    
+{context_block}
     """
     
     user_prompt = f"""

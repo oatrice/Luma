@@ -4,6 +4,7 @@ import datetime
 from langchain_core.messages import SystemMessage, HumanMessage
 from luma_core.llm import get_llm
 from luma_core.state import AgentState
+from luma_core.project_context import load_project_context, build_context_block
 
 def spec_agent(state: AgentState) -> dict:
     """
@@ -37,7 +38,13 @@ def spec_agent(state: AgentState) -> dict:
     else:
         print("⚠️ Constitution not found.")
 
-    # 2. Construct Prompt
+    # 2a. Load project context (tech stack + agent routing rules)
+    ctx = load_project_context(target_dir)
+    context_block = build_context_block(ctx)
+    if context_block:
+        print("   📦 Loaded project context (README/AGENTS.md)")
+
+    # 2b. Construct Prompt
     issue_url = issue_data.get('url', '')
     if not issue_url and issue_data.get('number'):
         repo = issue_data.get('repository', '')
@@ -51,6 +58,8 @@ Your goal is to write a detailed Specification Document (`spec.md`) for the user
 ### 📜 CONSTITUTION (RULES)
 {constitution_content}
 ---
+
+{context_block}
 
 ### INSTRUCTIONS
 1. Analyze the Issue Request below.

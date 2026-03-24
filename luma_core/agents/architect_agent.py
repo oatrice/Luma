@@ -2,6 +2,7 @@ import os
 from langchain_core.messages import SystemMessage, HumanMessage
 from luma_core.llm import get_llm
 from luma_core.state import AgentState
+from luma_core.project_context import load_project_context, build_context_block
 
 def architect_agent(state: AgentState) -> dict:
     """
@@ -40,7 +41,13 @@ def architect_agent(state: AgentState) -> dict:
         with open(constitution_path, 'r', encoding='utf-8') as f:
             constitution_content = f.read()
 
-    # 2. Construct Prompt
+    # 2. Load project context (stack + agent rules from AGENTS.md)
+    ctx = load_project_context(target_dir)
+    context_block = build_context_block(ctx)
+    if context_block:
+        print("   📦 Loaded project context (AGENTS.md/README.md)")
+
+    # 3. Construct Prompt
     system_prompt = f"""You are a Senior Software Architect.
 Your goal is to write a Technical Implementation Plan (`plan.md`) based on the provided Specification.
 
@@ -48,6 +55,8 @@ Your goal is to write a Technical Implementation Plan (`plan.md`) based on the p
 ### 📜 CONSTITUTION (RULES)
 {constitution_content}
 ---
+
+{context_block}
 
 ### INSTRUCTIONS
 1. Read the **Specification** carefully.
