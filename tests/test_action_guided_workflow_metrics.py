@@ -60,8 +60,9 @@ def test_guided_workflow_asks_for_metrics_auto_fill(
 
     captured = capsys.readouterr()
     
-    # Assert Checkbox UI is printed for metrics
-    assert "การประเมินชั่วโมงการทำงาน" in captured.out
+    # Assert input was called for metrics
+    input_prompts = [call.args[0] for call in mock_input.call_args_list if call.args]
+    assert any("การประเมินชั่วโมงการทำงาน" in prompt for prompt in input_prompts)
     
     # Assert auto_fill function is called
     mock_auto_fill.assert_called_once()

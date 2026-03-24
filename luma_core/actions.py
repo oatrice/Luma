@@ -2881,30 +2881,30 @@ def check_planning_artifacts(feature_dir: str) -> dict:
     return status
 
 
-def auto_fill_issue_metrics(state: LumaState, project: dict):
-    """Auto-fill missing metrics using AI / heuristics for the active issue."""
+def auto_fill_issue_metrics(state: LumaState, project: dict, issues: list):
+    """Auto-fill missing metrics using AI / heuristics for the active issues."""
     from luma_core.issue_metrics import get_issue_metrics, save_issue_metrics, apply_heuristic_defaults, IssueMetricsRecord, issue_key_for
     
-    if not state.active_issue:
+    if not issues:
         return
         
-    issue = state.active_issues[0]
-    metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
-    
-    if not metrics:
-        metrics = IssueMetricsRecord(
-            issue_key=issue_key_for(project.get("repo", ""), issue.number),
-            issue_number=issue.number,
-            issue_title=issue.title,
-            issue_url=issue.url if hasattr(issue, 'url') else "",
-            repository=project.get("repo", ""),
-            project_name=project.get("name")
-        )
+    for issue in issues:
+        metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
         
-    print(f"\n🤖 AI is estimating metrics for Issue #{issue.number}...")
-    metrics = apply_heuristic_defaults(metrics)
-    save_issue_metrics(project["path"], metrics)
-    print(f"   ✅ Estimated: {metrics.estimate_points} points, {metrics.estimated_mandays} mandays, {metrics.effort_level} effort.")
+        if not metrics:
+            metrics = IssueMetricsRecord(
+                issue_key=issue_key_for(project.get("repo", ""), issue.number),
+                issue_number=issue.number,
+                issue_title=issue.title,
+                issue_url=issue.url if hasattr(issue, 'url') else "",
+                repository=project.get("repo", ""),
+                project_name=project.get("name")
+            )
+            
+        print(f"\n🤖 AI is estimating metrics for Issue #{issue.number}...")
+        metrics = apply_heuristic_defaults(metrics)
+        save_issue_metrics(project["path"], metrics)
+        print(f"   ✅ Estimated: {metrics.estimate_points} points, {metrics.estimated_mandays} mandays, {metrics.effort_level} effort.")
 
 
 def action_guided_workflow(state: LumaState, project: dict):
@@ -2924,14 +2924,18 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     # 1.5. Metrics Check
     from luma_core.issue_metrics import get_issue_metrics
-    issue = state.active_issues[0]
-    metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
+    issues_missing_metrics = []
     
-    has_metrics = metrics is not None and metrics.estimate_points is not None
-    if not has_metrics:
+    for issue in state.active_issues:
+        metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
+        has_metrics = metrics is not None and metrics.estimate_points is not None
+        if not has_metrics:
+            issues_missing_metrics.append(issue)
+            
+    if issues_missing_metrics:
         ans = input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (y/n): ").strip().lower()
         if ans == 'y':
-            auto_fill_issue_metrics(state, project)
+            auto_fill_issue_metrics(state, project, issues_missing_metrics)
 
 
     # 2. Planning (Refine -> Spec -> Plan)
