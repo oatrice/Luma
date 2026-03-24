@@ -199,7 +199,7 @@ def reviewer_agent(state: AgentState):
         target_files = list(changes.keys())
         print(f"🧐 Reviewing code for: {target_files}...")
     else:
-        print(f"🧐 Reviewing code for: New Generated Code...")
+        print("🧐 Reviewing code for: New Generated Code...")
     
     # Initialize LLM based on Provider
     llm = get_llm(temperature=0, purpose="code")
@@ -425,7 +425,7 @@ def docs_agent(state: AgentState):
                      res = subprocess.run(cmd_diff, cwd=TARGET_DIR, capture_output=True, text=True)
                      
                      if res.returncode != 0:
-                         print(f"   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
+                         print("   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
                          res = subprocess.run(["git", "diff", "--name-only", "main...HEAD"], cwd=TARGET_DIR, capture_output=True, text=True)
                      
                      diff_files = res.stdout.splitlines()
@@ -1394,7 +1394,7 @@ if __name__ == "__main__":
                          if res_commits.returncode == 0:
                              files.update([f.strip() for f in res_commits.stdout.split('\n') if f.strip()])
                          else:
-                             print(f"   ⚠️ Could not diff against origin/main (using local only).")
+                             print("   ⚠️ Could not diff against origin/main (using local only).")
 
                          # 2. Local Dirty (Staged + Unstaged)
                          cmd_dirty = ["git", "diff", "--name-only", "--relative", "HEAD"]

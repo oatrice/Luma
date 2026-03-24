@@ -29,7 +29,6 @@ def tester_agent(state: AgentState):
         
     print(f"🧪 Testing {len(files_to_test)} files...")
     
-    errors = ""
     
     for filename in files_to_test:
         # Heuristic for command
@@ -75,7 +74,7 @@ def tester_agent(state: AgentState):
                 # So the original Tester was effectively a Dummy or assumed the file was written manually?
                 # Ah, let's look at `tester_agent` in `main.py` again.
                 pass
-            except Exception as e:
+            except Exception:
                 pass
                 
     # Since we can't easily test unwritten files without a complex sandbox, 

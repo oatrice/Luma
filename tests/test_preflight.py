@@ -61,7 +61,7 @@ class TestPreflightChecker:
         rule = next(r for r in checker.rules if r["type"] == "file_exists")
         result = checker.run_single_check(rule)
         
-        assert result.passed == True
+        assert result.passed
         assert result.check_id == "check_readme"
 
     def test_check_file_exists_fail(self, mock_project):
@@ -72,7 +72,7 @@ class TestPreflightChecker:
         rule = next(r for r in checker.rules if r["type"] == "file_exists")
         result = checker.run_single_check(rule)
         
-        assert result.passed == False
+        assert not result.passed
         assert "Readme missing" in result.message
 
     @patch("subprocess.run")
@@ -91,7 +91,7 @@ class TestPreflightChecker:
         }
         
         result = checker.run_single_check(rule)
-        assert result.passed == True
+        assert result.passed
 
     @patch("subprocess.run")
     def test_check_command_fail(self, mock_run, mock_project):
@@ -109,7 +109,7 @@ class TestPreflightChecker:
         }
         
         result = checker.run_single_check(rule)
-        assert result.passed == False
+        assert not result.passed
 
     def test_run_all_checks(self, mock_project):
         """Test running all checks returns list of results"""
@@ -134,12 +134,12 @@ class TestPreflightChecker:
             # Mock git diff returning changes
             mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
             result = checker.run_single_check(rule)
-            assert result.passed == True
+            assert result.passed
             
             # Mock git diff returning no changes
             mock_run.return_value = MagicMock(returncode=0, stdout="")
             result = checker.run_single_check(rule)
-            assert result.passed == False
+            assert not result.passed
 
     def test_check_version_updated(self, mock_project):
         """Test version update check"""
@@ -150,12 +150,12 @@ class TestPreflightChecker:
             # Mock git diff showing version change
             mock_run.return_value = MagicMock(returncode=0, stdout='+ "version": "1.0.1"\n- "version": "1.0.0"')
             result = checker.run_single_check(rule)
-            assert result.passed == True
+            assert result.passed
             
             # Mock git diff showing other changes but no version
             mock_run.return_value = MagicMock(returncode=0, stdout='+ "name": "New Name"')
             result = checker.run_single_check(rule)
-            assert result.passed == False
+            assert not result.passed
 
     def test_check_version_updated_false_positives(self, mock_project):
         """Test strictness of version update check (avoid false positives)"""
@@ -166,9 +166,9 @@ class TestPreflightChecker:
             # Case 1: Comment containing 'version'
             mock_run.return_value = MagicMock(returncode=0, stdout='+ // TODO: bump version later')
             result = checker.run_single_check(rule)
-            assert result.passed == False, "Do not match comments"
+            assert not result.passed, "Do not match comments"
 
             # Case 2: Other text containing 'version' substring
             mock_run.return_value = MagicMock(returncode=0, stdout='+ "conversion_rate": 1.0')
             result = checker.run_single_check(rule)
-            assert result.passed == False, "Do not match partial words like conversion"
+            assert not result.passed, "Do not match partial words like conversion"

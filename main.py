@@ -78,7 +78,7 @@ def load_global_config():
         try:
             with open(GLOBAL_CONFIG_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except Exception:
             pass
     return {"last_project": "1"}
 
@@ -382,7 +382,7 @@ def main():
                             elif pr_state in ["OPEN", "MERGED"] and state.phase == WorkflowPhase.PR_PENDING and not state.pr_url:
                                 state.pr_url = pr_url
                                 save_state(state, project["path"])
-                except Exception as e:
+                except Exception:
                     pass
             # -----------------------------------
             

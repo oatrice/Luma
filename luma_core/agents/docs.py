@@ -41,7 +41,7 @@ def docs_agent(state: AgentState):
                     res = subprocess.run(cmd_diff, cwd=TARGET_DIR, capture_output=True, text=True)
                     
                     if res.returncode != 0:
-                        print(f"   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
+                        print("   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
                         res = subprocess.run(["git", "diff", "--name-only", "main...HEAD"], cwd=TARGET_DIR, capture_output=True, text=True)
                     
                     diff_files = res.stdout.splitlines()
@@ -82,7 +82,7 @@ def docs_agent(state: AgentState):
             try:
                 pkg_json = json.loads(pkg_content)
                 current_version = pkg_json.get("version", "0.0.0")
-            except:
+            except Exception:
                 pass
     
     # Read CHANGELOG.md
@@ -105,7 +105,7 @@ def docs_agent(state: AgentState):
         else:
             patch += 1
         new_version = f"{major}.{minor}.{patch}"
-    except:
+    except Exception:
         new_version = current_version
         
     print(f"   🆙 Bump Version: {current_version} -> {new_version} ({bump_type})")

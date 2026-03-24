@@ -20,7 +20,8 @@ def get_headers():
 def run_query(label, query, variables=None):
     url = "https://api.github.com/graphql"
     headers = get_headers()
-    if not headers: return False
+    if not headers:
+        return False
 
     print(f"🔍 Testing {label}...")
     try:

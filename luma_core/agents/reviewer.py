@@ -19,7 +19,7 @@ def reviewer_agent(state: AgentState):
         target_files = list(changes.keys())
         print(f"🧐 Reviewing code for: {target_files}...")
     else:
-        print(f"🧐 Reviewing code for: New Generated Code...")
+        print("🧐 Reviewing code for: New Generated Code...")
     
     # Initialize LLM based on Provider
     llm = get_llm(temperature=0, purpose="code")
@@ -68,12 +68,12 @@ def reviewer_agent(state: AgentState):
     advice = ""
     try:
         print("🧪 Reviewer: Analyzing for missing tests...")
-        advice_prompt = f"""
+        advice_prompt = """
         Analyze the code changes below and write a "Manual Verification Guide" for the developer to perform local testing.
         Think about how to physically test these changes step-by-step (e.g., clicking UI, sending text in chat, running curl).
         
         Code:
-        {{json.dumps(changes, indent=2, ensure_ascii=False)[:3000]}}
+        {json.dumps(changes, indent=2, ensure_ascii=False)[:3000]}
         
         Output format should be clear and actionable:
         - Step 1: ...

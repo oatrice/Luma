@@ -112,7 +112,7 @@ class PreflightChecker:
         check_id = rule.get("id", "unknown")
         name = rule.get("name", check_id)
         path = rule.get("path", "")
-        required = rule.get("required", False)
+        rule.get("required", False)
         message = rule.get("message", "Check failed")
         
         passed = False

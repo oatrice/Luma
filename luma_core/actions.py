@@ -40,7 +40,6 @@ from luma_core.tools import (
     get_git_changed_files,
     update_multi_repo_docs,
 )
-from luma_core import usage_tracker
 
 # =============================================================================
 # Menu Actions
@@ -166,7 +165,7 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
             item_id="dummy_item_id",
             repository="oatrice/Luma",
         )
-        return _start_issue(state, dummy_card, project)
+        return _start_issues(state, [dummy_card], project)
 
     # Fetch all cards
     all_cards = fetch_kanban_cards(project["kanban_number"])
@@ -205,7 +204,7 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
                 return False
         if selected_cards:
             return _start_issues(state, selected_cards, project)
-    except ValueError as e:
+    except ValueError:
         import traceback
 
         traceback.print_exc()
@@ -258,7 +257,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
 
-                print(f"🔄 Syncing sibling repos...")
+                print("🔄 Syncing sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -380,7 +379,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         import subprocess
 
         try:
-            print(f"🔄 Creating git branch...")
+            print("🔄 Creating git branch...")
             result = subprocess.run(
                 ["git", "checkout", "-b", branch_name],
                 cwd=project["path"],
@@ -405,7 +404,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
 
-                print(f"\n🔄 Creating branches in sibling repos...")
+                print("\n🔄 Creating branches in sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -872,11 +871,11 @@ def action_test_telegram_notification(state: LumaState, project: dict):
     )
     
     if result:
-        print(f"\n✅ Notification sent successfully!")
+        print("\n✅ Notification sent successfully!")
     else:
-        print(f"\n❌ Failed to send notification (Check AKASA_CHAT_ID or backend config).")
+        print("\n❌ Failed to send notification (Check AKASA_CHAT_ID or backend config).")
     
-    input(f"\nPress Enter to return to menu...")
+    input("\nPress Enter to return to menu...")
 
 
 def action_view_dashboard(state: LumaState, project: dict):
@@ -1003,7 +1002,7 @@ def action_generate_project_report(state: LumaState, project: dict):
 
     custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
     
-    print(f"\n🔄 Syncing metrics from ROADMAP...")
+    print("\n🔄 Syncing metrics from ROADMAP...")
     prefill_result = prefill_metrics_from_roadmap(
         project["path"],
         project.get("name"),
@@ -1296,7 +1295,6 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                 pass
 
     # --- SCREENSHOT LOGIC ---
-    screenshot_md = ""
     feature_dir = state.context.get("last_feature_dir")
     screenshots_to_sync = []
     
@@ -1527,7 +1525,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                 if ok:
                     print("   🔄 State updated to PR_PENDING")
         else:
-            print(f"   ⚠️ Publisher finished but no known PR URL.")
+            print("   ⚠️ Publisher finished but no known PR URL.")
 
     if created_prs:
         print("\n📋 PR Summary:")
@@ -1568,7 +1566,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 
                 if confirm == "n":
                     # Show session picker
-                    print(f"\n   📋 Available Antigravity Sessions:")
+                    print("\n   📋 Available Antigravity Sessions:")
                     display_limit = min(8, len(sessions))
                     for i, s in enumerate(sessions[:display_limit]):
                         print(
@@ -1638,7 +1636,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 
                 if confirm == "n":
                     # Show session picker
-                    print(f"\n   📋 Available Gemini CLI Sessions:")
+                    print("\n   📋 Available Gemini CLI Sessions:")
                     display_limit = min(8, len(gemini_sessions))
                     for i, s in enumerate(gemini_sessions[:display_limit]):
                         print(
@@ -1687,7 +1685,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
         for doc in all_synced_docs:
             print(f"  - {doc}")
         print(
-            f"💡 The files have been copied to the project. You can review and commit them manually."
+            "💡 The files have been copied to the project. You can review and commit them manually."
         )
         return True
     else:
@@ -1697,7 +1695,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 
 def action_code_review(state: LumaState, project: dict):
     """Run local code review agent"""
-    print(f"\n🧐 Local Code Reviewer")
+    print("\n🧐 Local Code Reviewer")
 
     # Determine target repos (Multi-Repo Support)
     potential_projects = [project]
@@ -1784,7 +1782,7 @@ def action_code_review(state: LumaState, project: dict):
                                 # 3. Fallback to reading the full file if it's untracked or we can't get diff
                                 with open(full_path, "r", encoding="utf-8") as f:
                                     changes[rel_path] = f.read()
-                    except:
+                    except Exception:
                         pass
 
             if not changes:
@@ -2176,11 +2174,11 @@ def action_settings():
     current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
 
     while True:
-        print(f"\nCurrent Configuration:")
+        print("\nCurrent Configuration:")
         print(f"  [1] LLM Provider:      {current_llm}")
         print(f"  [2] Agent CLI:         {current_cli}")
         print(f"  [3] Gemini CLI Model:  {current_model}")
-        print(f"  [4] 🔙 Back")
+        print("  [4] 🔙 Back")
 
         choice = input("\nSelect setting to change [1-4]: ").strip()
 
@@ -2298,7 +2296,7 @@ def action_generate_sbe(state: LumaState, project: dict):
     result = sbe_agent(sbe_state)
 
     if result.get("sbe_file"):
-        print(f"\n✨ SBE Specification created!")
+        print("\n✨ SBE Specification created!")
         print(f"   📁 File: {result['sbe_file']}")
 
         # Preview first few lines
@@ -2312,7 +2310,7 @@ def action_generate_sbe(state: LumaState, project: dict):
                 if len(lines) >= 15:
                     print("...")
                 print("-" * 50)
-        except:
+        except Exception:
             pass
     else:
         print("\n⚠️ SBE generation failed or produced no output.")
@@ -2334,7 +2332,7 @@ def action_generate_draft(state: LumaState, project: dict):
         try:
             subprocess.run(["code", output_path], capture_output=True)
             print("   📂 Opened in VS Code")
-        except:
+        except Exception:
             pass
 
     except Exception as e:
@@ -2388,10 +2386,10 @@ def action_generate_spec(state: LumaState, project: dict):
         print(f"   📂 Feature Directory: {result['feature_dir']}")
 
         # Determine relative path for display
-        rel_path = os.path.relpath(result["feature_dir"], project["path"])
+        os.path.relpath(result["feature_dir"], project["path"])
         # Store in state for Plan Agent to use immediately
         state.context["last_feature_dir"] = result["feature_dir"]
-        print(f"   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
+        print("   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
 
     # Chain SBE Generation
     # Chain SBE Generation
@@ -2436,7 +2434,7 @@ def action_generate_plan(state: LumaState, project: dict):
                 feature_dir = os.path.join(features_root, dirs[idx])
             else:
                 return
-        except:
+        except Exception:
             return
 
     # Enable Architect Agent
@@ -3115,11 +3113,10 @@ def action_guided_workflow(state: LumaState, project: dict):
     print("   - Use your IDE to implement the feature.")
     print("   - Run 'Luma' > 'Code Review' periodically.")
 
-    rel_feat_dir = "docs/features/..."
     if feature_dir:
         try:
-            rel_feat_dir = os.path.relpath(feature_dir, project.get("path", "."))
-        except:
+            os.path.relpath(feature_dir, project.get("path", "."))
+        except Exception:
             pass
 
     cont = input(
@@ -3159,7 +3156,6 @@ def action_guided_workflow(state: LumaState, project: dict):
     print("\n🔹 Step 6: Create Pull Request")
 
     # Check for "Yes to All" preference
-    auto_approve_pr = False
     choice = (
         input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
         .strip()
@@ -3393,7 +3389,7 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
                         with open(doc_path, "r", encoding="utf-8") as f:
                             content = f.read()
                             artifact_context += f"\n\n## Reference: {doc}\n{content[:5000]}\n(truncated if too long)\n"
-                    except:
+                    except Exception:
                         pass
         else:
             print("   ⚠️ No feature directory found. Using generic context.")

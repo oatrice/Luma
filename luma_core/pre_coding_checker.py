@@ -98,7 +98,7 @@ def check_feature_docs(project_path: str) -> Dict:
                     # Check for planning markers  
                     planning_markers = ["task", "estimation", "breakdown", "definition of done", "dod"]
                     results["has_planning"] = any(m in content for m in planning_markers)
-            except:
+            except Exception:
                 pass
     
     return results
@@ -148,7 +148,7 @@ def check_git_status(project_path: str) -> Dict:
             )
             try:
                 results["commits_ahead"] = int(res.stdout.strip())
-            except:
+            except Exception:
                 pass
                 
     except Exception as e:
@@ -177,7 +177,7 @@ def check_issue_status(project_path: str, repo_slug: str) -> Dict:
                 results["has_active_issue"] = True
                 results["issue_number"] = data.get("number")
                 results["issue_title"] = data.get("title")
-        except:
+        except Exception:
             pass
     
     return results
@@ -362,11 +362,11 @@ def interactive_checklist(project_path: str, project_name: str, repo_slug: str =
         status = input(f"   [{i}] {name}\n       {description}\n       ✅ Done? (y/N/skip): ").strip().lower()
         if status == "y":
             completed.append(key)
-            print(f"       ✅ Marked as done\n")
+            print("       ✅ Marked as done\n")
         elif status == "skip":
-            print(f"       ⏩ Skipped\n")
+            print("       ⏩ Skipped\n")
         else:
-            print(f"       ⬜ Not yet\n")
+            print("       ⬜ Not yet\n")
     
     # Summary
     print("\n📊 Summary:")
@@ -397,7 +397,7 @@ def create_feature_doc(project_path: str):
             try:
                 num = int(basename.split("_")[0])
                 numbers.append(num)
-            except:
+            except Exception:
                 pass
     
     next_num = max(numbers) + 1 if numbers else 1
