@@ -2881,6 +2881,32 @@ def check_planning_artifacts(feature_dir: str) -> dict:
     return status
 
 
+def auto_fill_issue_metrics(state: LumaState, project: dict):
+    """Auto-fill missing metrics using AI / heuristics for the active issue."""
+    from luma_core.issue_metrics import get_issue_metrics, save_issue_metrics, apply_heuristic_defaults, IssueMetricsRecord, issue_key_for
+    
+    if not state.active_issue:
+        return
+        
+    issue = state.active_issues[0]
+    metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
+    
+    if not metrics:
+        metrics = IssueMetricsRecord(
+            issue_key=issue_key_for(project.get("repo", ""), issue.number),
+            issue_number=issue.number,
+            issue_title=issue.title,
+            issue_url=issue.url if hasattr(issue, 'url') else "",
+            repository=project.get("repo", ""),
+            project_name=project.get("name")
+        )
+        
+    print(f"\n🤖 AI is estimating metrics for Issue #{issue.number}...")
+    metrics = apply_heuristic_defaults(metrics)
+    save_issue_metrics(project["path"], metrics)
+    print(f"   ✅ Estimated: {metrics.estimate_points} points, {metrics.estimated_mandays} mandays, {metrics.effort_level} effort.")
+
+
 def action_guided_workflow(state: LumaState, project: dict):
     """Run a guided end-to-end feature workflow"""
     print("\n⚡ Starting Guided Feature Workflow")
@@ -2895,6 +2921,18 @@ def action_guided_workflow(state: LumaState, project: dict):
     else:
         combined_number = "-".join([str(i.number) for i in state.active_issues])
         print(f"\n🔹 Step 1: Issue #{combined_number} already selected.")
+
+    # 1.5. Metrics Check
+    from luma_core.issue_metrics import get_issue_metrics
+    issue = state.active_issues[0]
+    metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
+    
+    has_metrics = metrics is not None and metrics.estimate_points is not None
+    if not has_metrics:
+        ans = input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (y/n): ").strip().lower()
+        if ans == 'y':
+            auto_fill_issue_metrics(state, project)
+
 
     # 2. Planning (Refine -> Spec -> Plan)
     print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
