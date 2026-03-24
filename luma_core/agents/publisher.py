@@ -28,7 +28,7 @@ def publisher_agent(state: AgentState):
     try:
         res = subprocess.run(["git", "branch", "--show-current"], cwd=target_dir, capture_output=True, text=True)
         current_branch = res.stdout.strip()
-    except:
+    except Exception:
         current_branch = ""
     
     # Determine which branch to use
@@ -69,7 +69,7 @@ def publisher_agent(state: AgentState):
     git_stats = ""
     
     if os.path.exists(draft_review_path):
-        print(f"📋 Found draft_code_review.md - using for PR context...")
+        print("📋 Found draft_code_review.md - using for PR context...")
         try:
             with open(draft_review_path, 'r', encoding='utf-8') as f:
                 git_stats = f.read()
@@ -170,7 +170,7 @@ def publisher_agent(state: AgentState):
             if not os.path.exists(screenshots_dir):
                  try:
                      os.makedirs(screenshots_dir, exist_ok=True)
-                 except: pass
+                 except Exception: pass
             
             # Check for files
             def get_images():
@@ -222,7 +222,7 @@ INSTRUCTIONS:
     # D. Save Draft & Wait for Approval
     draft_path = os.path.join(target_dir, "draft_pr_prompt.md")
     with open(draft_path, "w") as f:
-        f.write(f"# PR Draft Prompt\n\n")
+        f.write("# PR Draft Prompt\n\n")
         f.write(prompt)
         
     print(f"\n📝 Draft Prompt saved to: {draft_path}")
@@ -352,7 +352,7 @@ INSTRUCTIONS:
                 with open(manual_body_path, "w") as f:
                     f.write(f"# {state['task']}\n\n<!-- Paste your generated PR description here -->\n")
                 print(f"⚠️ File not found. Created template at: {manual_body_path}")
-                print(f"👉 Please edit the file and select 'm' again.")
+                print("👉 Please edit the file and select 'm' again.")
                 choice = ''
                 continue
                 

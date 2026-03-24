@@ -320,7 +320,7 @@ def format_state_header(state: LumaState) -> str:
                 lines.append(f"⏱️ Time: {hours}h {mins}m ago")
             else:
                 lines.append(f"⏱️ Time: {mins}m ago")
-        except:
+        except Exception:
             pass
     
     return "\n".join(lines)

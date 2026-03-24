@@ -100,7 +100,7 @@ def main():
     parser = argparse.ArgumentParser(description="Luma AI Architect")
     parser.add_argument("--github", action="store_true", help="Fetch task from GitHub Issues")
     parser.add_argument("--repo", type=str, default="oatrice/Tetris-Battle", help="GitHub Repository (user/repo)")
-    args = parser.parse_args()
+    parser.parse_args()
 
     # Build the Agent Graph
     app = build_graph()
@@ -141,7 +141,7 @@ def main():
         print(f"🔗 Repo: {current_repo_slug}")
         print("-" * 30)
         
-        print(f"1. 📥 Select Next Issue (Start Coding)")
+        print("1. 📥 Select Next Issue (Start Coding)")
         print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
         print("2a. 🚀 Create Multi-Repo PR (JarWise)")
         print("3. 🧐 Code Review (Local)")

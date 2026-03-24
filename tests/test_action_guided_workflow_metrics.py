@@ -58,7 +58,7 @@ def test_guided_workflow_asks_for_metrics_auto_fill(
 
     action_guided_workflow(state, single_project)
 
-    captured = capsys.readouterr()
+    capsys.readouterr()
     
     # Assert input was called for metrics
     input_prompts = [call.args[0] for call in mock_input.call_args_list if call.args]

@@ -39,7 +39,7 @@ Example:
 
 messages = [SystemMessage(content=system_prompt), HumanMessage(content=task)]
 
-print(f"📡 Sending Prompt to gemini-2.5-flash...")
+print("📡 Sending Prompt to gemini-2.5-flash...")
 try:
     response = llm.invoke(messages)
     print("\n--- RESPONSE ---")

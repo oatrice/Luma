@@ -39,7 +39,7 @@ class TestSaveLoad:
     def test_save_creates_file(self, tmp_path):
         state = LumaState(project_key="test")
         result = save_state(state, str(tmp_path))
-        assert result == True
+        assert result
         assert (tmp_path / ".luma_state.json").exists()
     
     def test_load_nonexistent_returns_default(self, tmp_path):
@@ -85,19 +85,19 @@ class TestTransitions:
     def test_valid_idle_to_selecting(self):
         state = LumaState()
         ok, msg = transition_to(state, WorkflowPhase.SELECTING)
-        assert ok == True
+        assert ok
         assert state.phase == WorkflowPhase.SELECTING
     
     def test_invalid_idle_to_coding(self):
         state = LumaState()
         ok, msg = transition_to(state, WorkflowPhase.CODING)
-        assert ok == False
+        assert not ok
         assert "Cannot transition" in msg
     
     def test_selecting_to_coding_requires_data(self):
         state = LumaState(phase=WorkflowPhase.SELECTING)
         ok, msg = transition_to(state, WorkflowPhase.CODING)
-        assert ok == False
+        assert not ok
         assert "Missing required" in msg
     
     def test_selecting_to_coding_with_data(self):
@@ -111,7 +111,7 @@ class TestTransitions:
             active_branch="feat/1"
         )
         
-        assert ok == True
+        assert ok
         assert state.phase == WorkflowPhase.CODING
         assert state.active_issue.number == 1
         assert state.started_at is not None
@@ -127,30 +127,30 @@ class TestTransitions:
         
         ok, msg = transition_to(state, WorkflowPhase.IDLE)
         
-        assert ok == True
+        assert ok
         assert state.active_issue is None
         assert state.active_branch is None
         assert state.pr_url is None
     
     def test_can_transition_helper(self):
-        assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.SELECTING) == True
-        assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.CODING) == False
-        assert can_transition(WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT) == True
+        assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.SELECTING)
+        assert not can_transition(WorkflowPhase.IDLE, WorkflowPhase.CODING)
+        assert can_transition(WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT)
         # Failing tests for new REVIEWING phase
-        assert can_transition(WorkflowPhase.CODING, WorkflowPhase.REVIEWING) == True
-        assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT) == True
-        assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.CODING) == True
+        assert can_transition(WorkflowPhase.CODING, WorkflowPhase.REVIEWING)
+        assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT)
+        assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.CODING)
 
     def test_coding_to_reviewing(self):
         state = LumaState(phase=WorkflowPhase.CODING)
         ok, msg = transition_to(state, WorkflowPhase.REVIEWING)
-        assert ok == True
+        assert ok
         assert state.phase == WorkflowPhase.REVIEWING
 
     def test_reviewing_to_preflight(self):
         state = LumaState(phase=WorkflowPhase.REVIEWING)
         ok, msg = transition_to(state, WorkflowPhase.PREFLIGHT)
-        assert ok == True
+        assert ok
         assert state.phase == WorkflowPhase.PREFLIGHT
 
 
