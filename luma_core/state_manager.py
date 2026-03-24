@@ -18,6 +18,7 @@ class WorkflowPhase(Enum):
     IDLE = "idle"
     SELECTING = "selecting"
     CODING = "coding"
+    REVIEWING = "reviewing"
     PREFLIGHT = "preflight"
     PR_PENDING = "pr_pending"
 
@@ -67,7 +68,8 @@ class LumaState:
 VALID_TRANSITIONS = {
     WorkflowPhase.IDLE: [WorkflowPhase.SELECTING],
     WorkflowPhase.SELECTING: [WorkflowPhase.IDLE, WorkflowPhase.CODING],
-    WorkflowPhase.CODING: [WorkflowPhase.IDLE, WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],  # Allow switching issues while coding
+    WorkflowPhase.CODING: [WorkflowPhase.IDLE, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],  # Allow switching issues while coding
+    WorkflowPhase.REVIEWING: [WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],
     WorkflowPhase.PREFLIGHT: [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING, WorkflowPhase.PREFLIGHT],
     WorkflowPhase.PR_PENDING: [WorkflowPhase.IDLE, WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT], # Allow re-checks
 }
@@ -279,6 +281,7 @@ PHASE_DISPLAY = {
     WorkflowPhase.IDLE: ("⚪", "Idle", "No active task"),
     WorkflowPhase.SELECTING: ("🔍", "Selecting", "Choosing an issue"),
     WorkflowPhase.CODING: ("💻", "Coding", "Development in progress"),
+    WorkflowPhase.REVIEWING: ("👀", "Reviewing", "AI Code Review in progress"),
     WorkflowPhase.PREFLIGHT: ("✅", "Pre-flight", "Running checks"),
     WorkflowPhase.PR_PENDING: ("🚀", "PR Pending", "Waiting for merge"),
 }
@@ -328,7 +331,8 @@ def get_next_step_recommendation(state: LumaState) -> str:
     recommendations = {
         WorkflowPhase.IDLE: "📥 Select an issue from GitHub Kanban to start",
         WorkflowPhase.SELECTING: "🎯 Choose an issue and confirm to start coding",
-        WorkflowPhase.CODING: "💻 Continue development, then run Pre-flight check",
+        WorkflowPhase.CODING: "💻 Continue development, then run AI Code Review",
+        WorkflowPhase.REVIEWING: "👀 Reviewing AI changes, proceed to Pre-flight if tests pass",
         WorkflowPhase.PREFLIGHT: "✅ Fix any issues, then create Pull Request",
         WorkflowPhase.PR_PENDING: "⏳ Wait for PR review and merge",
     }
