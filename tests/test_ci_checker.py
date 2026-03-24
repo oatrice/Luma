@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import json
 from unittest.mock import patch, MagicMock
-from luma_core.ci_checker import check_pr_ci_status, get_ci_failure_logs
+from luma_core.ci_checker import check_pr_ci_status, get_ci_failure_logs, monitor_ci_background
 
 @patch("subprocess.run")
 def test_check_pr_ci_status_all_passed(mock_run):
@@ -61,3 +61,39 @@ def test_get_ci_failure_logs(mock_run):
     assert "Error details..." in logs
     assert len(logs) <= 3000
     assert "...[truncated by luma]..." in logs
+
+@patch("luma_core.ci_checker.notify_task_complete")
+@patch("luma_core.ci_checker.check_pr_ci_status")
+@patch("time.sleep", return_value=None)
+def test_monitor_ci_background_success(mock_sleep, mock_check, mock_notify):
+    mock_check.side_effect = [
+        {"all_passed": False, "failed_checks": []},
+        {"all_passed": True, "failed_checks": []}
+    ]
+    monitor_ci_background("123", "org/repo", "Luma", "https://github.com/org/repo/pull/123", max_polls=3, poll_interval_sec=1)
+    
+    mock_notify.assert_called_once_with(
+        project="Luma",
+        task="CI Check for PR #123",
+        status="success",
+        link="https://github.com/org/repo/pull/123"
+    )
+
+@patch("luma_core.ci_checker.get_ci_failure_logs")
+@patch("luma_core.ci_checker.notify_task_complete")
+@patch("luma_core.ci_checker.check_pr_ci_status")
+@patch("time.sleep", return_value=None)
+def test_monitor_ci_background_failure(mock_sleep, mock_check, mock_notify, mock_get_logs):
+    mock_check.return_value = {
+        "all_passed": False,
+        "failed_checks": [{"name": "test-job", "conclusion": "FAILURE"}]
+    }
+    mock_get_logs.return_value = "Detailed error log"
+    
+    monitor_ci_background("123", "org/repo", "Luma", "https://github.com/org/repo/pull/123", max_polls=3, poll_interval_sec=1)
+    
+    mock_notify.assert_called_once()
+    args, kwargs = mock_notify.call_args
+    assert kwargs["status"] == "failure"
+    assert "test-job" in kwargs["message"]
+    assert "Detailed error log" in kwargs["message"]

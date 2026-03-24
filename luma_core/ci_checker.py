@@ -1,5 +1,8 @@
 import subprocess
 import json
+import time
+
+from luma_core.notifier import notify_task_complete
 
 def check_pr_ci_status(pr_number: str, repo: str) -> dict:
     cmd = ["gh", "pr", "checks", str(pr_number), "--repo", repo, "--json", "name,state,conclusion"]
@@ -62,3 +65,52 @@ def get_ci_failure_logs(pr_number: str, repo: str, check_name: str, max_length: 
         out = "..." + out[-allowed_len:] + trunc_msg
         
     return out
+
+def monitor_ci_background(pr_number: str, repo: str, project_name: str, pr_url: str, max_polls: int = 20, poll_interval_sec: int = 30):
+    for attempt in range(1, max_polls + 1):
+        status = check_pr_ci_status(pr_number, repo)
+        if status["all_passed"]:
+            notify_task_complete(
+                project=project_name,
+                task=f"CI Check for PR #{pr_number}",
+                status="success",
+                link=pr_url
+            )
+            return
+        elif len(status["failed_checks"]) > 0:
+            first_fail = status["failed_checks"][0].get("name", "Unknown")
+            fail_log = get_ci_failure_logs(pr_number, repo, first_fail)
+            
+            ai_context = f"The CI check `{first_fail}` failed for my PR on {repo}.\nHere is the log:\n```\n{fail_log}\n```\nHow should I fix this?"
+            
+            notify_task_complete(
+                project=project_name,
+                task=f"CI Check for PR #{pr_number} ({first_fail})",
+                status="failure",
+                message=ai_context,
+                link=pr_url
+            )
+            return
+            
+        time.sleep(poll_interval_sec)
+        
+    # Timeout
+    notify_task_complete(
+        project=project_name,
+        task=f"CI Check for PR #{pr_number}",
+        status="failure",
+        message="CI check timed out after maximum polls.",
+        link=pr_url
+    )
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Monitor CI status in background")
+    parser.add_argument("pr_number", help="PR Number")
+    parser.add_argument("repo", help="Repository (e.g. org/repo)")
+    parser.add_argument("project_name", help="Project name for notification")
+    parser.add_argument("pr_url", help="PR URL for notification")
+    
+    args = parser.parse_args()
+    
+    monitor_ci_background(args.pr_number, args.repo, args.project_name, args.pr_url)
