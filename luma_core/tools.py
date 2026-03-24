@@ -723,7 +723,7 @@ def get_git_changed_files(mode: str = "all", target_dir: str = DEFAULT_TARGET_DI
 # --- Multi-Repo PR Functions ---
 
 # GitHub Integration
-from .github_client import get_open_pr, create_pull_request, update_pull_request
+from .github_client import get_open_pr, create_pull_request, update_pull_request  # noqa: E402
 
 
 def check_branch_sync(repo_configs: list) -> tuple:

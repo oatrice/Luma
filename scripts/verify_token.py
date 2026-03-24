@@ -32,7 +32,7 @@ def run_query(label, query, variables=None):
                 print(f"   ❌ Failed: {data['errors'][0]['message']}")
                 return False
             else:
-                print(f"   ✅ Success")
+                print("   ✅ Success")
                 return True
         else:
             print(f"   ❌ HTTP Error {response.status_code}: {response.text}")

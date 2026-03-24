@@ -5,3 +5,4 @@ langchain-core
 langgraph
 google-generativeai
 simple-term-menu
+jsonschema
