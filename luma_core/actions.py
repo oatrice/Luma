@@ -2969,8 +2969,16 @@ def action_guided_workflow(state: LumaState, project: dict):
             if new_targets:
                 target_planning_repos = new_targets
 
-    for planning_proj in target_planning_repos:
+    # Save target planning repos to context so AI agents can use it to build context
+    state.context["target_planning_repos"] = target_planning_repos
+    
+    # We only run the actual document generation in the root project
+    planning_proj = project
+    
+    if True:  # Changed from loop to run once
         if len(target_planning_repos) > 1:
+            print(f"\n   ────────────── Planning for {planning_proj['name']} (including {len(target_planning_repos)-1} siblings) ──────────────")
+        else:
             print(f"\n   ────────────── Planning for {planning_proj['name']} ──────────────")
 
         # Check for existing artifacts
