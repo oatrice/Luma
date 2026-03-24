@@ -2386,10 +2386,12 @@ def action_generate_spec(state: LumaState, project: dict):
         print(f"   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
 
     # Chain SBE Generation
-    print("\n------------------------------------------------")
     # Chain SBE Generation
     print("\n------------------------------------------------")
     print("📋 Auto-generating Specification by Example (SBE)...")
+    from luma_core import usage_tracker
+    if usage_tracker.get_current_sub_action() == "Auto:Planning/Spec":
+        usage_tracker.set_sub_action("Auto:Planning/SBE")
     action_generate_sbe(state, project)
 
 
@@ -3018,7 +3020,7 @@ def action_guided_workflow(state: LumaState, project: dict):
                 should_run_spec = True
 
             if should_run_spec:
-                usage_tracker.set_sub_action("Auto:Planning/Spec+SBE")
+                usage_tracker.set_sub_action("Auto:Planning/Spec")
                 action_generate_spec(state, planning_proj)
                 # Update feature dir
                 if state.context.get("last_feature_dir"):
