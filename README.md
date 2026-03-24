@@ -14,23 +14,35 @@ flowchart TB
         SM[State Manager]
         GP[GitHub Project Sync]
         PC[Pre-flight Checker]
+        CIC[CI Checker]
+        PCTX[Project Context]
         UI["Terminal UI (ui.py)"]
         ACT["Actions Logic (actions.py)"]
     end
     
+    subgraph Agents["LLM Agents"]
+        Analyst
+        Coder
+        Reviewer
+    end
+
     SM <--> LS[.luma_state.json]
     GP <--> GH[GitHub API / gh CLI]
-    PC --> DR[Docs/Rules Files]
+    PC --> CIC
+    PCTX --> Agents
     ACT --> SM
     UI --> ACT
+    Agents --> ACT
 ```
 
 ### Core Components:
 - **State Manager:** Tracks project status (Idle, Coding, PR Pending) via `.luma_state.json`.
 - **GitHub Project Sync:** Deep integration with GitHub Projects (Kanban).
 - **Pre-flight Checker:** Enforces definition of done (Tests, Lint, etc.) before PR.
-- **SBE Generator:** AI-powered Specification by Example for pre-coding phase. 🆕
-- **Smart Fallback:** Error Classification, Rate Limit circumvention, and specific per-model timeouts. 🆕
+- **CI Checker:** Runs CI checks (linting, testing) as a background process. 🆕
+- **Project Context:** Provides LLM agents with context from across multiple specified repositories. 🆕
+- **SBE Generator:** AI-powered Specification by Example for pre-coding phase.
+- **Smart Fallback:** Error Classification, Rate Limit circumvention, and specific per-model timeouts.
 - **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions.py`, `config.py`).
 
 ---
@@ -64,20 +76,22 @@ Luma/
 ├── luma_core/
 │   ├── actions.py           # Business logic for menu actions
 │   ├── config.py            # Centralized configuration (supports deep merging)
-│   ├── sbe.py               # [NEW] SBE core module
+│   ├── sbe.py               # SBE core module
 │   ├── ui.py                # UI & Display logic
 │   ├── state_manager.py     # State management
 │   ├── github_project.py    # GitHub Sync
 │   ├── preflight_checker.py # Validation
-│   ├── error_classifier.py  # [NEW] Error identification for Fallback 
+│   ├── ci_checker.py        # [NEW] CI checks logic
+│   ├── project_context.py   # [NEW] Multi-repo context loader for agents
+│   ├── error_classifier.py  # Error identification for Fallback 
 │   ├── tools.py             # Agent tools
 │   └── agents/
 │       ├── analyst.py       # Issue analysis agent
-│       ├── sbe_agent.py     # [NEW] SBE generator agent
+│       ├── sbe_agent.py     # SBE generator agent
 │       └── ...              # Other agents
 ├── docs/
 │   └── templates/
-│       └── sbe_template.md  # [NEW] SBE template
+│       └── sbe_template.md  # SBE template
 ├── v1_legacy/               # Archived V1 code
 ├── main.py                  # Entry Controller
 └── README.md                # Documentation
@@ -112,4 +126,7 @@ python main.py
 - [x] **SBE Generator**: AI-powered Specification by Example (Menu: S).
 - [x] **Draft Code Review**: Generate rich PR context with one click (Menu: D).
 - [x] **Spec-Driven Dev**: Native integration of GitHub Spec Kit (Spec -> Plan -> Build).
-- [x] **Smart Fallback**: Optimized fallback chain with intelligent Rate Limit handling. 🆕
+- [x] **Smart Fallback**: Optimized fallback chain with intelligent Rate Limit handling.
+- [x] **Cross-Repo Context & Planning**: Agents can plan and access context across multiple repositories. 🆕
+- [x] **Background CI**: CI checks now run as a background process for a non-blocking workflow. 🆕
+- [x] **Automated Issue Metrics**: Automatically calculates and fills story points and effort. 🆕
