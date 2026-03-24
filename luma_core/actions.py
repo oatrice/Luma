@@ -1931,43 +1931,49 @@ def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = Fal
 
     if is_multi_repo:
         print("   Mode: Multi-Repo (JarWise)")
-        # Dynamically load sibling repos
-        all_candidates = [project]
-        try:
-            for sibling_key in project.get("sibling_repos", []):
-                # Ensure key is string
-                if str(sibling_key) in PROJECTS:
-                    all_candidates.append(PROJECTS[str(sibling_key)])
+        # Check if we already selected repos during planning phase
+        target_planning_repos = state.context.get("target_planning_repos", [])
+        if target_planning_repos:
+            print("   ✅ Using selected repositories from Planning Phase")
+            target_repos = target_planning_repos
+        else:
+            # Dynamically load sibling repos
+            all_candidates = [project]
+            try:
+                for sibling_key in project.get("sibling_repos", []):
+                    # Ensure key is string
+                    if str(sibling_key) in PROJECTS:
+                        all_candidates.append(PROJECTS[str(sibling_key)])
+                    else:
+                        print(f"   ⚠️ Sibling key '{sibling_key}' not found in PROJECTS config.")
+            except Exception as e:
+                print(f"⚠️ Failed to load sibling repos: {e}")
+                import traceback
+    
+                traceback.print_exc()
+                
+            if not skip_confirm:
+                print("\n   📦 Select projects to update docs:")
+                for idx, cand in enumerate(all_candidates, 1):
+                    print(f"      [{idx}] {cand['name']}")
+                print("      [a] All (Default)")
+    
+                selected = input("\n   Select indices (e.g., 1,3) or 'a' for all: ").strip().lower()
+                if selected and selected != 'a':
+                    target_repos = []
+                    for s in selected.split(','):
+                        s = s.strip()
+                        if s.isdigit():
+                            idx = int(s) - 1
+                            if 0 <= idx < len(all_candidates):
+                                target_repos.append(all_candidates[idx])
+                    if not target_repos:
+                        print("   ⚠️ No valid projects selected. Defaulting to 'All'.")
+                        target_repos = all_candidates
                 else:
-                    print(f"   ⚠️ Sibling key '{sibling_key}' not found in PROJECTS config.")
-        except Exception as e:
-            print(f"⚠️ Failed to load sibling repos: {e}")
-            import traceback
-
-            traceback.print_exc()
-            
-        if not skip_confirm:
-            print("\n   📦 Select projects to update docs:")
-            for idx, cand in enumerate(all_candidates, 1):
-                print(f"      [{idx}] {cand['name']}")
-            print("      [a] All (Default)")
-
-            selected = input("\n   Select indices (e.g., 1,3) or 'a' for all: ").strip().lower()
-            if selected and selected != 'a':
-                target_repos = []
-                for s in selected.split(','):
-                    s = s.strip()
-                    if s.isdigit():
-                        idx = int(s) - 1
-                        if 0 <= idx < len(all_candidates):
-                            target_repos.append(all_candidates[idx])
-                if not target_repos:
-                    print("   ⚠️ No valid projects selected. Defaulting to 'All'.")
                     target_repos = all_candidates
             else:
                 target_repos = all_candidates
-        else:
-            target_repos = all_candidates
 
     print("\n🚀 Ready to update:")
     for repo in target_repos:
