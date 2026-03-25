@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.0] - 2026-03-25
+
+### Added
+- **[Metrics & Reporting]** Introduced comprehensive project and issue tracking.
+  - Added feature tracking with estimates for points, man-days, and effort levels.
+  - Implemented automatic project report generation, including summaries of completed issues with creation, due, and completion dates.
+  - Reports are now synchronized with the project roadmap and sorted by completion date.
+  - Added a usage and metrics dashboard for better project visibility.
+- **[Workflow]** Enhanced multi-repository and agent capabilities.
+  - CI checks now run in the background for improved performance.
+  - LLM agents now load project context for more accurate cross-repository planning.
+  - Added interactive project selection for multi-repo documentation updates.
+  - Implemented auto-filling of issue metrics from the roadmap.
+- **[Notifications]** Added a test action to the CLI for Telegram notifications.
+
+### Changed
+- **[Planning]** Simplified planning agent execution and prioritized repository selection during the planning phase.
+- **[Notifications]** Notification source now includes the current directory for better context.
+
+### Fixed
+- **[Reporting]** Corrected a datetime parsing error by handling the UTC timezone suffix ('Z').
+- **[Reporting]** Ensured unique filenames are generated for project reports to prevent overwrites.
+- **[Workflow]** Resolved an `UnboundLocalError` in a guided workflow test.
+
 ## [1.4.1] - 2026-03-19
 
 ### Fixed

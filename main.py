@@ -22,26 +22,12 @@ from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_do
 from luma_core.notifier import notify_task_complete
 
 from luma_core.state_manager import (
-    LumaState, IssueData, WorkflowPhase,
-    load_state, save_state, transition_to,
-    format_state_header, get_next_step_recommendation,
-    get_phase_display
+    LumaState, WorkflowPhase,
+    load_state, save_state, transition_to
 )
-from luma_core.context_summarizer import ContextSummarizer
-from luma_core.github_project import (
-    fetch_kanban_cards, get_ready_issues, get_current_in_progress,
-    display_kanban_cards, get_project_config, sync_kanban_on_action,
-    KanbanCard
-)
-from luma_core.workflow import build_graph
 from luma_core.tools import (
-    get_git_changed_files,
-    update_multi_repo_docs,
-    update_android_version_logic,
-    suggest_version_from_git,
     get_project_git_info
 )
-from luma_core.agents.reviewer import reviewer_agent, docs_reviewer_agent
 
 
 # =============================================================================
@@ -78,7 +64,7 @@ def load_global_config():
         try:
             with open(GLOBAL_CONFIG_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except Exception:
             pass
     return {"last_project": "1"}
 
@@ -138,6 +124,10 @@ MENU_ACTIONS = {
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "L": {"label": "📊 View Usage Log",            "valid_phases": "ALL"},
+    "D": {"label": "📊 Usage & Metrics Dashboard",  "valid_phases": "ALL"},
+    "T": {"label": "🧪 Test Telegram Notification", "valid_phases": "ALL"},
+    "M": {"label": "📏 Track Issue Metrics",       "valid_phases": "ALL"},
+    "G": {"label": "📊 Generate Project Report",    "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
@@ -331,6 +321,18 @@ def main():
 
         elif choice.upper() == "L":
             actions.action_view_stats_files(state, project)
+
+        elif choice.upper() == "D":
+            actions.action_view_dashboard(state, project)
+
+        elif choice.upper() == "T":
+            actions.action_test_telegram_notification(state, project)
+
+        elif choice.upper() == "M":
+            actions.action_manage_issue_metrics(state, project)
+
+        elif choice.upper() == "G":
+            actions.action_generate_project_report(state, project)
         
         elif choice.upper() == "R":
             state = load_state(project["path"])
@@ -366,7 +368,7 @@ def main():
                             elif pr_state in ["OPEN", "MERGED"] and state.phase == WorkflowPhase.PR_PENDING and not state.pr_url:
                                 state.pr_url = pr_url
                                 save_state(state, project["path"])
-                except Exception as e:
+                except Exception:
                     pass
             # -----------------------------------
             

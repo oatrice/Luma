@@ -1,7 +1,7 @@
 import datetime
 import json
 import os
-import sys
+from dataclasses import asdict
 from collections import deque
 
 import luma_core.usage_tracker as usage_tracker
@@ -16,11 +16,21 @@ from luma_core.github_project import (
     sync_kanban_on_action,
 )
 from luma_core.preflight_checker import PreflightChecker
+from luma_core.issue_metrics import (
+    EFFORT_LEVELS,
+    IssueMetricsRecord,
+    format_metric_datetime,
+    get_issue_metrics,
+    list_issue_metrics,
+    parse_metric_datetime,
+    prefill_metrics_from_roadmap,
+    save_issue_metrics,
+    validate_effort_level,
+)
 from luma_core.state_manager import (
     IssueData,
     LumaState,
     WorkflowPhase,
-    get_next_step_recommendation,
     transition_to,
 )
 from luma_core.tools import (
@@ -28,7 +38,6 @@ from luma_core.tools import (
     get_git_changed_files,
     update_multi_repo_docs,
 )
-from luma_core import usage_tracker
 
 # =============================================================================
 # Menu Actions
@@ -139,6 +148,7 @@ def _build_code_review_followup_prompt(multi_repo: bool = False) -> str:
 
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""
+    print("\n💡 เช็ค gh cli, Roadmap.md ว่าต้องทำ issue ไหนต่อ")
     print("\n🔍 Fetching issues from Kanban...")
 
     # Handle Self-Test / Dummy Mode
@@ -153,7 +163,7 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
             item_id="dummy_item_id",
             repository="oatrice/Luma",
         )
-        return _start_issue(state, dummy_card, project)
+        return _start_issues(state, [dummy_card], project)
 
     # Fetch all cards
     all_cards = fetch_kanban_cards(project["kanban_number"])
@@ -192,7 +202,7 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
                 return False
         if selected_cards:
             return _start_issues(state, selected_cards, project)
-    except ValueError as e:
+    except ValueError:
         import traceback
 
         traceback.print_exc()
@@ -245,7 +255,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
 
-                print(f"🔄 Syncing sibling repos...")
+                print("🔄 Syncing sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -367,7 +377,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         import subprocess
 
         try:
-            print(f"🔄 Creating git branch...")
+            print("🔄 Creating git branch...")
             result = subprocess.run(
                 ["git", "checkout", "-b", branch_name],
                 cwd=project["path"],
@@ -392,7 +402,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
 
-                print(f"\n🔄 Creating branches in sibling repos...")
+                print("\n🔄 Creating branches in sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
                     if sibling and os.path.exists(sibling["path"]):
@@ -622,6 +632,416 @@ def action_list_active_issues(project: dict):
     print(f"Total Active: {len(active_cards)} issues")
 
 
+_KEEP_METRIC_VALUE = object()
+
+
+def _get_metrics_project_cards(project: dict) -> list:
+    cards = fetch_kanban_cards(project["kanban_number"])
+    repo = project.get("repo")
+    if repo:
+        cards = [card for card in cards if card.repository == repo]
+
+    workflow = get_status_workflow(project)
+    board_priority = _status_priority(workflow.get("board_order", []))
+    cards.sort(
+        key=lambda card: (
+            board_priority.get(_status_key(card.status), 999),
+            card.issue_number,
+        )
+    )
+    return cards
+
+
+def _select_issue_card_for_metrics(project: dict):
+    cards = _get_metrics_project_cards(project)
+    if not cards:
+        print("📭 No GitHub issues found for this project.")
+        return None
+
+    print(f"\n🎯 Issues in {project['name']}")
+    print(f"{'Idx':<5} {'#':<6} {'Title':<38} {'Status'}")
+    print("─" * 72)
+    for idx, card in enumerate(cards, 1):
+        title = card.title[:36] + ".." if len(card.title) > 38 else card.title
+        print(f"{idx:<5} #{card.issue_number:<5} {title:<38} {card.status}")
+
+    choice = input("\nSelect index or use #issue-number [0=Back]: ").strip()
+    if choice == "0":
+        return None
+
+    if choice.startswith("#") and choice[1:].isdigit():
+        issue_number = int(choice[1:])
+        return next((card for card in cards if card.issue_number == issue_number), None)
+
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(cards):
+            return cards[idx]
+
+    print("❌ Invalid issue selection")
+    return None
+
+
+def _display_tracked_issue_summary(project: dict):
+    records = list_issue_metrics(project["path"])
+    if not records:
+        print(f"\nℹ️ No tracked issues yet for {project['name']}.")
+        return []
+
+    print(f"\n📋 Tracked Issues for {project['name']}")
+    print(
+        f"{'Idx':<5} {'#':<6} {'Title':<26} {'Pts':<5} {'EstMD':<7} "
+        f"{'ActMD':<7} {'Due':<19} {'Effort':<7}"
+    )
+    print("─" * 96)
+    for idx, record in enumerate(records, 1):
+        title = (
+            record.issue_title[:24] + ".."
+            if len(record.issue_title) > 26
+            else record.issue_title
+        )
+        print(
+            f"{idx:<5} #{record.issue_number:<5} {title:<26} "
+            f"{(record.estimate_points if record.estimate_points is not None else '-'): <5} "
+            f"{(record.estimated_mandays if record.estimated_mandays is not None else '-'): <7} "
+            f"{(record.actual_mandays if record.actual_mandays is not None else '-'): <7} "
+            f"{format_metric_datetime(record.due_date):<19} "
+            f"{(record.effort_level or '-'): <7}"
+        )
+    print("─" * 96)
+    print(f"Total tracked: {len(records)}")
+    return records
+
+
+def _select_tracked_issue_record(project: dict):
+    records = _display_tracked_issue_summary(project)
+    if not records:
+        return None
+
+    choice = input("\nSelect index or use #issue-number [0=Back]: ").strip()
+    if choice == "0":
+        return None
+
+    if choice.startswith("#") and choice[1:].isdigit():
+        issue_number = int(choice[1:])
+        return next((record for record in records if record.issue_number == issue_number), None)
+
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(records):
+            return records[idx]
+
+    print("❌ Invalid tracked issue selection")
+    return None
+
+
+def _format_metric_value(value):
+    if value in (None, ""):
+        return "-"
+    if isinstance(value, str) and "T" in value:
+        return format_metric_datetime(value)
+    return str(value)
+
+
+def _parse_optional_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError("Estimate Points must be an integer.") from exc
+    if parsed < 0:
+        raise ValueError("Estimate Points must be 0 or greater.")
+    return parsed
+
+
+def _parse_optional_float(value: str, label: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be numeric.") from exc
+    if parsed < 0:
+        raise ValueError(f"{label} must be 0 or greater.")
+    return parsed
+
+
+def _prompt_metric_value(label: str, current_value, parser):
+    while True:
+        raw = input(
+            f"{label} [{_format_metric_value(current_value)}] "
+            "(Enter keep, - clear): "
+        ).strip()
+        if raw == "":
+            return _KEEP_METRIC_VALUE
+        if raw == "-":
+            return None
+        try:
+            return parser(raw)
+        except ValueError as e:
+            print(f"❌ {e}")
+
+
+def _edit_issue_metrics_record(project: dict, record: IssueMetricsRecord, is_new: bool = False):
+    print(f"\n📝 Issue Metrics for #{record.issue_number} - {record.issue_title}")
+    print(f"   Project: {project['name']}")
+    print(f"   Repository: {record.repository or '-'}")
+    print(f"   Status: {record.issue_status or '-'}")
+    print("   Press Enter to keep the current value, or '-' to clear it.")
+
+    candidate = IssueMetricsRecord(**asdict(record))
+    changed = False
+
+    field_specs = [
+        ("estimate_points", "Estimate Points", _parse_optional_int),
+        (
+            "estimated_mandays",
+            "Estimated Mandays",
+            lambda value: _parse_optional_float(value, "Estimated Mandays"),
+        ),
+        (
+            "actual_mandays",
+            "Actual Mandays",
+            lambda value: _parse_optional_float(value, "Actual Mandays"),
+        ),
+        ("due_date", "Due Date/Time", parse_metric_datetime),
+        (
+            "actual_completion_date",
+            "Actual Completion Date/Time",
+            parse_metric_datetime,
+        ),
+        ("effort_level", f"Effort Level {EFFORT_LEVELS}", validate_effort_level),
+        ("notes", "Notes", lambda value: value),
+    ]
+
+    for field_name, label, parser in field_specs:
+        next_value = _prompt_metric_value(label, getattr(candidate, field_name), parser)
+        if next_value is _KEEP_METRIC_VALUE:
+            continue
+        if getattr(candidate, field_name) != next_value:
+            setattr(candidate, field_name, next_value)
+            changed = True
+
+    if not changed:
+        if is_new:
+            print("ℹ️ No tracking values entered. Nothing was saved.")
+        else:
+            print("ℹ️ No changes saved.")
+        return False
+
+    save_issue_metrics(project["path"], candidate)
+    print("✅ Issue metrics saved.")
+    return True
+
+
+def _build_issue_metrics_record(project: dict, card: KanbanCard) -> IssueMetricsRecord:
+    existing = get_issue_metrics(project["path"], card.repository, card.issue_number)
+    if existing:
+        existing.issue_title = card.title
+        existing.issue_url = card.url
+        existing.issue_status = card.status
+        existing.project_name = project["name"]
+        return existing
+
+    return IssueMetricsRecord(
+        issue_key=f"{card.repository}#{card.issue_number}",
+        issue_number=card.issue_number,
+        issue_title=card.title,
+        issue_url=card.url,
+        repository=card.repository,
+        project_name=project["name"],
+        issue_status=card.status,
+    )
+
+
+def action_test_telegram_notification(state: LumaState, project: dict):
+    """Test sending a Telegram notification directly from the CLI."""
+    from luma_core import ui
+    from luma_core.notifier import notify_task_complete
+    
+    ui.display_header(state, project)
+    
+    project_name = project["name"] if project else "Luma"
+    
+    result = notify_task_complete(
+        project=project_name,
+        task="Test Telegram Notification",
+        status="success",
+        duration="1s",
+        message="🧪 ทดสอบการส่งข้อความจากเมนู Luma CLI"
+    )
+    
+    if result:
+        print("\n✅ Notification sent successfully!")
+    else:
+        print("\n❌ Failed to send notification (Check AKASA_CHAT_ID or backend config).")
+    
+    input("\nPress Enter to return to menu...")
+
+
+def action_view_dashboard(state: LumaState, project: dict):
+    """Display Usage & Metrics Dashboard in terminal."""
+    from luma_core.metrics_summarizer import (
+        summarize_usage_stats,
+        summarize_issue_metrics,
+    )
+
+    usage_path = usage_tracker.get_log_path()
+    metrics_path = os.path.join(project["path"], ".luma_metrics.json")
+
+    print("\n" + "╔" + "═" * 52 + "╗")
+    print("║  📊 Usage & Metrics Dashboard                      ║")
+    print("╠" + "═" * 52 + "╣")
+
+    # Usage Stats (current project)
+    usage = summarize_usage_stats(usage_path, project)
+    duration_s = (usage.get("total_duration_ms", 0) or 0) / 1000
+    if duration_s >= 60:
+        mins = int(duration_s // 60)
+        secs = int(duration_s % 60)
+        dur_str = f"{mins}m {secs}s"
+    else:
+        dur_str = f"{duration_s:.0f}s"
+
+    print("║                                                    ║")
+    print("║  🤖 AI Usage (this project)                        ║")
+    print(f"║    Total Calls: {usage['total_calls']:<35}║")
+    print(f"║    ✅ Success:  {usage['success_count']:<35}║")
+    print(f"║    ❌ Errors:   {usage['error_count']:<35}║")
+    print(f"║    ⏱  Duration: {dur_str:<34}║")
+
+    models = usage.get("unique_models", [])
+    if models:
+        models_str = ", ".join(models[:3])
+        if len(models_str) > 34:
+            models_str = models_str[:31] + "..."
+        print(f"║    🧠 Models:   {models_str:<34}║")
+
+    print("║                                                    ║")
+
+    # Issue Metrics
+    metrics = summarize_issue_metrics(metrics_path)
+    print("║  📏 Issue Metrics                                  ║")
+    print(f"║    Total Issues:    {metrics['total_issues']:<31}║")
+    print(f"║    ✅ Done:         {metrics['done_count']:<31}║")
+    print(f"║    🔄 In Progress:  {metrics['in_progress_count']:<31}║")
+    print(f"║    🔲 Todo:         {metrics['todo_count']:<31}║")
+    print(f"║    📊 Total Points: {metrics['total_points']:<31}║")
+    est_md = f"{metrics['total_estimated_mandays']:.1f}"
+    act_md = f"{metrics['total_actual_mandays']:.1f}"
+    print(f"║    📅 Mandays:      Est {est_md} / Act {act_md:<20}║")
+    print("║                                                    ║")
+    print("╚" + "═" * 52 + "╝")
+
+    input("\nPress Enter to return...")
+
+
+def action_manage_issue_metrics(state: LumaState, project: dict):
+    """Manage per-issue estimates and actuals in .luma_metrics.json files."""
+    selected_project = project
+    prefill_result = prefill_metrics_from_roadmap(
+        selected_project["path"],
+        selected_project.get("name"),
+        selected_project.get("repo"),
+    )
+    if prefill_result["created"] or prefill_result["updated"]:
+        print(
+            "\n🗺️  Prefilled issue metrics from ROADMAP.md "
+            f"(created {prefill_result['created']}, updated {prefill_result['updated']})."
+        )
+
+    while True:
+        print(f"\n📏 Issue Metrics Tracker - {selected_project['name']}")
+        print("  [1] List tracked issues")
+        print("  [2] Select GitHub issue to view/edit metrics")
+        print("  [3] Open tracked issue")
+        print("  [0] Back")
+
+        choice = input("\nSelect [0-3]: ").strip()
+        if choice == "0":
+            return
+        if choice == "1":
+            _display_tracked_issue_summary(selected_project)
+            continue
+        if choice == "2":
+            card = _select_issue_card_for_metrics(selected_project)
+            if card:
+                _edit_issue_metrics_record(
+                    selected_project,
+                    _build_issue_metrics_record(selected_project, card),
+                    is_new=get_issue_metrics(
+                        selected_project["path"], card.repository, card.issue_number
+                    )
+                    is None,
+                )
+            continue
+        if choice == "3":
+            tracked_record = _select_tracked_issue_record(selected_project)
+            if tracked_record:
+                _edit_issue_metrics_record(selected_project, tracked_record, is_new=False)
+            continue
+
+        print("❌ Invalid selection")
+
+
+def action_generate_project_report(state: LumaState, project: dict):
+    """Generate Weekly/Monthly Project Report."""
+    print(f"\n📊 Generate Project Report - {project['name']}")
+    print("  [1] Weekly Report (Based on today's week)")
+    print("  [2] Monthly Report (Based on today's month)")
+    print("  [0] Back")
+
+    choice = input("\nSelect [0-2]: ").strip()
+    if choice == "0":
+        return
+    
+    period = "weekly" if choice == "1" else "monthly" if choice == "2" else None
+    if not period:
+        print("❌ Invalid selection")
+        return
+
+    custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
+    
+    print("\n🔄 Syncing metrics from ROADMAP...")
+    prefill_result = prefill_metrics_from_roadmap(
+        project["path"],
+        project.get("name"),
+        project.get("repo"),
+    )
+    if prefill_result["created"] or prefill_result["updated"]:
+        print(f"   🗺️  Synced (created {prefill_result['created']}, updated {prefill_result['updated']})")
+    
+    print(f"🚀 Generating {period} report...")
+    try:
+        from luma_core.report_generator import generate_report
+        import os
+        from datetime import date
+        
+        ref_date = date.fromisoformat(custom_date) if custom_date else date.today()
+        report_content = generate_report(project["path"], period=period, reference_date=ref_date)
+        
+        base_dir = os.path.join(project["path"], "docs", "reports")
+        os.makedirs(base_dir, exist_ok=True)
+        
+        if period == "weekly":
+            year, week, _ = ref_date.isocalendar()
+            base_name = f"weekly_{year}-W{week:02d}"
+        else:
+            base_name = f"monthly_{ref_date.strftime('%Y-%m')}"
+            
+        output_path = os.path.join(base_dir, f"{base_name}.md")
+        counter = 1
+        while os.path.exists(output_path):
+            output_path = os.path.join(base_dir, f"{base_name}({counter}).md")
+            counter += 1
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(report_content)
+        
+        print(f"✅ Report generated successfully at: {output_path}")
+        
+    except ValueError:
+        print("❌ Invalid date format. Please use YYYY-MM-DD.")
+    except Exception as e:
+        print(f"❌ Failed to generate report: {e}")
+
+
 def _safe_read_lines(path: str):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -776,7 +1196,7 @@ def action_view_stats_files(state: LumaState, project: dict):
         print("❌ Invalid option")
 
 
-def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False):
+def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None):
     """Create Pull Request with Pre-flight Checks"""
     # Allow if Coding OR (PR_Pending to sync other repos) OR Preflight (Retry)
     allowed_phases = [
@@ -856,20 +1276,26 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             auto_approve = True
 
     # Determine target repos (Multi-Repo Support)
-    target_projects = [project]
-    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-        print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
-        try:
-            for sibling_key in project.get("sibling_repos", []):
-                if sibling_key in PROJECTS:
-                    target_projects.append(PROJECTS[sibling_key])
-        except Exception:
-            pass
+    if target_repos is not None:
+        target_projects = target_repos
+        if len(target_projects) > 1:
+            print("   Mode: Multi-Repo (JarWise) - Using explicitly selected repos...")
+    else:
+        target_projects = [project]
+        if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+            print("   Mode: Multi-Repo (JarWise) - Checking all repos...")
+            try:
+                for sibling_key in project.get("sibling_repos", []):
+                    if sibling_key in PROJECTS:
+                        target_projects.append(PROJECTS[sibling_key])
+            except Exception:
+                pass
 
     # --- SCREENSHOT LOGIC ---
-    screenshot_md = ""
     feature_dir = state.context.get("last_feature_dir")
     screenshots_to_sync = []
+    
+    created_prs = []
 
     if feature_dir:
         sc_dir = os.path.join(feature_dir, "screenshots")
@@ -971,7 +1397,6 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                     if proj.get("repo") and state.active_branch:
                         raw_url = f"https://raw.githubusercontent.com/{proj['repo']}/{state.active_branch}/{rel_path}"
                         # Encoding spaces just in case, though filenames likely safe
-                        from urllib.parse import quote
 
                         # We only encode the path part if needed, but simple f-string is usually fine for strict filenames
                         repo_screenshot_section += f"![{filename}]({raw_url})\n"
@@ -1089,13 +1514,19 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
         if pr_url:
             print(f"   ✅ PR Created: {pr_url}")
+            created_prs.append((proj["name"], pr_url))
             # Update state with the created PR url
             if proj == project:
                 ok, msg = transition_to(state, WorkflowPhase.PR_PENDING, pr_url=pr_url)
                 if ok:
                     print("   🔄 State updated to PR_PENDING")
         else:
-            print(f"   ⚠️ Publisher finished but no known PR URL.")
+            print("   ⚠️ Publisher finished but no known PR URL.")
+
+    if created_prs:
+        print("\n📋 PR Summary:")
+        for name, url in created_prs:
+            print(f"  ✅ {name:<20} → {url}")
 
 
 def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
@@ -1131,7 +1562,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 
                 if confirm == "n":
                     # Show session picker
-                    print(f"\n   📋 Available Antigravity Sessions:")
+                    print("\n   📋 Available Antigravity Sessions:")
                     display_limit = min(8, len(sessions))
                     for i, s in enumerate(sessions[:display_limit]):
                         print(
@@ -1201,7 +1632,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 
                 if confirm == "n":
                     # Show session picker
-                    print(f"\n   📋 Available Gemini CLI Sessions:")
+                    print("\n   📋 Available Gemini CLI Sessions:")
                     display_limit = min(8, len(gemini_sessions))
                     for i, s in enumerate(gemini_sessions[:display_limit]):
                         print(
@@ -1250,7 +1681,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
         for doc in all_synced_docs:
             print(f"  - {doc}")
         print(
-            f"💡 The files have been copied to the project. You can review and commit them manually."
+            "💡 The files have been copied to the project. You can review and commit them manually."
         )
         return True
     else:
@@ -1260,7 +1691,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
 
 def action_code_review(state: LumaState, project: dict):
     """Run local code review agent"""
-    print(f"\n🧐 Local Code Reviewer")
+    print("\n🧐 Local Code Reviewer")
 
     # Determine target repos (Multi-Repo Support)
     potential_projects = [project]
@@ -1347,7 +1778,7 @@ def action_code_review(state: LumaState, project: dict):
                                 # 3. Fallback to reading the full file if it's untracked or we can't get diff
                                 with open(full_path, "r", encoding="utf-8") as f:
                                     changes[rel_path] = f.read()
-                    except:
+                    except Exception:
                         pass
 
             if not changes:
@@ -1494,22 +1925,49 @@ def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = Fal
 
     if is_multi_repo:
         print("   Mode: Multi-Repo (JarWise)")
-        # Dynamically load sibling repos
-        try:
-            for sibling_key in project.get("sibling_repos", []):
-                # Ensure key is string
-                if str(sibling_key) in PROJECTS:
-                    target_repos.append(PROJECTS[str(sibling_key)])
-                    print(f"   ➕ Added sibling: {PROJECTS[str(sibling_key)]['name']}")
+        # Check if we already selected repos during planning phase
+        target_planning_repos = state.context.get("target_planning_repos", [])
+        if target_planning_repos:
+            print("   ✅ Using selected repositories from Planning Phase")
+            target_repos = target_planning_repos
+        else:
+            # Dynamically load sibling repos
+            all_candidates = [project]
+            try:
+                for sibling_key in project.get("sibling_repos", []):
+                    # Ensure key is string
+                    if str(sibling_key) in PROJECTS:
+                        all_candidates.append(PROJECTS[str(sibling_key)])
+                    else:
+                        print(f"   ⚠️ Sibling key '{sibling_key}' not found in PROJECTS config.")
+            except Exception as e:
+                print(f"⚠️ Failed to load sibling repos: {e}")
+                import traceback
+    
+                traceback.print_exc()
+                
+            if not skip_confirm:
+                print("\n   📦 Select projects to update docs:")
+                for idx, cand in enumerate(all_candidates, 1):
+                    print(f"      [{idx}] {cand['name']}")
+                print("      [a] All (Default)")
+    
+                selected = input("\n   Select indices (e.g., 1,3) or 'a' for all: ").strip().lower()
+                if selected and selected != 'a':
+                    target_repos = []
+                    for s in selected.split(','):
+                        s = s.strip()
+                        if s.isdigit():
+                            idx = int(s) - 1
+                            if 0 <= idx < len(all_candidates):
+                                target_repos.append(all_candidates[idx])
+                    if not target_repos:
+                        print("   ⚠️ No valid projects selected. Defaulting to 'All'.")
+                        target_repos = all_candidates
                 else:
-                    print(
-                        f"   ⚠️ Sibling key '{sibling_key}' not found in PROJECTS config."
-                    )
-        except Exception as e:
-            print(f"⚠️ Failed to load sibling repos: {e}")
-            import traceback
-
-            traceback.print_exc()
+                    target_repos = all_candidates
+            else:
+                target_repos = all_candidates
 
     print("\n🚀 Ready to update:")
     for repo in target_repos:
@@ -1573,6 +2031,7 @@ def action_refine_issue(state: LumaState, project: dict):
             "body": combined_body,
         },
         "target_dir": project["path"],
+        "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 
     print("\n🧠 Invoking Analyst Agent...")
@@ -1711,11 +2170,11 @@ def action_settings():
     current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
 
     while True:
-        print(f"\nCurrent Configuration:")
+        print("\nCurrent Configuration:")
         print(f"  [1] LLM Provider:      {current_llm}")
         print(f"  [2] Agent CLI:         {current_cli}")
         print(f"  [3] Gemini CLI Model:  {current_model}")
-        print(f"  [4] 🔙 Back")
+        print("  [4] 🔙 Back")
 
         choice = input("\nSelect setting to change [1-4]: ").strip()
 
@@ -1833,7 +2292,7 @@ def action_generate_sbe(state: LumaState, project: dict):
     result = sbe_agent(sbe_state)
 
     if result.get("sbe_file"):
-        print(f"\n✨ SBE Specification created!")
+        print("\n✨ SBE Specification created!")
         print(f"   📁 File: {result['sbe_file']}")
 
         # Preview first few lines
@@ -1847,7 +2306,7 @@ def action_generate_sbe(state: LumaState, project: dict):
                 if len(lines) >= 15:
                     print("...")
                 print("-" * 50)
-        except:
+        except Exception:
             pass
     else:
         print("\n⚠️ SBE generation failed or produced no output.")
@@ -1869,7 +2328,7 @@ def action_generate_draft(state: LumaState, project: dict):
         try:
             subprocess.run(["code", output_path], capture_output=True)
             print("   📂 Opened in VS Code")
-        except:
+        except Exception:
             pass
 
     except Exception as e:
@@ -1911,6 +2370,7 @@ def action_generate_spec(state: LumaState, project: dict):
             "repository": getattr(first_issue, "repository", ""),
         },
         "target_dir": project["path"],
+        "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 
     print("\n🧬 Invoking Spec Agent (Spec Kit)...")
@@ -1922,16 +2382,18 @@ def action_generate_spec(state: LumaState, project: dict):
         print(f"   📂 Feature Directory: {result['feature_dir']}")
 
         # Determine relative path for display
-        rel_path = os.path.relpath(result["feature_dir"], project["path"])
+        os.path.relpath(result["feature_dir"], project["path"])
         # Store in state for Plan Agent to use immediately
         state.context["last_feature_dir"] = result["feature_dir"]
-        print(f"   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
+        print("   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
 
     # Chain SBE Generation
-    print("\n------------------------------------------------")
     # Chain SBE Generation
     print("\n------------------------------------------------")
     print("📋 Auto-generating Specification by Example (SBE)...")
+    from luma_core import usage_tracker
+    if usage_tracker.get_current_sub_action() == "Auto:Planning/Spec":
+        usage_tracker.set_sub_action("Auto:Planning/SBE")
     action_generate_sbe(state, project)
 
 
@@ -1968,7 +2430,7 @@ def action_generate_plan(state: LumaState, project: dict):
                 feature_dir = os.path.join(features_root, dirs[idx])
             else:
                 return
-        except:
+        except Exception:
             return
 
     # Enable Architect Agent
@@ -1979,7 +2441,11 @@ def action_generate_plan(state: LumaState, project: dict):
         return
 
     # Create State
-    plan_state = {"feature_dir": feature_dir, "target_dir": project["path"]}
+    plan_state = {
+        "feature_dir": feature_dir, 
+        "target_dir": project["path"],
+        "target_planning_repos": state.context.get("target_planning_repos", []),
+    }
 
     print("\n🏗️ Invoking Architect Agent...")
     result = architect_agent(plan_state)
@@ -2169,13 +2635,31 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     issues_to_update = [x[0] for x in found_issues] + missing_issues
     issue_list = ", ".join(f"#{issue_id}" for issue_id in issues_to_update)
     print(f"\nSelecting status for {len(issues_to_update)} issue(s): {issue_list}")
-    print("\nSelect new status:")
+    # Check if all verified issues being updated are CLOSED
+    all_closed = False
+    if verified_issues:
+        states = [
+            verified_issues[i].get("state", "OPEN").upper() 
+            for i in issues_to_update if i in verified_issues
+        ]
+        if states and all(s == "CLOSED" for s in states):
+            all_closed = True
+
+    if all_closed:
+        print("\n💡 GitHub state is CLOSED, auto-selecting ✅ Done (press Enter to confirm, or choose manually)")
+        prompt_str = "Select [1-4] (Enter for '1'): "
+    else:
+        print("\nSelect new status:")
+        prompt_str = "Select [1-4]: "
+
     print("  [1] ✅ Done / Complete")
     print("  [2] 🟢 Ready")
     print("  [3] 🟡 In Progress / Todo")
     print("  [4] 🔴 Blocked")
 
-    status_choice = input("Select [1-4]: ").strip()
+    status_choice = input(prompt_str).strip()
+    if all_closed and status_choice == "":
+        status_choice = "1"
     if status_choice not in ("1", "2", "3", "4"):
         print("❌ Invalid selection")
         return
@@ -2403,6 +2887,32 @@ def check_planning_artifacts(feature_dir: str) -> dict:
     return status
 
 
+def auto_fill_issue_metrics(state: LumaState, project: dict, issues: list):
+    """Auto-fill missing metrics using AI / heuristics for the active issues."""
+    from luma_core.issue_metrics import get_issue_metrics, save_issue_metrics, apply_heuristic_defaults, IssueMetricsRecord, issue_key_for
+    
+    if not issues:
+        return
+        
+    for issue in issues:
+        metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
+        
+        if not metrics:
+            metrics = IssueMetricsRecord(
+                issue_key=issue_key_for(project.get("repo", ""), issue.number),
+                issue_number=issue.number,
+                issue_title=issue.title,
+                issue_url=issue.url if hasattr(issue, 'url') else "",
+                repository=project.get("repo", ""),
+                project_name=project.get("name")
+            )
+            
+        print(f"\n🤖 AI is estimating metrics for Issue #{issue.number}...")
+        metrics = apply_heuristic_defaults(metrics)
+        save_issue_metrics(project["path"], metrics)
+        print(f"   ✅ Estimated: {metrics.estimate_points} points, {metrics.estimated_mandays} mandays, {metrics.effort_level} effort.")
+
+
 def action_guided_workflow(state: LumaState, project: dict):
     """Run a guided end-to-end feature workflow"""
     print("\n⚡ Starting Guided Feature Workflow")
@@ -2418,119 +2928,175 @@ def action_guided_workflow(state: LumaState, project: dict):
         combined_number = "-".join([str(i.number) for i in state.active_issues])
         print(f"\n🔹 Step 1: Issue #{combined_number} already selected.")
 
+    # 1.5. Metrics Check
+    from luma_core.issue_metrics import get_issue_metrics
+    issues_missing_metrics = []
+    
+    for issue in state.active_issues:
+        metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
+        has_metrics = metrics is not None and metrics.estimate_points is not None
+        if not has_metrics:
+            issues_missing_metrics.append(issue)
+            
+    if issues_missing_metrics:
+        ans = input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (y/n): ").strip().lower()
+        if ans == 'y':
+            auto_fill_issue_metrics(state, project, issues_missing_metrics)
+
+
     # 2. Planning (Refine -> Spec -> Plan)
     print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
 
-    # Check for existing artifacts
-    combined_number = "-".join([str(i.number) for i in state.active_issues])
-    feature_dir = get_feature_dir(project["path"], combined_number)
-    # Also check context if just created
-    if not feature_dir and state.context.get("last_feature_dir"):
-        feature_dir = state.context.get("last_feature_dir")
+    target_planning_repos = [project]
+    if project.get("sibling_repos"):
+        print("\n   📂 Select repos for Planning:")
+        print(f"   [1] ✅ {project['name']} (current)")
+        
+        selectable_repos = [project]
+        # We need to access global PROJECTS dictionary if it's available, otherwise skip sibling lookup
+        from luma_core.actions import PROJECTS
+        for sib_id in project["sibling_repos"]:
+            if sib_id in PROJECTS:
+                selectable_repos.append(PROJECTS[sib_id])
+                
+        for i, sib in enumerate(selectable_repos[1:], start=2):
+            print(f"   [{i}] ☐  {sib['name']}")
+            
+        repo_choice = input("   Select (e.g. 1,2,3 or 'a' for all, Enter for current only): ").strip().lower()
+        if repo_choice == 'a':
+            target_planning_repos = selectable_repos
+        elif repo_choice:
+            selected_indices = [idx.strip() for idx in repo_choice.split(",") if idx.strip().isdigit()]
+            new_targets = []
+            for idx_str in selected_indices:
+                idx = int(idx_str) - 1
+                if 0 <= idx < len(selectable_repos):
+                    new_targets.append(selectable_repos[idx])
+            if new_targets:
+                target_planning_repos = new_targets
 
-    # Save to context immediately so action_generate_plan will use it
-    if feature_dir:
-        state.context["last_feature_dir"] = feature_dir
-
-    artifacts_status = check_planning_artifacts(feature_dir)
-    has_any = any(artifacts_status.values())
-
-    run_planning = True
-    planning_mode = "all"  # all, missing, selective
-    selected_steps = ["analysis", "spec", "plan"]
-
-    if has_any:
-        print(
-            f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:"
-        )
-        for k, exists in artifacts_status.items():
-            icon = "[x]" if exists else "[ ]"
-            print(f"      {icon} {k.capitalize()} ({k}.md)")
-
-        print("\n   Select action:")
-        print("   [1] Run All (Overwrite)")
-        print("   [2] Generate Missing Only")
-        print("   [3] Select Specific Documents")
-        print("   [0] Skip Planning Phase")
-
-        p_choice = input("\n   Select [0-3]: ").strip()
-
-        if p_choice == "0":
-            run_planning = False
-        elif p_choice == "2":
-            planning_mode = "missing"
-        elif p_choice == "3":
-            planning_mode = "selective"
-            # Ask for selection
-            selected_steps = []
-            if input("      - Run Analysis? (y/N): ").lower() == "y":
-                selected_steps.append("analysis")
-            if input("      - Run Spec? (y/N): ").lower() == "y":
-                selected_steps.append("spec")
-            if input("      - Run Plan? (y/N): ").lower() == "y":
-                selected_steps.append("plan")
-            if not selected_steps:
-                print("      (No steps selected, skipping planning)")
-                run_planning = False
+    # Save target planning repos to context so AI agents can use it to build context
+    state.context["target_planning_repos"] = target_planning_repos
+    
+    # We only run the actual document generation in the root project
+    planning_proj = project
+    
+    if True:  # Changed from loop to run once
+        if len(target_planning_repos) > 1:
+            print(f"\n   ────────────── Planning for {planning_proj['name']} (including {len(target_planning_repos)-1} siblings) ──────────────")
         else:
-            # Default to Run All
-            planning_mode = "all"
+            print(f"\n   ────────────── Planning for {planning_proj['name']} ──────────────")
 
-    else:
-        # Standard flow
-        if input("   Run Planning Phase? (Y/n): ").lower() == "n":
-            run_planning = False
+        # Check for existing artifacts
+        combined_number = "-".join([str(i.number) for i in state.active_issues])
+        feature_dir = get_feature_dir(planning_proj["path"], combined_number)
+        # Also check context if just created
+        if not feature_dir and state.context.get("last_feature_dir"):
+            feature_dir = state.context.get("last_feature_dir")
 
-    if run_planning:
-        # Execute based on mode/selection
-
-        # 1. Analyst
-        should_run_analyst = False
-        if planning_mode == "all":
-            should_run_analyst = True
-        elif planning_mode == "missing" and not artifacts_status["analysis"]:
-            should_run_analyst = True
-        elif planning_mode == "selective" and "analysis" in selected_steps:
-            should_run_analyst = True
-
-        if should_run_analyst:
-            usage_tracker.set_sub_action("Auto:Planning/Analyst")
-            action_refine_issue(state, project)
-            # Update feature dir after analyst runs (it might have created it)
-            feature_dir = get_feature_dir(project["path"], state.active_issue.number)
+        # Save to context immediately so action_generate_plan will use it
+        if feature_dir:
             state.context["last_feature_dir"] = feature_dir
 
-        # 2. Spec
-        should_run_spec = False
-        if planning_mode == "all":
-            should_run_spec = True
-        elif planning_mode == "missing" and not artifacts_status["spec"]:
-            should_run_spec = True
-        elif planning_mode == "selective" and "spec" in selected_steps:
-            should_run_spec = True
+        artifacts_status = check_planning_artifacts(feature_dir)
+        has_any = any(artifacts_status.values())
 
-        if should_run_spec:
-            usage_tracker.set_sub_action("Auto:Planning/Spec+SBE")
-            action_generate_spec(state, project)
-            # Update feature dir
-            if state.context.get("last_feature_dir"):
-                feature_dir = state.context.get("last_feature_dir")
+        run_planning = True
+        planning_mode = "all"  # all, missing, selective
+        selected_steps = ["analysis", "spec", "plan"]
 
-        # 3. Plan
-        should_run_plan = False
-        if planning_mode == "all":
-            should_run_plan = True
-        elif planning_mode == "missing" and not artifacts_status["plan"]:
-            should_run_plan = True
-        elif planning_mode == "selective" and "plan" in selected_steps:
-            should_run_plan = True
+        if has_any:
+            print(
+                f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:"
+            )
+            for k, exists in artifacts_status.items():
+                icon = "[x]" if exists else "[ ]"
+                print(f"      {icon} {k.capitalize()} ({k}.md)")
 
-        if should_run_plan:
-            # Ensure feature_dir is in context so action_generate_plan doesn't ask again
-            if feature_dir:
+            print("\n   Select action:")
+            print("   [1] Run All (Overwrite)")
+            print("   [2] Generate Missing Only")
+            print("   [3] Select Specific Documents")
+            print("   [0] Skip Planning Phase")
+
+            p_choice = input("\n   Select [0-3]: ").strip()
+
+            if p_choice == "0":
+                run_planning = False
+            elif p_choice == "2":
+                planning_mode = "missing"
+            elif p_choice == "3":
+                planning_mode = "selective"
+                # Ask for selection
+                selected_steps = []
+                if input("      - Run Analysis? (y/N): ").lower() == "y":
+                    selected_steps.append("analysis")
+                if input("      - Run Spec? (y/N): ").lower() == "y":
+                    selected_steps.append("spec")
+                if input("      - Run Plan? (y/N): ").lower() == "y":
+                    selected_steps.append("plan")
+                if not selected_steps:
+                    print("      (No steps selected, skipping planning)")
+                    run_planning = False
+            else:
+                # Default to Run All
+                planning_mode = "all"
+
+        else:
+            # Standard flow
+            if input("   Run Planning Phase? (Y/n): ").lower() == "n":
+                run_planning = False
+
+        if run_planning:
+            # Execute based on mode/selection
+
+            # 1. Analyst
+            should_run_analyst = False
+            if planning_mode == "all":
+                should_run_analyst = True
+            elif planning_mode == "missing" and not artifacts_status["analysis"]:
+                should_run_analyst = True
+            elif planning_mode == "selective" and "analysis" in selected_steps:
+                should_run_analyst = True
+
+            if should_run_analyst:
+                usage_tracker.set_sub_action("Auto:Planning/Analyst")
+                action_refine_issue(state, planning_proj)
+                # Update feature dir after analyst runs (it might have created it)
+                feature_dir = get_feature_dir(planning_proj["path"], state.active_issues[0].number if state.active_issues else combined_number)
                 state.context["last_feature_dir"] = feature_dir
-            usage_tracker.set_sub_action("Auto:Planning/Plan")
-            action_generate_plan(state, project)
+
+            # 2. Spec
+            should_run_spec = False
+            if planning_mode == "all":
+                should_run_spec = True
+            elif planning_mode == "missing" and not artifacts_status["spec"]:
+                should_run_spec = True
+            elif planning_mode == "selective" and "spec" in selected_steps:
+                should_run_spec = True
+
+            if should_run_spec:
+                usage_tracker.set_sub_action("Auto:Planning/Spec")
+                action_generate_spec(state, planning_proj)
+                # Update feature dir
+                if state.context.get("last_feature_dir"):
+                    feature_dir = state.context.get("last_feature_dir")
+
+            # 3. Plan
+            should_run_plan = False
+            if planning_mode == "all":
+                should_run_plan = True
+            elif planning_mode == "missing" and not artifacts_status["plan"]:
+                should_run_plan = True
+            elif planning_mode == "selective" and "plan" in selected_steps:
+                should_run_plan = True
+
+            if should_run_plan:
+                # Ensure feature_dir is in context so action_generate_plan doesn't ask again
+                if feature_dir:
+                    state.context["last_feature_dir"] = feature_dir
+                usage_tracker.set_sub_action("Auto:Planning/Plan")
+                action_generate_plan(state, planning_proj)
 
     # 3. Coding (User)
     print("\n🔹 Step 3: Coding Phase")
@@ -2543,11 +3109,10 @@ def action_guided_workflow(state: LumaState, project: dict):
     print("   - Use your IDE to implement the feature.")
     print("   - Run 'Luma' > 'Code Review' periodically.")
 
-    rel_feat_dir = "docs/features/..."
     if feature_dir:
         try:
-            rel_feat_dir = os.path.relpath(feature_dir, project.get("path", "."))
-        except:
+            os.path.relpath(feature_dir, project.get("path", "."))
+        except Exception:
             pass
 
     cont = input(
@@ -2587,7 +3152,6 @@ def action_guided_workflow(state: LumaState, project: dict):
     print("\n🔹 Step 6: Create Pull Request")
 
     # Check for "Yes to All" preference
-    auto_approve_pr = False
     choice = (
         input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
         .strip()
@@ -2596,15 +3160,49 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     if choice == "a":
         usage_tracker.set_sub_action("Auto:PR/Auto-Approve")
-        action_create_pr(state, project, auto_approve=True)
+        action_create_pr(state, project, auto_approve=True, target_repos=target_planning_repos)
     elif choice == "y" or choice == "":
         usage_tracker.set_sub_action("Auto:PR/Interactive")
-        action_create_pr(state, project, auto_approve=False)
+        action_create_pr(state, project, auto_approve=False, target_repos=target_planning_repos)
 
     # Poll for Merge?
     if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
         print(f"\n⏳ PR Created: {state.pr_url}")
-        print("   Please merge the PR on GitHub.")
+
+        # 7. CI Check
+        print("\n🔹 Step 7: Check CI Status")
+        if input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
+            import subprocess
+            import sys
+            
+            parts = state.pr_url.split("/")
+            if len(parts) >= 7 and "github.com" in state.pr_url:
+                ci_repo = f"{parts[-4]}/{parts[-3]}"
+                ci_pr_num = parts[-1]
+                
+                print("   ✅ ส่งคำสั่งตรวจสอบ CI ไปทำงานเป็น Background แล้ว")
+                print("      (เมื่อพบว่า CI สำเร็จหรือผิดพลาด ระบบจะแจ้งเตือนผ่าน Telegram)")
+                
+                luma_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-m",
+                        "luma_core.ci_checker",
+                        ci_pr_num,
+                        ci_repo,
+                        project.get("name", "Unknown"),
+                        state.pr_url
+                    ],
+                    cwd=luma_root,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            else:
+                print("   ⚠️ Could not parse PR URL to check CI.")
+
+        print("\n   Please merge the PR on GitHub.")
         input("   Press Enter AFTER you have merged the PR...")
 
         # Use the refresh check logic from main loop or just assume
@@ -2616,6 +3214,32 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     # Clear sub_action at the end of the auto workflow so future usage is clean
     usage_tracker.set_sub_action(None)
+
+    # 8. Send Summary to Telegram
+    try:
+        from luma_core.metrics_summarizer import (
+            summarize_usage_stats,
+            summarize_issue_metrics,
+            format_summary_message,
+        )
+        from luma_core.notifier import notify_task_complete as _notify
+
+        usage_summary = summarize_usage_stats(
+            usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID
+        )
+        metrics_path = os.path.join(project["path"], ".luma_metrics.json")
+        metrics_summary = summarize_issue_metrics(metrics_path)
+        summary_msg = format_summary_message(usage_summary, metrics_summary)
+        _notify(
+            project=project.get("name", "Unknown"),
+            task="Workflow Summary",
+            status="success",
+            message=summary_msg,
+        )
+        print("\n📊 Summary sent to Telegram!")
+    except Exception as e:
+        print(f"\n⚠️ Could not send summary: {e}")
+
     print("\n🎉 Workflow Completed! You can now select the next issue.")
 
 
@@ -2761,7 +3385,7 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
                         with open(doc_path, "r", encoding="utf-8") as f:
                             content = f.read()
                             artifact_context += f"\n\n## Reference: {doc}\n{content[:5000]}\n(truncated if too long)\n"
-                    except:
+                    except Exception:
                         pass
         else:
             print("   ⚠️ No feature directory found. Using generic context.")

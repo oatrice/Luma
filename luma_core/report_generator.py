@@ -1,0 +1,306 @@
+import os
+import re
+import json
+import subprocess
+from typing import Optional, List, Tuple, Dict
+from datetime import date, datetime, timedelta
+
+from luma_core.issue_metrics import (
+    IssueMetricsRecord,
+    list_issue_metrics,
+    get_roadmap_path,
+)
+
+def _get_period_dates(period: str, ref_date: date) -> Tuple[datetime, datetime, datetime, datetime]:
+    if period == "monthly":
+        start_this = datetime(ref_date.year, ref_date.month, 1)
+        # Handle month rollover for end_this
+        if ref_date.month == 12:
+            end_this = datetime(ref_date.year + 1, 1, 1) - timedelta(seconds=1)
+        else:
+            end_this = datetime(ref_date.year, ref_date.month + 1, 1) - timedelta(seconds=1)
+            
+        # Previous month
+        if ref_date.month == 1:
+            start_prev = datetime(ref_date.year - 1, 12, 1)
+        else:
+            start_prev = datetime(ref_date.year, ref_date.month - 1, 1)
+        end_prev = start_this - timedelta(seconds=1)
+        
+    else:  # weekly
+        # ISO week: Monday is 0, Sunday is 6
+        start_this = datetime.combine(ref_date - timedelta(days=ref_date.weekday()), datetime.min.time())
+        end_this = start_this + timedelta(days=7) - timedelta(seconds=1)
+        start_prev = start_this - timedelta(days=7)
+        end_prev = start_this - timedelta(seconds=1)
+        
+    return start_this, end_this, start_prev, end_prev
+
+def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
+    if not dt_str:
+        return None
+    try:
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+def _is_complete(status: Optional[str]) -> bool:
+    if not status:
+        return False
+    status_lower = status.lower()
+    return "complete" in status_lower or "done" in status_lower or "released" in status_lower
+
+def _format_short_date(dt_str: Optional[str]) -> str:
+    """Format ISO datetime string to short date like '2026-03-18'."""
+    if not dt_str:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        return dt_str[:10] if len(dt_str) >= 10 else dt_str
+
+def _fetch_gh_issue_dates(issues: List[IssueMetricsRecord]) -> Dict[int, Dict[str, str]]:
+    """Fetch issue dates from GitHub via gh CLI.
+    Returns dict mapping issue_number -> {"createdAt": ..., "closedAt": ...}.
+    """
+    result = {}
+    for iss in issues:
+        repo = getattr(iss, 'repository', None)
+        if not repo or not iss.issue_number:
+            continue
+        try:
+            proc = subprocess.run(
+                ["gh", "issue", "view", str(iss.issue_number),
+                 "--repo", repo, "--json", "createdAt,closedAt"],
+                capture_output=True, text=True, timeout=10
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                data = json.loads(proc.stdout.strip())
+                result[iss.issue_number] = {
+                    "createdAt": data.get("createdAt", ""),
+                    "closedAt": data.get("closedAt", ""),
+                }
+        except Exception:
+            continue
+    return result
+
+def _parse_roadmap_phases(roadmap_path: str) -> Tuple[List[Dict[str, object]], str]:
+    phases = []
+    replan_history_lines = []
+    if not os.path.exists(roadmap_path):
+        return phases, ""
+        
+    with open(roadmap_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        
+    current_phase = None
+    in_replan_section = False
+    
+    for line in lines:
+        if bool(re.match(r"^##\s+.*(?:Replan History|📅).*", line, re.IGNORECASE)):
+            in_replan_section = True
+            current_phase = None
+            continue
+        elif in_replan_section and re.match(r"^##\s+", line):
+            in_replan_section = False
+            
+        if in_replan_section:
+            if line.strip():
+                replan_history_lines.append(line.strip())
+            continue
+            
+        phase_match = re.match(r"^##\s+(Phase\s+\d+.*?)\s*$", line)
+        if phase_match:
+            if current_phase:
+                phases.append(current_phase)
+            current_phase = {
+                "name": phase_match.group(1).strip(),
+                "total": 0,
+                "completed": 0
+            }
+            continue
+            
+        if current_phase:
+            # Check for issue in table
+            if line.strip().startswith("|") and "[#" in line:
+                current_phase["total"] += 1
+                if "✅" in line or "Complete" in line or "Done" in line:
+                    current_phase["completed"] += 1
+                    
+    if current_phase:
+        phases.append(current_phase)
+        
+    return phases, "\n".join(replan_history_lines)
+
+def generate_report(project_path: str, period: str = "weekly", reference_date: Optional[date] = None) -> str:
+    if reference_date is None:
+        reference_date = date.today()
+        
+    metrics = list_issue_metrics(project_path)
+    roadmap_path = get_roadmap_path(project_path)
+    
+    start_this, end_this, start_prev, end_prev = _get_period_dates(period, reference_date)
+    
+    # Velocity calculation
+    this_period_completed = []
+    prev_period_completed = []
+    
+    overdue_issues = []
+    upcoming_issues = []
+    
+    today = datetime.combine(reference_date, datetime.min.time())
+    upcoming_limit = today + timedelta(days=7 if period == "weekly" else 30)
+    
+    for issue in metrics:
+        due_dt = _parse_datetime(issue.due_date)
+        completed_dt = _parse_datetime(issue.actual_completion_date)
+        is_done = _is_complete(issue.issue_status)
+        
+        if is_done and completed_dt:
+            if start_this <= completed_dt <= end_this:
+                this_period_completed.append(issue)
+            elif start_prev <= completed_dt <= end_prev:
+                prev_period_completed.append(issue)
+                
+        if not is_done and due_dt:
+            # For overdue it should be strictly before today
+            if due_dt < today:
+                overdue_issues.append(issue)
+            elif today <= due_dt <= upcoming_limit:
+                upcoming_issues.append(issue)
+                
+    # On-time rate
+    on_time_count = 0
+    for issue in this_period_completed:
+        due_dt = _parse_datetime(issue.due_date)
+        completed_dt = _parse_datetime(issue.actual_completion_date)
+        if due_dt and completed_dt and completed_dt <= due_dt:
+            on_time_count += 1
+        elif completed_dt and not due_dt:
+            # Count as on-time if no due date? Requirements don't specify, let's say yes or just ignore
+            on_time_count += 1
+            
+    # Compile markdown
+    lines = []
+    report_type = "Weekly" if period == "weekly" else "Monthly"
+    
+    # Header
+    date_range_str = f"{start_this.strftime('%Y-%m-%d')} to {end_this.strftime('%Y-%m-%d')}"
+    lines.append(f"# {report_type} Report")
+    lines.append(f"**Date Range:** {date_range_str}")
+    lines.append("")
+    
+    # Velocity Summary
+    lines.append("## Velocity Summary")
+    this_points = sum(iss.estimate_points or 0 for iss in this_period_completed)
+    prev_points = sum(iss.estimate_points or 0 for iss in prev_period_completed)
+    trend = "↑" if this_points > prev_points else "↓" if this_points < prev_points else "→"
+    
+    est_mandays = sum(iss.estimated_mandays or 0.0 for iss in this_period_completed)
+    act_mandays = sum(iss.actual_mandays or 0.0 for iss in this_period_completed)
+    
+    lines.append(f"- **Issues completed in this period:** {len(this_period_completed)}")
+    lines.append(f"- **Total points:** {this_points}")
+    lines.append(f"- **Trend vs previous period:** {trend} (was {prev_points} points)")
+    lines.append(f"- **Mandays (Completed):** {est_mandays:.1f} estimated vs {act_mandays:.1f} actual")
+    lines.append("")
+    
+    # Completed Issues Detail
+    lines.append("## Completed Issues")
+    if this_period_completed:
+        gh_dates = _fetch_gh_issue_dates(this_period_completed)
+
+        def _sort_key(iss):
+            dt = _parse_datetime(
+                gh_dates.get(iss.issue_number, {}).get("closedAt") or iss.actual_completion_date
+            )
+            if dt and dt.tzinfo:
+                dt = dt.replace(tzinfo=None)
+            return dt or datetime.min
+
+        this_period_completed.sort(key=_sort_key, reverse=True)
+        for iss in this_period_completed:
+            pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
+            iss_gh = gh_dates.get(iss.issue_number, {})
+            created_str = _format_short_date(iss_gh.get("createdAt"))
+            due_str = _format_short_date(iss.due_date)
+            completed_str = _format_short_date(iss_gh.get("closedAt") or iss.actual_completion_date)
+            lines.append(f"- **#{iss.issue_number}** {iss.issue_title}{pts_str}")
+            lines.append(f"  - Created: {created_str} | Due: {due_str} | Completed: {completed_str}")
+    else:
+        lines.append("- No issues completed in this period.")
+    lines.append("")
+    
+    # Human-readable Summary  — insert right after header
+    summary_parts = []
+    summary_parts.append(f"ในช่วง{report_type.lower()} นี้ ทีมทำงานเสร็จทั้งหมด {len(this_period_completed)} issues")
+    if this_period_completed:
+        summary_parts.append(f" รวม {this_points} points")
+        if this_points > prev_points:
+            summary_parts.append(" ซึ่งดีขึ้นกว่าช่วงก่อนหน้า")
+        elif this_points < prev_points:
+            summary_parts.append(" ซึ่งลดลงจากช่วงก่อนหน้า")
+    if overdue_issues:
+        summary_parts.append(f" โดยมี {len(overdue_issues)} issues ที่เลยกำหนดส่ง")
+    if upcoming_issues:
+        summary_parts.append(f" และมี {len(upcoming_issues)} issues ที่จะถึงกำหนดเร็วๆ นี้")
+    summary_text = "".join(summary_parts) + "."
+    
+    # Insert summary right after header (position 3 = after header + date range + blank line)
+    lines.insert(3, "## Summary")
+    lines.insert(4, summary_text)
+    lines.insert(5, "")
+    
+    # On-time Delivery Rate
+    lines.append("## On-time Delivery Rate")
+    total_completed = len(this_period_completed)
+    if total_completed > 0:
+        rate = (on_time_count / total_completed) * 100
+        lines.append(f"- **{on_time_count}/{total_completed}** completed issues were on time ({rate:.0f}%)")
+    else:
+        lines.append("- No issues completed in this period.")
+    lines.append("")
+    
+    # Overdue Issues
+    lines.append("## Overdue Issues")
+    if overdue_issues:
+        for iss in overdue_issues:
+            due_dt = _parse_datetime(iss.due_date)
+            days_overdue = (today - due_dt).days if due_dt else 0
+            lines.append(f"- **#{iss.issue_number}** {iss.issue_title} (Due: {iss.due_date}, Overdue by {days_overdue} days)")
+    else:
+        lines.append("- No overdue issues.")
+    lines.append("")
+    
+    # Upcoming Due Dates
+    lines.append("## Upcoming Due Dates")
+    if upcoming_issues:
+        for iss in upcoming_issues:
+            lines.append(f"- **#{iss.issue_number}** {iss.issue_title} (Due: {iss.due_date})")
+    else:
+        lines.append("- No upcoming issues.")
+    lines.append("")
+    
+    # Phase Progress
+    if roadmap_path:
+        phases, replan_history = _parse_roadmap_phases(roadmap_path)
+        if phases:
+            lines.append("## Phase Progress")
+            for phase in phases:
+                tot = int(phase["total"]) # type: ignore
+                comp = int(phase["completed"]) # type: ignore
+                pct = (comp / tot * 100) if tot > 0 else 0
+                lines.append(f"- **{phase['name']}**: {comp}/{tot} ({pct:.0f}%)")
+            lines.append("")
+            
+        if replan_history:
+            lines.append("## Replan History Summary")
+            # simple summary: take up to top 15 lines
+            history_preview = "\n".join(replan_history.split("\n")[:15])
+            lines.append(history_preview)
+            if len(replan_history.split("\n")) > 15:
+                lines.append("...")
+            lines.append("")
+            
+    return "\n".join(lines)

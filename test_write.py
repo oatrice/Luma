@@ -1,5 +1,4 @@
 
-import os
 try:
     with open("test_out.txt", "w") as f:
         f.write("IT WORKS")

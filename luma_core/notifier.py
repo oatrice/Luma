@@ -48,7 +48,7 @@ def notify_task_complete(
         "task": task,
         "status": status,
         "chat_id": AKASA_CHAT_ID,
-        "source": "Luma CLI",
+        "source": f"Luma CLI ({os.path.basename(os.getcwd())})",
     }
 
     if duration is not None:

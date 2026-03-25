@@ -1,5 +1,4 @@
 import requests
-import json
 from .config import GITHUB_TOKEN
 
 def get_github_headers():
@@ -330,8 +329,10 @@ def update_pull_request(repo_name, pr_number, title=None, body=None):
     headers = get_github_headers()
     
     payload = {}
-    if title: payload["title"] = title
-    if body: payload["body"] = body
+    if title:
+        payload["title"] = title
+    if body:
+        payload["body"] = body
     
     if not payload:
         return None

@@ -2,12 +2,10 @@ import copy
 import os
 
 from dotenv import load_dotenv
+import json
 
 # Load environment variables from .env file
 load_dotenv()
-
-import json
-
 # --- Config ---
 GLOBAL_CONFIG_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json"

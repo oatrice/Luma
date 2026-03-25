@@ -1,5 +1,4 @@
 
-import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -39,7 +38,7 @@ Example:
 
 messages = [SystemMessage(content=system_prompt), HumanMessage(content=task)]
 
-print(f"📡 Sending Prompt to gemini-2.5-flash...")
+print("📡 Sending Prompt to gemini-2.5-flash...")
 try:
     response = llm.invoke(messages)
     print("\n--- RESPONSE ---")

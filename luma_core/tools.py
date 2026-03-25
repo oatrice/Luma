@@ -207,7 +207,7 @@ def update_android_version_logic(version: str, target_dir: str = DEFAULT_TARGET_
         - Added POST /debug/log endpoint
         """
         
-        ai_summary = llm.invoke([HumanMessage(content=changelog_prompt)]).content.strip()
+        llm.invoke([HumanMessage(content=changelog_prompt)]).content.strip()
         
         # Read & Replace
         changelog_path = os.path.join(project_root, "android-server/CHANGELOG.md")
@@ -273,14 +273,14 @@ def generate_branch_suggestions(target_dir: str = DEFAULT_TARGET_DIR):
     try:
         diff_stat = subprocess.check_output(["git", "diff", "--stat"], cwd=target_dir, text=True).strip()
         diff_cached_stat = subprocess.check_output(["git", "diff", "--cached", "--stat"], cwd=target_dir, text=True).strip()
-    except:
+    except Exception:
         diff_stat = ""
         diff_cached_stat = ""
 
     try:
         diff_content = subprocess.check_output(["git", "diff"], cwd=target_dir, text=True).strip()
         diff_cached_content = subprocess.check_output(["git", "diff", "--cached"], cwd=target_dir, text=True).strip()
-    except:
+    except Exception:
         diff_content = ""
         diff_cached_content = ""
 
@@ -581,7 +581,7 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
             cwd=target_dir, capture_output=True, text=True
         )
         current_branch = branch_res.stdout.strip() or "unknown"
-    except:
+    except Exception:
         current_branch = "unknown"
     
     # 2. Get base branch (main or master)
@@ -593,7 +593,7 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
         )
         if check_main.returncode != 0:
             base_branch = "master"
-    except:
+    except Exception:
         pass
     
     # 3. Commit log
@@ -603,7 +603,7 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
             cwd=target_dir, capture_output=True, text=True
         )
         commits = commits_res.stdout.strip() or "No commits yet"
-    except:
+    except Exception:
         commits = "Failed to get commits"
     
     # 4. Diff stats (--stat)
@@ -613,7 +613,7 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
             cwd=target_dir, capture_output=True, text=True
         )
         diff_stat = stat_res.stdout.strip() or "No changes"
-    except:
+    except Exception:
         diff_stat = "Failed to get stats"
     
     # 5. Line changes summary (insertions/deletions)
@@ -623,7 +623,7 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
             cwd=target_dir, capture_output=True, text=True
         )
         line_changes = shortstat_res.stdout.strip() or "No line changes"
-    except:
+    except Exception:
         line_changes = "Failed to get line counts"
     
     # 6. Full diff (truncated)
@@ -639,7 +639,7 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
         if len(diff_lines) > max_diff_lines:
             full_diff = '\n'.join(diff_lines[:max_diff_lines])
             full_diff += f"\n\n... (truncated, {len(diff_lines) - max_diff_lines} more lines)"
-    except:
+    except Exception:
         full_diff = "Failed to get diff"
     
     # 7. Generate markdown content
@@ -723,7 +723,7 @@ def get_git_changed_files(mode: str = "all", target_dir: str = DEFAULT_TARGET_DI
 # --- Multi-Repo PR Functions ---
 
 # GitHub Integration
-from .github_client import get_open_pr, create_pull_request, update_pull_request
+from .github_client import get_open_pr, create_pull_request, update_pull_request  # noqa: E402
 
 
 def check_branch_sync(repo_configs: list) -> tuple:
@@ -911,7 +911,6 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
     Get current version from specified version_file or auto-detect.
     Supports: VERSION file, package.json, build.gradle.kts, git tags.
     """
-    import re
     
     # If version_file is specified, use it directly
     if version_file:
@@ -922,7 +921,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
                 try:
                     with open(full_path, 'r') as f:
                         return f.read().strip()
-                except:
+                except Exception:
                     pass
             
             # package.json
@@ -931,7 +930,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
                     with open(full_path, 'r') as f:
                         data = json.load(f)
                     return data.get('version', '')
-                except:
+                except Exception:
                     pass
             
             # build.gradle / build.gradle.kts
@@ -942,7 +941,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
                     match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
                     if match:
                         return match.group(1)
-                except:
+                except Exception:
                     pass
     
     # Fallback: auto-detect (original behavior)
@@ -953,7 +952,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
             with open(package_json, 'r') as f:
                 data = json.load(f)
             return data.get('version', '')
-        except:
+        except Exception:
             pass
     
     # Try build.gradle.kts (Android)
@@ -969,7 +968,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
                 match = re.search(r'versionName\s*[=]?\s*["\']([^"\']+)["\']', content)
                 if match:
                     return match.group(1)
-            except:
+            except Exception:
                 pass
     
     # Try VERSION file
@@ -978,7 +977,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
         try:
             with open(version_path, 'r') as f:
                 return f.read().strip()
-        except:
+        except Exception:
             pass
     
     # Try latest git tag
@@ -991,7 +990,7 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
         )
         if tag_res.returncode == 0 and tag_res.stdout.strip():
             return tag_res.stdout.strip().lstrip('v')
-    except:
+    except Exception:
         pass
     
     return ""
@@ -999,7 +998,6 @@ def get_current_version(repo_path: str, version_file: str = None) -> str:
 
 def extract_version_from_changelog_entry(changelog_entry: str) -> str:
     """Extract version number from a CHANGELOG entry like '## [0.4.0] - 2026-01-18'."""
-    import re
     match = re.search(r'\[(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\]', changelog_entry)
     if match:
         return match.group(1)
@@ -1052,7 +1050,6 @@ def update_version_in_file(repo_path: str, new_version: str, version_file: str =
     Supports: VERSION file, package.json, build.gradle.kts.
     Returns dict with 'success', 'file', 'old_version', 'new_version'.
     """
-    import re
     
     result = {
         "success": False,
@@ -1206,7 +1203,7 @@ def update_version_in_file(repo_path: str, new_version: str, version_file: str =
                         result["success"] = True
                         result["file"] = os.path.basename(os.path.dirname(pbxproj_path)) # project.xcodeproj
                         return result
-            except Exception as e:
+            except Exception:
                 # Continue checking other files if one fails
                 pass
     
@@ -1218,7 +1215,7 @@ def update_version_in_file(repo_path: str, new_version: str, version_file: str =
                 f.write(new_version + '\n')
             result["success"] = True
             result["file"] = "VERSION"
-            print(f"   🆕 Auto-created VERSION file")
+            print("   🆕 Auto-created VERSION file")
             return result
         except Exception as e:
             result["error"] = f"Failed to auto-create VERSION file: {e}"
@@ -1272,7 +1269,7 @@ def ai_generate_changelog_entry(git_data: dict, repo_name: str, existing_content
 
 Generate the new changelog entry:"""
 
-        print(f"   🤖 Generating CHANGELOG with AI...")
+        print("   🤖 Generating CHANGELOG with AI...")
         if current_version:
             print(f"   📦 Current version: {current_version}")
         llm = get_llm(temperature=0.3, purpose="general")
@@ -1356,7 +1353,7 @@ def ai_generate_readme_update(git_data: dict, repo_name: str, existing_content: 
 
 Return the FULL README with MINIMAL changes (or "No updates needed"):"""
 
-        print(f"   🤖 Generating README updates with AI...")
+        print("   🤖 Generating README updates with AI...")
         llm = get_llm(temperature=0.2, purpose="general")  # Lower temperature for less creativity
         response = llm.invoke(prompt)
         if response:
@@ -1389,7 +1386,7 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
         minor_ver = _suggest_bumped_version(current, 'minor')
         major_ver = _suggest_bumped_version(current, 'major')
         
-        print(f"\n   🚀 Select Version Bump:")
+        print("\n   🚀 Select Version Bump:")
         print(f"      [1] PATCH : {patch_ver}")
         print(f"      [2] MINOR : {minor_ver}")
         print(f"      [3] MAJOR : {major_ver}")
@@ -1397,13 +1394,13 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
         if suggested_version and suggested_version != current:
             print(f"      [4] AI Suggested: {suggested_version} (Default)")
         
-        print(f"      [0] Skip")
+        print("      [0] Skip")
 
         # Determine prompt
         if suggested_version and suggested_version != current:
             prompt_text = f"\n   👉 Select [1-4] (Default={suggested_version}) or type custom: "
         else:
-            prompt_text = f"\n   👉 Select [1-3] or type custom: "
+            prompt_text = "\n   👉 Select [1-3] or type custom: "
 
         user_input = input(prompt_text).strip()
         
@@ -1418,7 +1415,7 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
         elif user_input == '4' and suggested_version:
             version_to_apply = suggested_version
         elif user_input == '0':
-            print(f"   ⏩ Version update skipped")
+            print("   ⏩ Version update skipped")
             return None
         elif user_input == "" and suggested_version and suggested_version != current:
             version_to_apply = suggested_version
@@ -1476,7 +1473,7 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
             
             docs_available = []
             if not os.path.exists(changelog_path):
-                print(f"   🆕 Creating default CHANGELOG.md...")
+                print("   🆕 Creating default CHANGELOG.md...")
                 try:
                     with open(changelog_path, 'w', encoding='utf-8') as f:
                         f.write("# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n")
@@ -1490,32 +1487,32 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
             
             if not docs_available:
                 result["error"] = "No CHANGELOG.md or README.md found"
-                print(f"   ⚠️ No documentation files found")
+                print("   ⚠️ No documentation files found")
                 results.append(result)
                 continue
             
             print(f"   📄 Found: {', '.join(docs_available)}")
             
             # Gather git data
-            print(f"   📊 Gathering git data...")
+            print("   📊 Gathering git data...")
             git_data = gather_git_data_for_docs(config["path"])
             
             if not git_data.get("commit_log"):
                 result["error"] = "No commits to document"
-                print(f"   ⏩ No commits ahead of main")
+                print("   ⏩ No commits ahead of main")
                 results.append(result)
                 continue
             
             print(f"   📈 {len(git_data['commit_log'])} commit(s), {len(git_data['changed_files'])} file(s) changed")
             
             # Ask user which docs to update
-            print(f"\n   ตัวเลือก:")
-            print(f"   [1] 📋 CHANGELOG.md only")
-            print(f"   [2] 📖 README.md only")
-            print(f"   [3] 📚 Both")
-            print(f"   [0] ⏩ Skip")
+            print("\n   ตัวเลือก:")
+            print("   [1] 📋 CHANGELOG.md only")
+            print("   [2] 📖 README.md only")
+            print("   [3] 📚 Both")
+            print("   [0] ⏩ Skip")
             
-            doc_choice = input(f"   👉 Select: ").strip()
+            doc_choice = input("   👉 Select: ").strip()
             
             if doc_choice == "0":
                 result["error"] = "Skipped by user"
@@ -1573,11 +1570,11 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                             f.write(new_content)
                         
                         # Show new entry preview
-                        print(f"\n   📋 NEW CHANGELOG ENTRY:")
-                        print(f"   " + "=" * 45)
+                        print("\n   📋 NEW CHANGELOG ENTRY:")
+                        print("   " + "=" * 45)
                         for line in new_entry.split('\n')[:20]:
                             print(f"   {line}")
-                        print(f"   " + "=" * 45)
+                        print("   " + "=" * 45)
                         
                         # Show diff comparison with existing
                         if existing_content:
@@ -1592,23 +1589,23 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                                     first_entry_lines.append(line)
                             
                             if first_entry_lines:
-                                print(f"\n   📜 PREVIOUS ENTRY (for comparison):")
-                                print(f"   " + "-" * 45)
+                                print("\n   📜 PREVIOUS ENTRY (for comparison):")
+                                print("   " + "-" * 45)
                                 for line in first_entry_lines[:10]:
                                     print(f"   {line}")
-                                print(f"   " + "-" * 45)
+                                print("   " + "-" * 45)
                         
                         # Open VS Code diff view for comparison
-                        print(f"\n   📊 Opening VS Code diff...")
+                        print("\n   📊 Opening VS Code diff...")
                         print(f"      code --diff {doc_path} {preview_path}")
                         subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
                         
-                        save_choice = input(f"\n   💾 Save CHANGELOG changes? (y/N): ").lower()
+                        save_choice = input("\n   💾 Save CHANGELOG changes? (y/N): ").lower()
                         if save_choice == 'y':
                             with open(doc_path, 'w', encoding='utf-8') as f:
                                 f.write(new_content)
                             result["files_updated"].append(doc_name)
-                            print(f"   ✅ CHANGELOG.md updated!")
+                            print("   ✅ CHANGELOG.md updated!")
                             
                             # Capture suggested version for the standalone bump step
                             detected_version_from_changelog = extract_version_from_changelog_entry(new_entry)
@@ -1625,28 +1622,28 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                         with open(preview_path, 'w', encoding='utf-8') as f:
                             f.write(new_content)
                         
-                        print(f"\n   📄 README Preview generated")
-                        print(f"\n   📊 Opening VS Code diff...")
+                        print("\n   📄 README Preview generated")
+                        print("\n   📊 Opening VS Code diff...")
                         print(f"      code --diff {doc_path} {preview_path}")
                         subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
                         
-                        save_choice = input(f"\n   💾 Save README changes? (y/N): ").lower()
+                        save_choice = input("\n   💾 Save README changes? (y/N): ").lower()
                         if save_choice == 'y':
                             with open(doc_path, 'w', encoding='utf-8') as f:
                                 f.write(new_content)
                             result["files_updated"].append(doc_name)
-                            print(f"   ✅ README.md updated!")
+                            print("   ✅ README.md updated!")
                         
                         if os.path.exists(preview_path):
                             os.remove(preview_path)
                     else:
-                        print(f"   ℹ️ No README updates needed")
+                        print("   ℹ️ No README updates needed")
             
             # === Version Bump Step (Decoupled) ===
             # Run this if any files were updated OR if user explicitly wants to check version
             # Here we run it if at least one doc was attempted/updated, or we can just always run it for flow
             if result["files_updated"]:
-                print(f"\n   🔖 Version Bump Check...")
+                print("\n   🔖 Version Bump Check...")
                 updated_ver = _interactive_version_bump(
                     config, 
                     suggested_version=detected_version_from_changelog, 
@@ -1733,10 +1730,10 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
                 print(f"   🔄 Mode: UPDATE existing PR #{existing_pr['number']}")
                 print(f"   🔗 {existing_pr['html_url']}")
             else:
-                print(f"   🆕 Mode: CREATE new PR")
+                print("   🆕 Mode: CREATE new PR")
             
             # Step 2: Generate new PR draft
-            print(f"\n   📊 Generating PR draft...")
+            print("\n   📊 Generating PR draft...")
             title, body, draft_json_file = load_or_generate_pr_content(
                 current_branch, 
                 config["repo"], 
@@ -1752,7 +1749,7 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
                 if existing_pr:
                     f.write(f"**Action:** Update PR #{existing_pr['number']}\n")
                 else:
-                    f.write(f"**Action:** Create new PR\n")
+                    f.write("**Action:** Create new PR\n")
                 f.write("\n---\n\n")
                 f.write(body or '')
             
@@ -1760,7 +1757,7 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
             subprocess.run(["open", preview_file], capture_output=True)
             
             # Step 4: Submit or Cancel
-            submit_choice = input(f"   ✅ Submit this PR? (y/N): ").lower()
+            submit_choice = input("   ✅ Submit this PR? (y/N): ").lower()
             if submit_choice != 'y':
                 result["error"] = "Cancelled by user"
                 print(f"   ❌ Cancelled {config['name']}")
@@ -1786,7 +1783,7 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
                 print(f"   🔄 Updating PR #{existing_pr['number']}...")
                 url = update_pull_request(config["repo"], existing_pr['number'], title, body)
             else:
-                print(f"   🆕 Creating new PR...")
+                print("   🆕 Creating new PR...")
                 url = create_pull_request(config["repo"], title, body, current_branch, base_branch)
             
             if url:
