@@ -14,6 +14,11 @@ from pydantic import Field
 from . import config
 from . import usage_tracker
 from .error_classifier import classify_error, ErrorType, is_retryable
+from .credential_manager import (
+    CredentialManager,
+    CredentialType,
+    AllCredentialsExhaustedError,
+)
 
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
@@ -58,6 +63,25 @@ class GeminiCLIModel(BaseChatModel):
         # Call gemini cli using STDIN to avoid OS ARG_MAX limits for large code payloads
         start_time = time.time()
 
+        # ── Credential Rotation Setup ────────────────────────────────────────
+        _has_credentials = bool(config.GOOGLE_API_KEYS or config.GEMINI_CLI_PROFILES)
+        if _has_credentials:
+            try:
+                CredentialManager.reset_instance()  # re-init to pick up latest config
+                cred_manager: Optional[CredentialManager] = CredentialManager.get_instance(
+                    api_keys=config.GOOGLE_API_KEYS,
+                    oauth_profiles=config.GEMINI_CLI_PROFILES,
+                )
+            except ValueError:
+                cred_manager = None  # empty pool — fall through to bare env
+        else:
+            cred_manager = None
+        current_cred = None
+        OAUTH_PROFILES_BASE = os.path.join(
+            os.path.expanduser("~"), ".luma", "profiles"
+        )
+        # ──────────────────────────────────────────────────────────────────────
+
         max_retries = 2
         process: Optional[subprocess.Popen] = None
         output: str = "Error: No attempts were made."
@@ -70,6 +94,34 @@ class GeminiCLIModel(BaseChatModel):
                 # Always start a new session (no -r flag)
                 cmd = ["gemini", "-m", self.model]
 
+                # ── Build env with active credential ────────────────────────
+                if cred_manager:
+                    try:
+                        current_cred = cred_manager.get_next_credential()
+                    except AllCredentialsExhaustedError:
+                        print(
+                            "⚠️ All credentials are rate-limited. "
+                            "Please add a new API key from a DIFFERENT Google Account, "
+                            "or wait for the cooldown to expire."
+                        )
+                        output = "Error: All credentials exhausted due to rate limiting."
+                        break
+
+                    subprocess_env = dict(os.environ)
+                    if current_cred.type == CredentialType.API_KEY:
+                        subprocess_env["GOOGLE_API_KEY"] = current_cred.value
+                        subprocess_env.pop("GEMINI_CLI_PROFILE", None)
+                    else:  # OAUTH_PROFILE
+                        profile_home = os.path.join(OAUTH_PROFILES_BASE, current_cred.value)
+                        subprocess_env["HOME"] = profile_home
+                        subprocess_env.pop("GOOGLE_API_KEY", None)  # force OAuth fallback
+                        print(
+                            f"🔑 Using OAuth profile: {current_cred.value} (HOME={profile_home})"
+                        )
+                else:
+                    subprocess_env = dict(os.environ)  # bare env — original behavior
+                # ────────────────────────────────────────────────────────────
+
                 # Use Popen to pipe prompt via stdin
                 process = subprocess.Popen(
                     cmd,
@@ -77,6 +129,7 @@ class GeminiCLIModel(BaseChatModel):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    env=subprocess_env,
                 )
 
                 # Send prompt and wait for completion
@@ -88,8 +141,17 @@ class GeminiCLIModel(BaseChatModel):
 
                     error_type = classify_error(stderr)
                     if error_type in (ErrorType.RATE_LIMIT, ErrorType.QUOTA_EXCEEDED):
+                        # Mark credential and retry immediately with the next one
+                        if cred_manager and current_cred is not None:
+                            cred_manager.mark_rate_limited(
+                                current_cred.value, retry_after=300
+                            )
+                            print(
+                                f"🔄 Credential '{current_cred.value}' rate-limited. "
+                                "Switching to next available credential..."
+                            )
                         output = f"Error calling Gemini CLI: {stderr}"
-                        break # Skip retry and bubble up immediately
+                        break  # Skip retry and bubble up immediately
 
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
                     if attempt < max_retries - 1:
