@@ -57,3 +57,12 @@ def test_record_llm_event_includes_error_type(tmp_path, monkeypatch):
     assert event["status"] == "error"
     assert event["error_type"] == "RATE_LIMIT"
 
+
+def test_get_current_sub_action():
+    usage_tracker.clear_sub_action()
+    assert usage_tracker.get_current_sub_action() is None
+
+    usage_tracker.set_sub_action("Test/SubAction")
+    assert usage_tracker.get_current_sub_action() == "Test/SubAction"
+
+    usage_tracker.clear_sub_action()

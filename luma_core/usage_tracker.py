@@ -45,6 +45,10 @@ def clear_sub_action() -> None:
     _current_sub_action = None
 
 
+def get_current_sub_action() -> Optional[str]:
+    return _current_sub_action
+
+
 def set_context(state: Optional[LumaState] = None, project: Optional[Dict[str, Any]] = None) -> None:
     global _current_context
     if not state and not project:
