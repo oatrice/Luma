@@ -26,6 +26,9 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     workflow = get_status_workflow(project)
     selectable_issues = _get_selectable_cards(all_cards, project)
 
+    print("🗺️  Checking and syncing Roadmap.md...")
+    synced_total = 0
+
     # Auto-sync CLOSED issues to Roadmap.md (silent background sync)
     try:
         done_statuses = {_status_key(s) for s in workflow.get("done_statuses", ["Done", "Closed"])}
@@ -35,7 +38,8 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
         if closed_issue_nums:
             synced = sync_roadmap_for_closed_issues(project, closed_issue_nums)
             if synced:
-                print(f"\n   🔄 Synced {synced} closed issue(s) → Roadmap.md")
+                print(f"   🔄 Synced {synced} closed issue(s) → Roadmap.md")
+                synced_total += synced
     except Exception:
         pass  # Never block issue selection due to roadmap sync error
 
@@ -45,8 +49,12 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
             new_appended = sync_roadmap_for_new_issues(project, all_cards)
             if new_appended:
                 print(f"   📌 {new_appended} new issue(s) appended → Roadmap.md")
+                synced_total += new_appended
     except Exception:
         pass  # Never block issue selection
+
+    if synced_total == 0:
+        print("   ✅ Roadmap is up to date.")
 
     if not selectable_issues:
         allowed = "', '".join(workflow.get("selectable_statuses", []))
