@@ -1,5 +1,4 @@
 import json
-import pytest
 from unittest.mock import patch, mock_open
 from luma_core.actions import action_settings
 

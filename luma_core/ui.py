@@ -1,5 +1,4 @@
 import unicodedata
-import sys
 from simple_term_menu import TerminalMenu
 from luma_core.doc_updates import get_pending_doc_updates, pending_doc_update_summary
 from luma_core.state_manager import LumaState, get_phase_display, get_next_step_recommendation# =============================================================================

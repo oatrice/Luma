@@ -4,7 +4,6 @@ import json
 import subprocess
 from typing import Optional, List, Tuple, Dict
 from datetime import date, datetime, timedelta
-import calendar
 
 from luma_core.issue_metrics import (
     IssueMetricsRecord,

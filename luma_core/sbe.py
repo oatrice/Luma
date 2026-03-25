@@ -7,7 +7,7 @@ Format: Markdown with Given/When/Then structure and Examples tables.
 import os
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 
 @dataclass

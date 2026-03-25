@@ -1,10 +1,9 @@
 import unittest
-import sys
 
 class TestImports(unittest.TestCase):
     def test_simple_term_menu_import(self):
         try:
-            from simple_term_menu import TerminalMenu
+            from simple_term_menu import TerminalMenu  # noqa: F401
         except ImportError:
             self.fail("simple_term_menu is not installed or cannot be imported")
 

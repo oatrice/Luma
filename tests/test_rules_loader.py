@@ -1,6 +1,4 @@
-import os
 import json
-import pytest
 from luma_core.rules_loader import load_project_rules, validate_rules
 
 # Dummy rules for testing

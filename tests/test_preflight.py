@@ -1,8 +1,7 @@
 import pytest
-import os
 import json
 from unittest.mock import patch, MagicMock
-from luma_core.preflight_checker import PreflightChecker, PreflightCheckResult, CheckType
+from luma_core.preflight_checker import PreflightChecker
 
 class TestPreflightChecker:
     

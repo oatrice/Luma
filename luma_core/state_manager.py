@@ -6,7 +6,6 @@ Luma V2 State Manager
 
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Tuple, Dict, Any, List
-import copy
 from datetime import datetime
 from enum import Enum
 import json

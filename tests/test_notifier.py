@@ -2,7 +2,6 @@
 Tests for luma_core.notifier — Telegram notification via Akasa Backend
 TDD: 🟥 RED Phase
 """
-import pytest
 from unittest.mock import patch, MagicMock
 
 

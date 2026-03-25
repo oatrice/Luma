@@ -1,7 +1,4 @@
-import os
-import subprocess
 from ..state import AgentState
-from ..config import TARGET_DIR
 
 def tester_agent(state: AgentState):
     """Tester: Runs build/test commands"""

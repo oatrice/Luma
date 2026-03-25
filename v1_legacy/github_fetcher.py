@@ -1,6 +1,5 @@
 import os
 import requests
-import json
 
 def get_github_headers():
     token = os.getenv("GITHUB_TOKEN")
@@ -386,8 +385,10 @@ def update_pull_request(repo_name, pr_number, title=None, body=None):
     headers = get_github_headers()
     
     payload = {}
-    if title: payload["title"] = title
-    if body: payload["body"] = body
+    if title:
+        payload["title"] = title
+    if body:
+        payload["body"] = body
     
     if not payload:
         return None

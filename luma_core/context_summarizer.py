@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from typing import List, Dict, Optional
+from typing import List
 
 class ContextSummarizer:
     def __init__(self, project_path: str):

@@ -4,8 +4,6 @@ TDD: Red Phase - Failing Tests First
 """
 import pytest
 import os
-import tempfile
-import shutil
 
 # These imports will fail initially (Red phase)
 # from luma_core.sbe import (

@@ -1,5 +1,3 @@
-import pytest
-import subprocess
 import json
 from unittest.mock import patch, MagicMock
 from luma_core.ci_checker import check_pr_ci_status, get_ci_failure_logs, monitor_ci_background

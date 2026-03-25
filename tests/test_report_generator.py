@@ -1,4 +1,3 @@
-import pytest
 from datetime import date
 from unittest.mock import patch, mock_open
 from luma_core.issue_metrics import IssueMetricsRecord

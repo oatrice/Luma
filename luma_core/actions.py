@@ -1,7 +1,6 @@
 import datetime
 import json
 import os
-import sys
 from dataclasses import asdict
 from collections import deque
 
@@ -32,7 +31,6 @@ from luma_core.state_manager import (
     IssueData,
     LumaState,
     WorkflowPhase,
-    get_next_step_recommendation,
     transition_to,
 )
 from luma_core.tools import (
@@ -883,7 +881,6 @@ def action_view_dashboard(state: LumaState, project: dict):
     from luma_core.metrics_summarizer import (
         summarize_usage_stats,
         summarize_issue_metrics,
-        format_summary_message,
     )
 
     usage_path = usage_tracker.get_log_path()
@@ -1400,7 +1397,6 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                     if proj.get("repo") and state.active_branch:
                         raw_url = f"https://raw.githubusercontent.com/{proj['repo']}/{state.active_branch}/{rel_path}"
                         # Encoding spaces just in case, though filenames likely safe
-                        from urllib.parse import quote
 
                         # We only encode the path part if needed, but simple f-string is usually fine for strict filenames
                         repo_screenshot_section += f"![{filename}]({raw_url})\n"
