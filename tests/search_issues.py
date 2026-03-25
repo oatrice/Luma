@@ -17,7 +17,8 @@ def search_issues():
         print(f"\n--- {category} Related --")
         found = False
         for c in cards:
-            if c.status in ["Done", "Closed"]: continue
+            if c.status in ["Done", "Closed"]:
+                continue
             if any(k in c.title.lower() for k in keys):
                 print(f"[{c.status}] #{c.issue_number} {c.title}")
                 found = True

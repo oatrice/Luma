@@ -3,7 +3,7 @@ Unit Tests for Luma V2 GitHub Project Integration
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import json
 import os
 import sys
@@ -11,10 +11,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from luma_core.github_project import (
-    KanbanCard, KNOWN_PROJECTS,
-    get_project_config, fetch_kanban_cards,
+    KanbanCard, get_project_config, fetch_kanban_cards,
     get_current_in_progress, get_ready_issues,
-    run_gh_command, display_kanban_cards
+    display_kanban_cards
 )
 
 

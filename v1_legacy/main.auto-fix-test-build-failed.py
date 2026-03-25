@@ -5,6 +5,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
+import json
+import subprocess
+import shutil
+import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -74,8 +78,6 @@ def get_llm(temperature=0.7, purpose="general"):
         raise ValueError(f"Unknown LLM_PROVIDER: {LLM_PROVIDER}")
 
 # --- 2. Define Nodes (ขั้นตอนการทำงาน) ---
-
-import json
 
 def coder_agent(state: AgentState):
     """ทำหน้าที่เป็น Go/C++ Expert เขียนโค้ดตามคำสั่ง (Multi-file Support)"""
@@ -181,8 +183,6 @@ def coder_agent(state: AgentState):
         print(f"⚠️ Coder Error: {e}")
         return {"changes": {}, "code_content": str(e)}
 
-import subprocess
-
 def reviewer_agent(state: AgentState):
     """(New Node) Reviewer Agent: ตรวจสอบและแก้ไขโค้ด"""
     # For simplicity, Reviewer currently reviews the main 'code_content'. 
@@ -199,7 +199,7 @@ def reviewer_agent(state: AgentState):
         target_files = list(changes.keys())
         print(f"🧐 Reviewing code for: {target_files}...")
     else:
-        print(f"🧐 Reviewing code for: New Generated Code...")
+        print("🧐 Reviewing code for: New Generated Code...")
     
     # Initialize LLM based on Provider
     llm = get_llm(temperature=0, purpose="code")
@@ -261,8 +261,6 @@ def reviewer_agent(state: AgentState):
         print(f"⚠️ Reviewer Advice failed: {e}")
 
     return {"code_content": content, "test_suggestions": advice}
-
-import shutil
 
 def tester_agent(state: AgentState):
     """(New Node) Tester Agent: รัน Unit Test ตรวจสอบความถูกต้อง (Ephemeral Testing with Multi-File support)"""
@@ -383,7 +381,6 @@ def should_continue(state: AgentState):
     return "pass"
 
 # --- 2.5 Docs Agent (Update Version & Changelog) ---
-import datetime
 
 def docs_agent(state: AgentState):
     """(New Node) Docs Agent: อัปเดตเอกสารและ Versioning"""
@@ -425,7 +422,7 @@ def docs_agent(state: AgentState):
                      res = subprocess.run(cmd_diff, cwd=TARGET_DIR, capture_output=True, text=True)
                      
                      if res.returncode != 0:
-                         print(f"   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
+                         print("   ⚠️ 'git diff origin/main' failed. Trying local 'main'...")
                          res = subprocess.run(["git", "diff", "--name-only", "main...HEAD"], cwd=TARGET_DIR, capture_output=True, text=True)
                      
                      diff_files = res.stdout.splitlines()
@@ -468,7 +465,7 @@ def docs_agent(state: AgentState):
             try:
                 pkg_json = json.loads(pkg_content)
                 current_version = pkg_json.get("version", "0.0.0")
-            except:
+            except Exception:
                 pass
     
     # Read CHANGELOG.md
@@ -492,7 +489,7 @@ def docs_agent(state: AgentState):
         else:
             patch += 1
         new_version = f"{major}.{minor}.{patch}"
-    except:
+    except Exception:
         new_version = current_version # Fallback if parse fails
         
     print(f"   🆙 Bump Version: {current_version} -> {new_version} ({bump_type})")
@@ -556,8 +553,6 @@ def docs_agent(state: AgentState):
     return {"changes": changes}
 
 # --- 3. Define Human Approval (การตรวจสอบจาก User) ---
-import difflib
-import webbrowser
 
 def human_approval_agent(state: AgentState):
     """(Mock) ให้ User ตรวจสอบโค้ดก่อนบันทึก"""
@@ -761,9 +756,12 @@ def publisher_agent(state: AgentState):
         scope = "(luma)"
         
     if not scope:
-        if "client" in lower_header: scope = "(client)"
-        elif "server" in lower_header: scope = "(server)"
-        elif "luma" in lower_header: scope = "(luma)"
+        if "client" in lower_header:
+            scope = "(client)"
+        elif "server" in lower_header:
+            scope = "(server)"
+        elif "luma" in lower_header:
+            scope = "(luma)"
 
     commit_message = f"{commit_prefix}{scope}: {task_title}"
     
@@ -1053,7 +1051,7 @@ if __name__ == "__main__":
                         try:
                             diff_stat = subprocess.check_output(["git", "diff", "--stat"], cwd=TARGET_DIR, text=True).strip()
                             diff_cached_stat = subprocess.check_output(["git", "diff", "--cached", "--stat"], cwd=TARGET_DIR, text=True).strip()
-                        except:
+                        except Exception:
                             diff_stat = ""
                             diff_cached_stat = ""
 
@@ -1061,7 +1059,7 @@ if __name__ == "__main__":
                         try:
                             diff_content = subprocess.check_output(["git", "diff"], cwd=TARGET_DIR, text=True).strip()
                             diff_cached_content = subprocess.check_output(["git", "diff", "--cached"], cwd=TARGET_DIR, text=True).strip()
-                        except:
+                        except Exception:
                             diff_content = ""
                             diff_cached_content = ""
 
@@ -1394,7 +1392,7 @@ if __name__ == "__main__":
                          if res_commits.returncode == 0:
                              files.update([f.strip() for f in res_commits.stdout.split('\n') if f.strip()])
                          else:
-                             print(f"   ⚠️ Could not diff against origin/main (using local only).")
+                             print("   ⚠️ Could not diff against origin/main (using local only).")
 
                          # 2. Local Dirty (Staged + Unstaged)
                          cmd_dirty = ["git", "diff", "--name-only", "--relative", "HEAD"]

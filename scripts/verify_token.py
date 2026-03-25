@@ -1,7 +1,6 @@
 
 import os
 import requests
-import json
 from dotenv import load_dotenv
 
 # Load .env
@@ -20,7 +19,8 @@ def get_headers():
 def run_query(label, query, variables=None):
     url = "https://api.github.com/graphql"
     headers = get_headers()
-    if not headers: return False
+    if not headers:
+        return False
 
     print(f"🔍 Testing {label}...")
     try:
@@ -31,7 +31,7 @@ def run_query(label, query, variables=None):
                 print(f"   ❌ Failed: {data['errors'][0]['message']}")
                 return False
             else:
-                print(f"   ✅ Success")
+                print("   ✅ Success")
                 return True
         else:
             print(f"   ❌ HTTP Error {response.status_code}: {response.text}")

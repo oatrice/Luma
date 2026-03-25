@@ -1,8 +1,9 @@
 import pytest
+import shutil
 from luma_core.llm import GeminiCLIModel
 from langchain_core.messages import HumanMessage
-import json
 
+@pytest.mark.skipif(shutil.which('gemini') is None, reason="gemini CLI not installed")
 def test_gemini_stdin_large_payload():
     model = GeminiCLIModel()
     # Create a large payload (e.g. 200KB)

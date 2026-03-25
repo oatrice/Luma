@@ -1,0 +1,212 @@
+"""
+📊 Luma Metrics Summarizer — สรุปภาพรวม Usage + Issue Metrics
+
+ใช้สำหรับ:
+  1. ส่ง Telegram notification หลังจบ Auto Full Workflow
+  2. แสดง Dashboard ใน CLI
+"""
+
+import json
+import os
+from collections import Counter
+from typing import Any, Dict, List, Optional
+
+
+def _event_matches_project(event: dict, project: dict) -> bool:
+    """Check if a usage event belongs to a given project."""
+    if project.get("name") and event.get("project_name") == project["name"]:
+        return True
+    if project.get("path") and event.get("project_path") == project["path"]:
+        return True
+    if project.get("repo") and event.get("project_repo") == project["repo"]:
+        return True
+    return False
+
+
+def summarize_usage_stats(
+    log_path: str,
+    project: Optional[dict] = None,
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    อ่าน .luma_ai_usage.jsonl แล้วสรุปเป็น dict
+
+    Returns:
+        dict with keys: total_calls, success_count, error_count,
+        total_duration_ms, unique_models, top_actions
+    """
+    total = 0
+    success = 0
+    error = 0
+    duration_ms = 0
+    models: set = set()
+    actions: Counter = Counter()
+
+    if not os.path.exists(log_path):
+        return {
+            "total_calls": 0,
+            "success_count": 0,
+            "error_count": 0,
+            "total_duration_ms": 0,
+            "unique_models": [],
+            "top_actions": {},
+        }
+
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                if project and not _event_matches_project(event, project):
+                    continue
+                if session_id and event.get("session_id") != session_id:
+                    continue
+
+                total += 1
+                status = event.get("status", "")
+                if status == "success":
+                    success += 1
+                elif status == "error":
+                    error += 1
+
+                duration_ms += event.get("duration_ms", 0)
+
+                model = event.get("model")
+                if model:
+                    models.add(model)
+
+                action = event.get("action")
+                if action:
+                    actions[action] += 1
+    except Exception:
+        pass
+
+    return {
+        "total_calls": total,
+        "success_count": success,
+        "error_count": error,
+        "total_duration_ms": duration_ms,
+        "unique_models": sorted(models),
+        "top_actions": dict(actions.most_common(5)),
+    }
+
+
+def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
+    """
+    อ่าน .luma_metrics.json แล้วสรุปเป็น dict
+
+    Returns:
+        dict with keys: total_issues, done_count, in_progress_count,
+        todo_count, total_points, total_estimated_mandays, total_actual_mandays
+    """
+    empty = {
+        "total_issues": 0,
+        "done_count": 0,
+        "in_progress_count": 0,
+        "todo_count": 0,
+        "total_points": 0,
+        "total_estimated_mandays": 0.0,
+        "total_actual_mandays": 0.0,
+    }
+
+    if not os.path.exists(metrics_path):
+        return empty
+
+    try:
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            store = json.load(f)
+    except Exception:
+        return empty
+
+    issues = store.get("issues", {})
+    if not isinstance(issues, dict):
+        return empty
+
+    total = 0
+    done = 0
+    in_progress = 0
+    todo = 0
+    points = 0
+    est_mandays = 0.0
+    act_mandays = 0.0
+
+    for item in issues.values():
+        if not isinstance(item, dict):
+            continue
+        total += 1
+
+        status = (item.get("issue_status") or "").lower()
+        if "done" in status or "complete" in status or "released" in status:
+            done += 1
+        elif "progress" in status or "coding" in status or "review" in status:
+            in_progress += 1
+        else:
+            todo += 1
+
+        points += item.get("estimate_points", 0) or 0
+        est_mandays += item.get("estimated_mandays", 0.0) or 0.0
+        act_mandays += item.get("actual_mandays", 0.0) or 0.0
+
+    return {
+        "total_issues": total,
+        "done_count": done,
+        "in_progress_count": in_progress,
+        "todo_count": todo,
+        "total_points": points,
+        "total_estimated_mandays": est_mandays,
+        "total_actual_mandays": act_mandays,
+    }
+
+
+def format_summary_message(
+    usage: Dict[str, Any],
+    metrics: Dict[str, Any],
+) -> str:
+    """
+    รวม usage + metrics summary เป็น Markdown message สำหรับ Telegram
+    """
+    duration_s = (usage.get("total_duration_ms", 0) or 0) / 1000
+    duration_display = f"{duration_s:.0f}s"
+    if duration_s >= 60:
+        mins = int(duration_s // 60)
+        secs = int(duration_s % 60)
+        duration_display = f"{mins}m {secs}s"
+
+    lines: List[str] = []
+    lines.append("📊 **Workflow Summary**")
+    lines.append("")
+
+    # --- AI Usage ---
+    lines.append("🤖 **AI Usage**")
+    lines.append(f"  Calls: {usage.get('total_calls', 0)} "
+                 f"(✅ {usage.get('success_count', 0)} / "
+                 f"❌ {usage.get('error_count', 0)})")
+    lines.append(f"  Duration: {duration_display}")
+    models = usage.get("unique_models", [])
+    if models:
+        lines.append(f"  Models: {', '.join(models)}")
+    top_actions = usage.get("top_actions", {})
+    if top_actions:
+        top_str = ", ".join(f"{k}({v})" for k, v in list(top_actions.items())[:3])
+        lines.append(f"  Actions: {top_str}")
+
+    lines.append("")
+
+    # --- Issue Metrics ---
+    lines.append("📏 **Issue Metrics**")
+    lines.append(f"  Issues: {metrics.get('total_issues', 0)} "
+                 f"(✅ {metrics.get('done_count', 0)} / "
+                 f"🔄 {metrics.get('in_progress_count', 0)} / "
+                 f"🔲 {metrics.get('todo_count', 0)})")
+    lines.append(f"  Points: {metrics.get('total_points', 0)}")
+    lines.append(f"  Mandays: "
+                 f"Est {metrics.get('total_estimated_mandays', 0):.1f} / "
+                 f"Act {metrics.get('total_actual_mandays', 0):.1f}")
+
+    return "\n".join(lines)

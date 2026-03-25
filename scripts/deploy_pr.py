@@ -1,7 +1,6 @@
 import sys
 import os
 import argparse
-import subprocess
 from dotenv import load_dotenv
 
 load_dotenv()

@@ -71,7 +71,6 @@ def test_gemini_cli_model_invoke(mock_subprocess_popen, mock_subprocess_run):
 @patch("subprocess.Popen")
 def test_gemini_cli_uses_model_specific_timeout(mock_subprocess_popen):
     from unittest.mock import MagicMock
-    import luma_core.llm as llm
     
     mock_process = MagicMock()
     mock_process.communicate.return_value = ("mock response", "")
@@ -105,7 +104,6 @@ def test_gemini_cli_skips_retry_on_rate_limit(mock_sleep, mock_subprocess_popen)
     messages = [HumanMessage(content="Hello")]
     
     import pytest
-    from luma_core.error_classifier import classify_error
     
     with pytest.raises(RuntimeError) as exc_info:
         model.invoke(messages)

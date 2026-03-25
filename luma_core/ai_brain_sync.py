@@ -319,7 +319,7 @@ class GeminiCLIBrain:
 
         chat_log_content = cls._extract_chat_log(session_path)
         chat_log_filename = "gemini_chat_log.md"
-        dst = os.path.join(target_dir, chat_log_filename)
+        os.path.join(target_dir, chat_log_filename)
         
         # Simple versioning if needed or just overwrite for chat log?
         # Let's use versioned copy from AntigravityBrain but with content directly

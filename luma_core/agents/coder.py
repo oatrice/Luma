@@ -4,6 +4,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ..state import AgentState
 from ..llm import get_llm
 from ..config import TARGET_DIR
+from ..project_context import load_project_context, build_context_block
 
 def coder_agent(state: AgentState):
     """Doing the functionality of a Go/C++ Expert, writing code based on commands (Multi-file Support)"""
@@ -35,24 +36,33 @@ def coder_agent(state: AgentState):
     # Initialize LLM based on Provider
     llm = get_llm(temperature=0.7, purpose="code")
     
-    system_prompt = """You are a Senior Polyglot Developer (Python, Go, C++).
-    Your goal is to write high-quality, production-ready code based on the user's task.
-    You must follow TDD (Test Driven Development) practices if requested.
-    
-    IMPORTANT OUTPUT FORMAT:
-    You must output the code for each file wrapped in XML tags.
-    Example:
-    <file path="client/logic.cpp">
-    #include "logic.h"
-    ...
-    </file>
-    
-    <file path="client/logic.h">
-    ...
-    </file>
-    
-    Do NOT output JSON. Do NOT output markdown code blocks around the XML tags.
-    """
+    # Load project-specific tech stack context
+    ctx = load_project_context(TARGET_DIR)
+    context_block = build_context_block(ctx)
+    if context_block:
+        print("   📦 Loaded project context for coding...")
+
+    system_prompt = f"""You are a Senior Software Engineer. \
+Your goal is to write high-quality, production-ready code based on the user's task \
+using the EXACT tech stack of the project described in the context below.
+You must follow TDD (Test Driven Development) practices if requested.
+
+{context_block}
+
+IMPORTANT OUTPUT FORMAT:
+You must output the code for each file wrapped in XML tags.
+Example:
+<file path="internal/handler/foo.go">
+package handler
+...
+</file>
+
+<file path="internal/handler/foo_test.go">
+...
+</file>
+
+Do NOT output JSON. Do NOT output markdown code blocks around the XML tags.
+"""
     
     # Error Handling Logic
     if state.get('test_errors') and state.get('iterations', 0) > 0:

@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from typing import List, Dict, Optional
+from typing import List
 
 class ContextSummarizer:
     def __init__(self, project_path: str):
@@ -100,8 +100,10 @@ class ContextSummarizer:
                                     alert_match = re.match(r'^>\s*\[!(IMPORTANT|WARNING)\]', line_clean, re.IGNORECASE)
                                     if alert_match:
                                         tag = alert_match.group(1).upper()
-                                        if tag == "IMPORTANT": active_alert = "❗ IMPORTANT"
-                                        elif tag == "WARNING": active_alert = "⚠️ WARNING"
+                                        if tag == "IMPORTANT":
+                                            active_alert = "❗ IMPORTANT"
+                                        elif tag == "WARNING":
+                                            active_alert = "⚠️ WARNING"
                                         continue
 
                                     # 2. If inside an alert, capture content (first line only for summary)
@@ -118,7 +120,8 @@ class ContextSummarizer:
                                     
                                     # 3. Regular keywords check (if not in an alert check)
                                     # Skip comments or headers
-                                    if line_clean.startswith('#'): continue
+                                    if line_clean.startswith('#'):
+                                        continue
                                     
                                     for pattern, emoji in keyword_patterns:
                                         if re.search(pattern, line_clean, re.IGNORECASE):

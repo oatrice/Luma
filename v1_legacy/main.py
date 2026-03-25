@@ -1,15 +1,11 @@
 import os
-import sys
-import json
 import argparse
 import subprocess
 from langchain_core.messages import HumanMessage
 from luma_core.workflow import build_graph
-from luma_core.config import TARGET_DIR as DEFAULT_TARGET_DIR
 from luma_core.llm import get_llm
 from luma_core.tools import (
     update_android_version_logic,
-    generate_branch_suggestions,
     get_user_branch_choice,
     load_or_generate_pr_content,
     generate_test_suggestions,
@@ -100,7 +96,7 @@ def main():
     parser = argparse.ArgumentParser(description="Luma AI Architect")
     parser.add_argument("--github", action="store_true", help="Fetch task from GitHub Issues")
     parser.add_argument("--repo", type=str, default="oatrice/Tetris-Battle", help="GitHub Repository (user/repo)")
-    args = parser.parse_args()
+    parser.parse_args()
 
     # Build the Agent Graph
     app = build_graph()
@@ -141,7 +137,7 @@ def main():
         print(f"🔗 Repo: {current_repo_slug}")
         print("-" * 30)
         
-        print(f"1. 📥 Select Next Issue (Start Coding)")
+        print("1. 📥 Select Next Issue (Start Coding)")
         print(f"2. 🚀 Create Pull Request (Deploy){draft_hint}")
         print("2a. 🚀 Create Multi-Repo PR (JarWise)")
         print("3. 🧐 Code Review (Local)")
@@ -447,7 +443,7 @@ def main():
                             try:
                                 with open(full_path, 'r', encoding='utf-8') as f:
                                     changes[rel_path] = f.read()
-                            except:
+                            except Exception:
                                 pass
                                 
                 except Exception as e:

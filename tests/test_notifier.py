@@ -2,7 +2,6 @@
 Tests for luma_core.notifier — Telegram notification via Akasa Backend
 TDD: 🟥 RED Phase
 """
-import pytest
 from unittest.mock import patch, MagicMock
 
 
@@ -40,7 +39,7 @@ class TestNotifyTaskComplete:
         assert payload["status"] == "success"
         assert payload["duration"] == "30s"
         assert payload["chat_id"] == "12345"
-        assert payload["source"] == "Luma CLI"
+        assert payload["source"].startswith("Luma CLI (")
 
     @patch("luma_core.notifier.requests.post")
     def test_notify_skips_when_no_chat_id(self, mock_post):
