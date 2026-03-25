@@ -391,6 +391,94 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
     return synced
 
 
+def sync_roadmap_for_new_issues(project: dict, cards: list) -> int:
+    """
+    Append OPEN Kanban cards that are NOT yet referenced in Roadmap.md.
+    Returns the number of issues appended.
+    """
+    if not cards:
+        return 0
+
+    roadmap_paths = [
+        os.path.join(project["path"], "docs", "ROADMAP.md"),
+        os.path.join(project["path"], "ROADMAP.md"),
+    ]
+    roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
+    if not roadmap_path:
+        return 0
+
+    try:
+        with open(roadmap_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            lines = content.splitlines(keepends=True)
+    except Exception:
+        return 0
+
+    # Status emoji mapping (Kanban status → display label)
+    STATUS_ICON = {
+        "ready": "🟢 **Ready**",
+        "in progress": "🟡 **In Progress**",
+        "blocked": "🔴 **Blocked**",
+        "backlog": "🔵 **Backlog**",
+    }
+
+    def _status_label(status: str) -> str:
+        return STATUS_ICON.get(status.lower().strip(), f"🔵 **{status}**")
+
+    synced = 0
+    new_blocks: list = []
+
+    for card in cards:
+        issue_id_str = str(card.issue_number)
+        # Check if issue is already referenced anywhere in roadmap
+        if (f"#{issue_id_str} " in content
+                or f"[#{issue_id_str}]" in content
+                or f"**#{issue_id_str}" in content
+                or f"#{issue_id_str}\n" in content):
+            continue
+
+        title = (card.title or "Untitled").replace("\n", " ").strip()
+        url = getattr(card, "url", "") or ""
+        label = _status_label(getattr(card, "status", "Ready"))
+
+        block = [f"### Issue #{issue_id_str} - {title}\n"]
+        if url:
+            block.append(f"- **GitHub:** [#{issue_id_str}]({url})\n")
+        block.append(f"- **Status:** {label}\n")
+        block.append("\n")
+        new_blocks.extend(block)
+        print(f"   📌 Issue #{issue_id_str} ({card.status}) → appended to Roadmap as new")
+        synced += 1
+
+    if synced == 0:
+        return 0
+
+    # Find or create "## Synced From GitHub" section
+    section_title = "## Synced From GitHub"
+    insert_at = len(lines)
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == section_title.lower():
+            insert_at = idx + 1
+            break
+    else:
+        if lines and lines[-1].strip():
+            lines.append("\n")
+        lines.append(section_title + "\n")
+        lines.append("\n")
+        insert_at = len(lines)
+
+    lines[insert_at:insert_at] = new_blocks
+
+    try:
+        with open(roadmap_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+    except Exception as e:
+        print(f"   ⚠️ Could not write roadmap: {e}")
+        return 0
+
+    return synced
+
+
 def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-issue support
     """Update ROADMAP.md status for one or more issues (supports comma-separated input)."""
     print(f"\n🗺️  Updating Roadmap for {project['name']}...")
