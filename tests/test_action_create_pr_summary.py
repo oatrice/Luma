@@ -12,12 +12,12 @@ except ImportError:
             self.message = message
 
 
-@patch("luma_core.actions.transition_to", return_value=(True, ""))
-@patch("luma_core.actions.PreflightChecker")
-@patch("luma_core.actions._confirm_pending_doc_updates_before_pr", return_value=True)
+@patch("luma_core.actions.workflow_actions.transition_to", return_value=(True, ""))
+@patch("luma_core.actions.workflow_actions.PreflightChecker")
+@patch("luma_core.actions.workflow_actions._confirm_pending_doc_updates_before_pr", return_value=True)
 @patch("subprocess.run")
 @patch("luma_core.github_client.get_open_pr", return_value=None)
-@patch("luma_core.actions.publisher_agent")
+@patch("luma_core.actions.workflow_actions.publisher_agent")
 def test_action_create_pr_summary_printed(
     mock_publisher, mock_get_open_pr, mock_subprocess, mock_confirm_docs,
     mock_preflight, mock_transition, capsys

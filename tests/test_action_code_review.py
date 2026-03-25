@@ -45,7 +45,7 @@ def _make_project(name: str = "MonoRoot", project_type: str = "monorepo_root") -
     return {"name": name, "path": "/tmp/fake_repo", "type": project_type}
 
 
-@patch("luma_core.actions.get_git_changed_files", return_value=[])
+@patch("luma_core.actions.quality_actions.get_git_changed_files", return_value=[])
 def test_action_code_review_uses_preselected_repos_without_prompt(
     mock_changed_files,
 ):
@@ -72,7 +72,7 @@ def test_action_code_review_uses_preselected_repos_without_prompt(
         )
 
 
-@patch("luma_core.actions.get_git_changed_files", return_value=[])
+@patch("luma_core.actions.quality_actions.get_git_changed_files", return_value=[])
 def test_action_code_review_fallback_asks_when_no_preselected(
     mock_changed_files,
     monkeypatch,
