@@ -1,7 +1,4 @@
-import os
-import sys
 from luma_core.ai_brain_sync import AntigravityBrain, GeminiCLIBrain
-from luma_core.state_manager import LumaState, IssueData
 
 def verify_sync_discovery():
     print("🔍 Testing Session Discovery...")

@@ -1,7 +1,7 @@
 import json
 import os
 import jsonschema
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 def load_project_rules(rules_path: str) -> Dict[str, Any]:
     """

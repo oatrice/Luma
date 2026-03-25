@@ -2,7 +2,6 @@
 import sys
 import os
 import requests
-import json
 import time
 
 # Add root to sys.path to import luma_core

@@ -1,6 +1,5 @@
 import os
 import requests
-import sys
 from dotenv import load_dotenv
 
 # Add parent dir to sys.path to find .env if needed, but load_dotenv handles it if in current dir?

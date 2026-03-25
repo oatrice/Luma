@@ -1,15 +1,11 @@
 import os
-import sys
-import json
 import argparse
 import subprocess
 from langchain_core.messages import HumanMessage
 from luma_core.workflow import build_graph
-from luma_core.config import TARGET_DIR as DEFAULT_TARGET_DIR
 from luma_core.llm import get_llm
 from luma_core.tools import (
     update_android_version_logic,
-    generate_branch_suggestions,
     get_user_branch_choice,
     load_or_generate_pr_content,
     generate_test_suggestions,
@@ -447,7 +443,7 @@ def main():
                             try:
                                 with open(full_path, 'r', encoding='utf-8') as f:
                                     changes[rel_path] = f.read()
-                            except:
+                            except Exception:
                                 pass
                                 
                 except Exception as e:

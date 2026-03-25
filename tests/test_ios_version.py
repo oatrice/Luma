@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from luma_core.tools import suggest_version_from_git
 

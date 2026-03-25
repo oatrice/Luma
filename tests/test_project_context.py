@@ -1,9 +1,6 @@
 """
 Tests for project_context.py — TDD Red Phase
 """
-import os
-import pytest
-import tempfile
 
 
 class TestLoadProjectContext:

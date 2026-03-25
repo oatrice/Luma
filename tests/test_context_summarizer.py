@@ -1,4 +1,3 @@
-import os
 import json
 import pytest
 from luma_core.context_summarizer import ContextSummarizer

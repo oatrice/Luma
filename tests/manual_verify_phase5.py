@@ -7,7 +7,7 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from main import display_header, display_menu, WorkflowPhase, LumaState, IssueData, clear_screen
+    from main import display_header, display_menu, WorkflowPhase, LumaState, IssueData, clear_screen  # noqa: F401
 except ImportError:
     print("❌ Error: Could not import Luma modules. Make sure you are running this from the project root or tests/ directory.")
     sys.exit(1)

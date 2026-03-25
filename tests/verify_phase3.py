@@ -3,7 +3,7 @@ import shutil
 import json
 import subprocess
 import sys
-from luma_core.preflight_checker import PreflightChecker, CheckType
+from luma_core.preflight_checker import PreflightChecker
 
 # Setup
 TEST_DIR = "temp_verification_project"

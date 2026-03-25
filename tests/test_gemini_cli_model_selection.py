@@ -2,10 +2,8 @@
 🟥 RED Phase: Tests for Gemini CLI Model Selection feature.
 These tests are expected to FAIL initially.
 """
-import pytest
 import json
-import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 # ===========================================================================

@@ -1,5 +1,4 @@
 import requests
-import json
 from .config import GITHUB_TOKEN
 
 def get_github_headers():
