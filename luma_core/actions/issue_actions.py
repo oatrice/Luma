@@ -1,6 +1,6 @@
 import re
 from .utils import *
-from .quality_actions import sync_roadmap_for_closed_issues
+from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
 
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""
@@ -38,6 +38,15 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
                 print(f"\n   🔄 Synced {synced} closed issue(s) → Roadmap.md")
     except Exception:
         pass  # Never block issue selection due to roadmap sync error
+
+    # Auto-append NEW OPEN issues not yet in Roadmap.md
+    try:
+        if all_cards:
+            new_appended = sync_roadmap_for_new_issues(project, all_cards)
+            if new_appended:
+                print(f"   📌 {new_appended} new issue(s) appended → Roadmap.md")
+    except Exception:
+        pass  # Never block issue selection
 
     if not selectable_issues:
         allowed = "', '".join(workflow.get("selectable_statuses", []))

@@ -113,6 +113,29 @@ def format_metric_datetime(value: Optional[str]) -> str:
     return value.replace("T", " ")[:19]
 
 
+# Story Points → Man-days conversion table (Fibonacci, Story Points ≠ Man-days)
+# 1 pt = 0.5 day (4h), 2 pt = 1d, 3 pt = 1.5d, 5 pt = 3d, 8 pt = 5d, 13 pt = 10d
+# Principle: Story Points measure *complexity*, not time.
+# See docs/story_points.md for full rationale.
+POINTS_TO_MANDAYS: Dict[int, float] = {
+    0: 0.0,
+    1: 0.5,
+    2: 1.0,
+    3: 1.5,
+    5: 3.0,
+    8: 5.0,
+    13: 10.0,
+    21: 15.0,
+}
+
+
+def points_to_mandays(points: int) -> float:
+    """Convert Fibonacci story points to estimated man-days.
+    Story Points measure complexity, not time. This table is a rough conversion
+    for planning purposes only. See docs/story_points.md."""
+    return POINTS_TO_MANDAYS.get(points, float(points) * 0.5)
+
+
 def validate_estimate_points(value: Optional[int]) -> Optional[int]:
     if value is None:
         return None
@@ -611,17 +634,24 @@ def _infer_story_profile(title: str) -> Dict[str, object]:
         score += 1
 
     score = max(1, min(score, 6))
+    # Story Points ≠ Man-days: use conversion table (see docs/story_points.md)
     if score <= 1:
-        return {"estimate_points": 1, "estimated_mandays": 1.0, "effort_level": "Low"}
+        pts = 1
+        return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "Low"}
     if score == 2:
-        return {"estimate_points": 2, "estimated_mandays": 2.0, "effort_level": "Low"}
+        pts = 2
+        return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "Low"}
     if score == 3:
-        return {"estimate_points": 3, "estimated_mandays": 3.0, "effort_level": "Medium"}
+        pts = 3
+        return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "Medium"}
     if score == 4:
-        return {"estimate_points": 5, "estimated_mandays": 5.0, "effort_level": "Medium"}
+        pts = 5
+        return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "Medium"}
     if score == 5:
-        return {"estimate_points": 8, "estimated_mandays": 8.0, "effort_level": "High"}
-    return {"estimate_points": 13, "estimated_mandays": 13.0, "effort_level": "High"}
+        pts = 8
+        return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "High"}
+    pts = 13
+    return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "High"}
 
 
 def apply_heuristic_defaults(record: IssueMetricsRecord) -> IssueMetricsRecord:
