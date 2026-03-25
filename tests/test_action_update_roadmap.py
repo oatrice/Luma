@@ -25,7 +25,7 @@ def test_action_update_roadmap_appends_missing_github_issue(monkeypatch, tmp_pat
     inputs = iter(["77", "2"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(
-        "luma_core.actions.run_gh_command",
+        "luma_core.actions.quality_actions.run_gh_command",
         lambda args, timeout=15: json.dumps(
             {
                 "number": 77,
@@ -78,7 +78,7 @@ def test_action_update_roadmap_updates_existing_and_missing_issues_together(monk
         }
         return json.dumps(data[issue_id])
 
-    monkeypatch.setattr("luma_core.actions.run_gh_command", fake_run_gh_command)
+    monkeypatch.setattr("luma_core.actions.quality_actions.run_gh_command", fake_run_gh_command)
 
     action_update_roadmap(LumaState(), project)
 
@@ -104,7 +104,7 @@ def test_action_update_roadmap_auto_sync_closed_issues(monkeypatch, tmp_path):
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     monkeypatch.setattr(
-        "luma_core.actions.run_gh_command",
+        "luma_core.actions.quality_actions.run_gh_command",
         lambda args, timeout=15: json.dumps(
             {
                 "number": 42,
@@ -120,3 +120,53 @@ def test_action_update_roadmap_auto_sync_closed_issues(monkeypatch, tmp_path):
     updated = roadmap_path.read_text(encoding="utf-8")
     assert "✅ **Done** (v1.2.0) - Auto fixed" in updated
 
+
+def test_action_update_roadmap_create_new_issue_via_gh(monkeypatch, tmp_path):
+    """🔴 RED → Test that typing 'new' creates a GitHub issue and appends it to Roadmap.md"""
+    project, roadmap_path = _make_project_with_roadmap(
+        tmp_path,
+        "# Roadmap\n\n## Current\n\n- Existing item\n",
+    )
+
+    # inputs: 'new' → title → body (empty) → status choice '2' (Ready)
+    inputs = iter(["new", "My new feature", "", "2"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    # Mock subprocess.run inside quality_actions for 'gh issue create'
+    import subprocess
+
+    def fake_subprocess_run(cmd, **kwargs):
+        if "issue" in cmd and "create" in cmd:
+            result = subprocess.CompletedProcess(cmd, 0)
+            result.stdout = "https://github.com/oatrice/Test-Repo/issues/99\n"
+            result.stderr = ""
+            return result
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="Not mocked")
+
+    from unittest.mock import patch, MagicMock
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "https://github.com/oatrice/Test-Repo/issues/99\n"
+    mock_result.stderr = ""
+
+    with patch("luma_core.actions.quality_actions.subprocess.run", return_value=mock_result):
+        # Mock run_gh_command for fetching the newly created issue details
+        monkeypatch.setattr(
+            "luma_core.actions.quality_actions.run_gh_command",
+            lambda args, timeout=15: json.dumps(
+                {
+                    "number": 99,
+                    "title": "My new feature",
+                    "state": "OPEN",
+                    "url": "https://github.com/oatrice/Test-Repo/issues/99",
+                }
+            ),
+        )
+
+        action_update_roadmap(LumaState(), project)
+
+    updated = roadmap_path.read_text(encoding="utf-8")
+    assert "## Synced From GitHub" in updated
+    assert "### Issue #99 - My new feature" in updated
+    assert "- **State:** OPEN" in updated

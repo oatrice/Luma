@@ -1,14 +1,14 @@
 from unittest.mock import MagicMock, patch
 from luma_core.state_manager import LumaState, WorkflowPhase
 
-@patch("luma_core.actions.transition_to", return_value=(True, ""))
-@patch("luma_core.actions.action_generate_plan")
-@patch("luma_core.actions.action_generate_spec")
-@patch("luma_core.actions.action_refine_issue")
-@patch("luma_core.actions.action_run_multi_agent_coding")
-@patch("luma_core.actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
-@patch("luma_core.actions.get_feature_dir", return_value="/mock/feature/dir")
-@patch("luma_core.actions.auto_fill_issue_metrics")
+@patch("luma_core.actions.workflow_actions.transition_to", return_value=(True, ""))
+@patch("luma_core.actions.workflow_actions.action_generate_plan")
+@patch("luma_core.actions.workflow_actions.action_generate_spec")
+@patch("luma_core.actions.workflow_actions.action_refine_issue")
+@patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
+@patch("luma_core.actions.workflow_actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
+@patch("luma_core.actions.workflow_actions.get_feature_dir", return_value="/mock/feature/dir")
+@patch("luma_core.actions.workflow_actions.auto_fill_issue_metrics")
 @patch("luma_core.issue_metrics.get_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_planning_multi_repo_picker(
@@ -82,14 +82,14 @@ def test_guided_workflow_planning_multi_repo_picker(
     assert state.context["target_planning_repos"][1]["name"] == "WebRepo"
 
 
-@patch("luma_core.actions.transition_to", return_value=(True, ""))
-@patch("luma_core.actions.action_generate_plan")
-@patch("luma_core.actions.action_generate_spec")
-@patch("luma_core.actions.action_refine_issue")
-@patch("luma_core.actions.action_run_multi_agent_coding")
-@patch("luma_core.actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
-@patch("luma_core.actions.get_feature_dir", return_value="/mock/feature/dir")
-@patch("luma_core.actions.auto_fill_issue_metrics")
+@patch("luma_core.actions.workflow_actions.transition_to", return_value=(True, ""))
+@patch("luma_core.actions.workflow_actions.action_generate_plan")
+@patch("luma_core.actions.workflow_actions.action_generate_spec")
+@patch("luma_core.actions.workflow_actions.action_refine_issue")
+@patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
+@patch("luma_core.actions.workflow_actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
+@patch("luma_core.actions.workflow_actions.get_feature_dir", return_value="/mock/feature/dir")
+@patch("luma_core.actions.workflow_actions.auto_fill_issue_metrics")
 @patch("luma_core.issue_metrics.get_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_planning_single_repo(

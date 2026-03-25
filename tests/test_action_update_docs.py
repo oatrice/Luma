@@ -9,10 +9,10 @@ def test_action_update_docs_uses_planning_repos_from_context(monkeypatch):
         return []
 
     monkeypatch.setattr(
-        "luma_core.actions.update_multi_repo_docs", mock_update_multi_repo_docs
+        "luma_core.actions.quality_actions.update_multi_repo_docs", mock_update_multi_repo_docs
     )
     monkeypatch.setattr(
-        "luma_core.actions.refresh_pending_doc_updates", lambda s, p: None
+        "luma_core.actions.quality_actions.refresh_pending_doc_updates", lambda s, p: None
     )
 
     root_project = {
@@ -27,7 +27,7 @@ def test_action_update_docs_uses_planning_repos_from_context(monkeypatch):
     state.context["target_planning_repos"] = [root_project, sibling_project]
 
     monkeypatch.setattr(
-        "luma_core.actions.PROJECTS",
+        "luma_core.actions.quality_actions.PROJECTS",
         {"str_sib1": sibling_project, "str_sib2": {"name": "Sibling 2"}},
     )
 
@@ -45,10 +45,10 @@ def test_action_update_docs_fallback_when_no_context(monkeypatch):
         return []
 
     monkeypatch.setattr(
-        "luma_core.actions.update_multi_repo_docs", mock_update_multi_repo_docs
+        "luma_core.actions.quality_actions.update_multi_repo_docs", mock_update_multi_repo_docs
     )
     monkeypatch.setattr(
-        "luma_core.actions.refresh_pending_doc_updates", lambda s, p: None
+        "luma_core.actions.quality_actions.refresh_pending_doc_updates", lambda s, p: None
     )
 
     root_project = {
@@ -63,7 +63,7 @@ def test_action_update_docs_fallback_when_no_context(monkeypatch):
     # No target_planning_repos in context
 
     monkeypatch.setattr(
-        "luma_core.actions.PROJECTS",
+        "luma_core.actions.quality_actions.PROJECTS",
         {"sib1": sibling1, "sib2": sibling2},
     )
 
