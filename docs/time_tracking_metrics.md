@@ -43,3 +43,38 @@ The system allows tracking effort via two comparative calculate fields to identi
 By comparing `gh_mandays` vs `actual_mandays`, you can identify process bottlenecks:
 - **Diff < 1 day:** Perfect sync. The developer merged and closed the issue promptly after local completion. (Note: A 0.3 day / 7-hour difference is typically just UTC vs +07:00 timezone shifting).
 - **Diff > 2 days:** Process bottleneck. Work is completed but blocked in Code Review, QA, or poor ticket hygiene.
+
+---
+
+## GitHub Metrics Synchronization
+
+### Automatic Sync (No Action Required)
+
+The system automatically syncs `gh_closed_at` and `gh_mandays` from GitHub in the following situations:
+
+| Trigger | When |
+|---------|------|
+| **Auto Full Workflow** finishes | Always, at the end of the guided workflow summary phase |
+| **Generate Project Report** | Before every report generation |
+
+### Manual Sync Options
+
+Use manual sync only when needed (e.g., after editing `.luma_metrics.json` directly, or debugging):
+
+| Option | How to Access |
+|--------|--------------|
+| `[Q] 🐙 Audit & Sync GitHub Metrics` | Main Luma CLI menu |
+| `[4] Audit & Sync from GitHub` | `[M] Track Issue Metrics` sub-menu |
+
+### Time Paradox Auto-Fix
+
+A **"Time Paradox"** occurs when `actual_completion_date` is earlier than `start_datetime` (e.g., migrated issues with stale `created_at`).
+
+**Resolution Strategy (applied automatically during sync):**
+1. Detect if `actual_completion_date < start_datetime`
+2. Shift `start_datetime` backward by `estimated_mandays` from `actual_completion_date`
+3. Recalculate `gh_mandays` using the corrected `start_datetime`
+
+### AI Usage Log Backfilling
+
+If `start_datetime` is missing, the sync engine scans `.luma_ai_usage.jsonl` to find the **earliest recorded AI interaction** for the issue and uses that timestamp as `start_datetime`. This ensures that issues worked on before the formal workflow began are still tracked accurately.

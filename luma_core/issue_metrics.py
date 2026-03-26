@@ -77,9 +77,19 @@ def parse_metric_datetime(value: str) -> str:
     if not text:
         raise ValueError("Date/time is required.")
 
-    candidates = [text]
-    if " " in text and "T" not in text:
-        candidates.append(text.replace(" ", "T", 1))
+    # Normalize: strip timezone offset (+07:00 / -07:00 / Z) and microseconds
+    # Python 3.9's fromisoformat does NOT support timezone offsets or 'Z'
+    import re as _re
+    normalized = _re.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", text)
+
+    # Must contain a time component (space or T separator)
+    has_time = "T" in normalized or " " in normalized
+    if not has_time:
+        raise ValueError("Use date/time format like 2026-03-19 14:30.")
+
+    candidates = [normalized]
+    if " " in normalized and "T" not in normalized:
+        candidates.append(normalized.replace(" ", "T", 1))
 
     formats = (
         "%Y-%m-%d %H:%M",
@@ -91,20 +101,21 @@ def parse_metric_datetime(value: str) -> str:
     for candidate in candidates:
         try:
             dt = datetime.fromisoformat(candidate)
-            if "T" not in candidate and " " not in candidate:
-                continue
             return dt.isoformat(timespec="seconds")
         except ValueError:
             pass
 
     for fmt in formats:
         try:
-            dt = datetime.strptime(text, fmt)
+            dt = datetime.strptime(normalized, fmt)
             return dt.isoformat(timespec="seconds")
         except ValueError:
             continue
 
     raise ValueError("Use date/time format like 2026-03-19 14:30.")
+
+
+
 
 
 def format_metric_datetime(value: Optional[str]) -> str:
@@ -1041,36 +1052,64 @@ def get_earliest_usage_timestamp(project_path: str, issue_number: int) -> Option
     """
     Parses .luma_ai_usage.jsonl to find the earliest timestamp a specific issue
     was engaged with by the AI workflow. Used to auto-fill start_datetime.
+
+    Search paths (in order):
+    1. <project_path>/.luma_ai_usage.jsonl  (project-local log)
+    2. <luma_install_dir>/.luma_ai_usage.jsonl  (Luma's own centralized log)
     """
-    log_path = os.path.join(project_path, ".luma_ai_usage.jsonl")
-    if not os.path.exists(log_path):
-        return None
-        
-    try:
-        with open(log_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                try:
-                    data = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                    
-                # Modern format
-                nums = data.get("issue_numbers", [])
-                if issue_number in nums:
-                    return str(data.get("ts"))
-                    
-                # Fallback for older format
-                issues = data.get("issues", [])
-                for issue in issues:
-                    if isinstance(issue, dict) and issue.get("number") == issue_number:
-                        ts = data.get("ts")
-                        return str(ts) if ts else None
-    except Exception:
-        pass
-        
-    return None
+    # Build candidate paths
+    candidate_paths = [os.path.join(project_path, ".luma_ai_usage.jsonl")]
+
+    # Also try Luma's own directory (this file is always in the Luma repo)
+    luma_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    luma_log = os.path.join(luma_dir, ".luma_ai_usage.jsonl")
+    if luma_log not in candidate_paths:
+        candidate_paths.append(luma_log)
+
+    earliest_dt: Optional[datetime] = None
+    earliest_ts: Optional[str] = None
+
+    for log_path in candidate_paths:
+        if not os.path.exists(log_path):
+            continue
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # Check if this entry is for the target issue
+                    nums = data.get("issue_numbers", [])
+                    found = issue_number in nums
+
+                    if not found:
+                        issues = data.get("issues", [])
+                        for issue in issues:
+                            if isinstance(issue, dict) and issue.get("number") == issue_number:
+                                found = True
+                                break
+
+                    if found:
+                        ts_raw = data.get("ts")
+                        if ts_raw:
+                            import re as _re
+                            ts_norm = _re.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", str(ts_raw))
+                            try:
+                                ts_dt = datetime.fromisoformat(ts_norm)
+                                if earliest_dt is None or ts_dt < earliest_dt:
+                                    earliest_dt = ts_dt
+                                    earliest_ts = ts_norm
+                            except ValueError:
+                                pass
+        except Exception:
+            pass
+
+    return earliest_ts
+
 
 
 def sync_github_metrics_for_project(workspace_path: str, project_name: str, repository: str) -> Dict[str, Any]:
@@ -1127,8 +1166,16 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             record.gh_closed_at = gh_closed_at
             changed = True
             
-        # Backfill start_datetime from AI usage log if missing
-        if not record.start_datetime:
+        # Backfill start_datetime from AI usage log if:
+        # 1. start_datetime is missing (null), OR
+        # 2. start_datetime == created_at (was auto-set from GH creation, not actual work start)
+        _created_at_normalized = (record.created_at or "").rstrip("Z").replace("+00:00", "")
+        _start_dt_normalized = (record.start_datetime or "").rstrip("Z").replace("+00:00", "")
+        _start_is_placeholder = (
+            not record.start_datetime
+            or _start_dt_normalized == _created_at_normalized
+        )
+        if _start_is_placeholder:
             earliest_ts = get_earliest_usage_timestamp(workspace_path, record.issue_number)
             if earliest_ts:
                 record.start_datetime = earliest_ts
