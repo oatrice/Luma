@@ -109,9 +109,15 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
                 selected_project.get("name"),
                 selected_project.get("repo"),
             )
-            print(f"   📊 Synced {gh_sync_result['updated']} records from GH.")
-            if gh_sync_result["errors"] > 0:
-                print(f"   ⚠️ Encountered {gh_sync_result['errors']} errors during sync.")
+            if gh_sync_result['updated'] > 0:
+                print(f"   ✅ Synced {gh_sync_result['updated']} issue records from GitHub.")
+            else:
+                print("   ✅ GitHub metrics are already up-to-date.")
+            
+            if gh_sync_result.get("errors", 0) > 0:
+                print(f"   ⚠️  Encountered {gh_sync_result['errors']} errors during sync.")
+            if gh_sync_result.get("paradoxes_fixed", 0) > 0:
+                print(f"   ⏱️  Fixed {gh_sync_result['paradoxes_fixed']} Time Paradox(es).")
             continue
 
         print("❌ Invalid selection")

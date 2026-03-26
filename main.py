@@ -343,7 +343,11 @@ def main():
                 project.get("name"),
                 project.get("repo"),
             )
-            print(f"   ✅ Synced {result['updated']} issue records from GitHub.")
+            if result['updated'] > 0:
+                print(f"   ✅ Synced {result['updated']} issue records from GitHub.")
+            else:
+                print("   ✅ GitHub metrics are already up-to-date.")
+
             if result.get("errors", 0) > 0:
                 print(f"   ⚠️  Encountered {result['errors']} errors during sync.")
             if result.get("paradoxes_fixed", 0) > 0:
