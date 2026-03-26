@@ -128,6 +128,7 @@ MENU_ACTIONS = {
     "T": {"label": "🧪 Test Telegram Notification", "valid_phases": "ALL"},
     "M": {"label": "📏 Track Issue Metrics",       "valid_phases": "ALL"},
     "G": {"label": "📊 Generate Project Report",    "valid_phases": "ALL"},
+    "Q": {"label": "🐙 Audit & Sync GitHub Metrics", "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
@@ -333,6 +334,20 @@ def main():
 
         elif choice.upper() == "G":
             actions.action_generate_project_report(state, project)
+
+        elif choice.upper() == "Q":
+            from luma_core.issue_metrics import sync_github_metrics_for_project
+            print(f"\n🐙 Audit & Sync GitHub Metrics - {project['name']}")
+            result = sync_github_metrics_for_project(
+                project["path"],
+                project.get("name"),
+                project.get("repo"),
+            )
+            print(f"   ✅ Synced {result['updated']} issue records from GitHub.")
+            if result.get("errors", 0) > 0:
+                print(f"   ⚠️  Encountered {result['errors']} errors during sync.")
+            if result.get("paradoxes_fixed", 0) > 0:
+                print(f"   ⏱️  Fixed {result['paradoxes_fixed']} Time Paradox(es).")
         
         elif choice.upper() == "R":
             state = load_state(project["path"])
