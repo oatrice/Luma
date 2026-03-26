@@ -652,6 +652,16 @@ def action_guided_workflow(state: LumaState, project: dict):
             format_summary_message,
         )
         from luma_core.notifier import notify_task_complete as _notify
+        from luma_core.issue_metrics import prefill_metrics_from_roadmap
+
+        print("\n   🔄 Auto-syncing issue metrics from Roadmap...")
+        prefill_result = prefill_metrics_from_roadmap(
+            project["path"],
+            project.get("name"),
+            project.get("repo"),
+        )
+        if prefill_result["created"] or prefill_result["updated"]:
+            print(f"   🗺️  Synced (created {prefill_result['created']}, updated {prefill_result['updated']})")
 
         usage_summary = summarize_usage_stats(
             usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID
