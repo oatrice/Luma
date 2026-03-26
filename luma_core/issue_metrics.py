@@ -215,8 +215,8 @@ class IssueMetricsRecord:
         self.estimated_mandays = validate_mandays(
             self.estimated_mandays, "Estimated Mandays"
         )
-        self.actual_mandays = validate_mandays(self.actual_mandays, "Actual Mandays")
         self.effort_level = validate_effort_level(self.effort_level)
+
         if self.start_datetime:
             self.start_datetime = parse_metric_datetime(self.start_datetime)
         if self.due_date:
@@ -225,6 +225,35 @@ class IssueMetricsRecord:
             self.actual_completion_date = parse_metric_datetime(
                 self.actual_completion_date
             )
+
+        # Force re-calculate mandays if completed, or set to 0 if not
+        if _is_complete_status(self.issue_status):
+            if self.start_datetime and self.actual_completion_date:
+                try:
+                    # Replace Z with +00:00 for fromisoformat compatibility in 3.9
+                    s_orig = self.start_datetime
+                    e_orig = self.actual_completion_date
+                    if s_orig and e_orig:
+                        s_str = s_orig.replace("Z", "+00:00")
+                        e_str = e_orig.replace("Z", "+00:00")
+                        s = datetime.fromisoformat(s_str)
+                        e = datetime.fromisoformat(e_str)
+                        
+                        # Ensure both are aware or naive for subtraction
+                        if s.tzinfo is None and e.tzinfo is not None:
+                            s = s.replace(tzinfo=e.tzinfo)
+                        elif e.tzinfo is None and s.tzinfo is not None:
+                            e = e.replace(tzinfo=s.tzinfo)
+                            
+                        diff_days = (e - s).total_seconds() / 86400.0
+                        self.actual_mandays = max(0.5, round(diff_days * 2) / 2.0)
+                except Exception:
+                    # If calculation fails, keep existing or fallback to estimate in apply_heuristic_defaults
+                    pass
+        else:
+            self.actual_mandays = 0.0
+
+        self.actual_mandays = validate_mandays(self.actual_mandays, "Actual Mandays")
         return self
 
     def to_dict(self) -> Dict[str, object]:
@@ -232,9 +261,11 @@ class IssueMetricsRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, object]) -> "IssueMetricsRecord":
+    def from_dict(cls, data: Dict[str, object], validate: bool = True) -> "IssueMetricsRecord":
         record = cls(**data)
-        return record.validate()
+        if validate:
+            return record.validate()
+        return record
 
 
 def get_metrics_path(project_path: str) -> str:
@@ -1119,6 +1150,46 @@ def get_earliest_usage_timestamp(project_path: str, issue_number: int) -> Option
     return earliest_ts
 
 
+def fetch_lane_transition_date(repository: str, issue_number: int) -> Optional[str]:
+    """
+    Fetches the issue timeline and identifies the earliest 'project_v2_item_status_changed' event.
+    Returns the ISO timestamp of this transition, which represents the real 'work start'.
+    """
+    cmd = ["gh", "api", f"repos/{repository}/issues/{issue_number}/timeline"]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        timeline = json.loads(result.stdout)
+        
+        # Find all status change events
+        status_changes = [
+            item for item in timeline 
+            if item.get("event") == "project_v2_item_status_changed"
+            and "created_at" in item
+        ]
+        
+        if not status_changes:
+            return None
+            
+        # Sort by date (earliest first)
+        status_changes.sort(key=lambda x: x["created_at"])
+        
+        # Heuristic: The earliest status change by a HUMAN user is usually the "In Progress" move.
+        # Bots often handle initial "Todo" moves (initialization) and final "Done" moves.
+        user_changes = [c for c in status_changes if c.get("actor", {}).get("type") == "User"]
+        
+        if user_changes:
+            raw_ts = user_changes[0]["created_at"]
+        else:
+            # Use the earliest transition as fallback
+            raw_ts = status_changes[0]["created_at"]
+        # Normalize to Luma format (no Z, no millis if possible, but Luma accepts ISO)
+        import re as _re3
+        return _re3.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", raw_ts)
+        
+    except Exception:
+        return None
+
+
 
 def sync_github_metrics_for_project(workspace_path: str, project_name: str, repository: str) -> Dict[str, Any]:
     """
@@ -1127,7 +1198,11 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
     by backfilling `start_datetime` if `actual_completion_date` precedes it.
     Also backfills local `start_datetime` from `.luma_ai_usage.jsonl` if missing.
     """
-    records = list_issue_metrics(workspace_path)
+    store = load_metrics_store(workspace_path)
+    records: List[IssueMetricsRecord] = []
+    for item in store.get("issues", {}).values():
+        if isinstance(item, dict):
+            records.append(IssueMetricsRecord.from_dict(item, validate=False))
     
     # Check if there are any records for this repository
     has_records = any(r.repository == repository for r in records)
@@ -1139,13 +1214,15 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
         "--repo", repository,
         "--state", "all",
         "--limit", "1000",
-        "--json", "number,createdAt,closedAt"
+        "--json", "number,createdAt,closedAt,projectItems,stateReason"
     ]
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         issues_data = json.loads(result.stdout)
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        print(f"DEBUG: Fetched {len(issues_data)} issues from GitHub")
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+        print(f"DEBUG: Failed to fetch issues: {e}")
         return {"updated": 0, "errors": 1}
 
     gh_map = {issue["number"]: issue for issue in issues_data}
@@ -1154,15 +1231,32 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
     for record in records:
         if record.repository != repository:
             continue
-            
         issue_data = gh_map.get(record.issue_number)
+        if record.issue_number == 110:
+            print(f"DEBUG: Found record #110, gh_issue found: {issue_data is not None}")
+        
         if not issue_data:
             continue
             
         changed = False
-        
         gh_created_at = issue_data.get("createdAt")
         gh_closed_at = issue_data.get("closedAt")
+        gh_project_items = issue_data.get("projectItems") or []
+        
+        # Sync Status from Project Lane
+        if gh_project_items:
+            # Take the status of the first project found
+            gh_status_name = gh_project_items[0].get("status", {}).get("name")
+            if gh_status_name and not gh_closed_at:
+                # Map common names to Luma format if needed, or use as is
+                if gh_status_name.lower() == "todo":
+                    gh_status_name = "Todo"
+                elif gh_status_name.lower() == "in progress":
+                    gh_status_name = "In Progress"
+                
+                if record.issue_status != gh_status_name:
+                    record.issue_status = gh_status_name
+                    changed = True
         
         # Sync Created At (We prefer GitHub's truth if available)
         if gh_created_at and record.created_at != gh_created_at:
@@ -1176,32 +1270,63 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
 
         # If GitHub says the issue is closed → ensure local status reflects that
         if gh_closed_at:
-            if not _is_complete_status(record.issue_status):
+            gh_reason = issue_data.get("stateReason")
+            if gh_reason == "NOT_PLANNED":
+                if record.issue_status != "🚫 Obsolete":
+                    record.issue_status = "🚫 Obsolete"
+                    changed = True
+                if record.actual_mandays != 0:
+                    record.actual_mandays = 0
+                    changed = True
+                if record.estimate_points != 0:
+                    record.estimate_points = 0
+                    changed = True
+            elif not _is_complete_status(record.issue_status):
                 record.issue_status = "✅ Complete"
                 changed = True
-            # Backfill actual_completion_date from gh_closed_at if not already set
-            if not record.actual_completion_date:
-                # Normalize to naive datetime string (strip timezone)
-                import re as _re2
-                _closed_norm = _re2.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", gh_closed_at)
+            # Enforce actual_completion_date from gh_closed_at (Authoritative)
+            import re as _re2
+            _closed_norm = _re2.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", gh_closed_at)
+            if record.actual_completion_date != _closed_norm:
                 record.actual_completion_date = _closed_norm
                 changed = True
 
             
-        # Backfill start_datetime from AI usage log if:
-        # 1. start_datetime is missing (null), OR
-        # 2. start_datetime == created_at (was auto-set from GH creation, not actual work start)
-        _created_at_normalized = (record.created_at or "").rstrip("Z").replace("+00:00", "")
-        _start_dt_normalized = (record.start_datetime or "").rstrip("Z").replace("+00:00", "")
-        _start_is_placeholder = (
-            not record.start_datetime
-            or _start_dt_normalized == _created_at_normalized
-        )
-        if _start_is_placeholder:
-            earliest_ts = get_earliest_usage_timestamp(workspace_path, record.issue_number)
-            if earliest_ts:
-                record.start_datetime = earliest_ts
+        # Backfill
+        def _start_is_placeholder(record: IssueMetricsRecord) -> bool:
+            """Check if start_datetime is just the created_at date (placeholder)."""
+            if not record.start_datetime or not record.created_at:
+                return True
+            
+            try:
+                # Both fields are strings in the dataclass, but might have space instead of T
+                s_dt_str = record.start_datetime.replace(" ", "T").replace("Z", "+00:00")
+                c_dt_str = record.created_at.replace(" ", "T").replace("Z", "+00:00")
+                
+                s_dt = datetime.fromisoformat(s_dt_str)
+                c_dt = datetime.fromisoformat(c_dt_str)
+                
+                # Use date portion only for comparison to be robust against timezone/offset drifts
+                return s_dt.date() == c_dt.date()
+            except Exception:
+                return True
+
+        _start_is_placeholder_val = _start_is_placeholder(record)
+        if _start_is_placeholder_val:
+            # 1. Try GitHub Project Timeline (Most accurate)
+            gh_start_ts = fetch_lane_transition_date(repository, record.issue_number)
+            if gh_start_ts and record.start_datetime != gh_start_ts:
+                record.start_datetime = gh_start_ts
                 changed = True
+                print(f"  ✨ Updated start_datetime from GitHub: {gh_start_ts}")
+            elif gh_start_ts:
+                print(f"  ✅ Already up-to-date with GitHub events.")
+            else:
+                # 2. Fallback to AI usage log
+                earliest_ts = get_earliest_usage_timestamp(workspace_path, record.issue_number)
+                if earliest_ts:
+                    record.start_datetime = earliest_ts
+                    changed = True
 
         # Optional: update gh_mandays based on gh_closed_at and start_datetime/created_at
         if record.gh_closed_at:
@@ -1253,7 +1378,20 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             except ValueError:
                 pass
                 
+        # Track if mandays changed during validation
+        old_mandays = record.actual_mandays
+        record.validate()
+        if record.issue_number == 110:
+            print(f"DEBUG #110: old_mandays={old_mandays}, new_mandays={record.actual_mandays}, status={record.issue_status}")
+            
+        if record.actual_mandays != old_mandays:
+            if record.issue_number == 110:
+                print(f"DEBUG #110: changed detected via mandays!")
+            changed = True
+
         if changed:
+            if record.issue_number == 110:
+                print(f"DEBUG #110: SAVING RECORD")
             save_issue_metrics(workspace_path, record, overwrite_created_at=True)
             updates_count += 1
             
