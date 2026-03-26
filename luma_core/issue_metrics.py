@@ -4,7 +4,7 @@ import json
 import os
 import re
 import subprocess
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 
 METRICS_FILENAME = ".luma_metrics.json"
@@ -186,6 +186,8 @@ class IssueMetricsRecord:
     actual_completion_date: Optional[str] = None
     effort_level: Optional[str] = None
     notes: Optional[str] = None
+    gh_closed_at: Optional[str] = None
+    gh_mandays: Optional[float] = None
     created_at: str = field(default_factory=_now_iso)
     updated_at: str = field(default_factory=_now_iso)
 
@@ -284,13 +286,21 @@ def get_issue_metrics(
     return IssueMetricsRecord.from_dict(item)
 
 
-def save_issue_metrics(project_path: str, record: IssueMetricsRecord) -> IssueMetricsRecord:
+def save_issue_metrics(
+    project_path: str, record: IssueMetricsRecord, overwrite_created_at: bool = False
+) -> IssueMetricsRecord:
     store = load_metrics_store(project_path)
     issues = store.setdefault("issues", {})
+    
+    # Cast safely for Pyre2
+    if not isinstance(issues, dict):
+        issues = {}
+        store["issues"] = issues
+        
     existing = issues.get(record.issue_key)
 
-    if isinstance(existing, dict) and existing.get("created_at"):
-        record.created_at = existing["created_at"]
+    if not overwrite_created_at and isinstance(existing, dict) and existing.get("created_at"):
+        record.created_at = str(existing.get("created_at", record.created_at))
 
     record.updated_at = _now_iso()
     issues[record.issue_key] = record.to_dict()
@@ -1026,3 +1036,156 @@ def prefill_metrics_from_roadmap(
         save_metrics_store(project_path, store)
 
     return {"created": created, "updated": updated}
+
+def get_earliest_usage_timestamp(project_path: str, issue_number: int) -> Optional[str]:
+    """
+    Parses .luma_ai_usage.jsonl to find the earliest timestamp a specific issue
+    was engaged with by the AI workflow. Used to auto-fill start_datetime.
+    """
+    log_path = os.path.join(project_path, ".luma_ai_usage.jsonl")
+    if not os.path.exists(log_path):
+        return None
+        
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                    
+                # Modern format
+                nums = data.get("issue_numbers", [])
+                if issue_number in nums:
+                    return str(data.get("ts"))
+                    
+                # Fallback for older format
+                issues = data.get("issues", [])
+                for issue in issues:
+                    if isinstance(issue, dict) and issue.get("number") == issue_number:
+                        ts = data.get("ts")
+                        return str(ts) if ts else None
+    except Exception:
+        pass
+        
+    return None
+
+
+def sync_github_metrics_for_project(workspace_path: str, project_name: str, repository: str) -> Dict[str, Any]:
+    """
+    Fetches actual creation and closure dates from GitHub CLI (`gh issue list`)
+    and synchronizes them into `.luma_metrics.json`. Handles "Time Paradoxes"
+    by backfilling `start_datetime` if `actual_completion_date` precedes it.
+    Also backfills local `start_datetime` from `.luma_ai_usage.jsonl` if missing.
+    """
+    records = list_issue_metrics(workspace_path)
+    
+    # Check if there are any records for this repository
+    has_records = any(r.repository == repository for r in records)
+    if not has_records:
+        return {"updated": 0, "errors": 0}
+
+    cmd = [
+        "gh", "issue", "list",
+        "--repo", repository,
+        "--state", "all",
+        "--limit", "1000",
+        "--json", "number,createdAt,closedAt"
+    ]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        issues_data = json.loads(result.stdout)
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        return {"updated": 0, "errors": 1}
+
+    gh_map = {issue["number"]: issue for issue in issues_data}
+    updates_count = 0
+
+    for record in records:
+        if record.repository != repository:
+            continue
+            
+        issue_data = gh_map.get(record.issue_number)
+        if not issue_data:
+            continue
+            
+        changed = False
+        
+        gh_created_at = issue_data.get("createdAt")
+        gh_closed_at = issue_data.get("closedAt")
+        
+        # Sync Created At (We prefer GitHub's truth if available)
+        if gh_created_at and record.created_at != gh_created_at:
+            record.created_at = gh_created_at
+            changed = True
+            
+        # Sync Closed At
+        if gh_closed_at and record.gh_closed_at != gh_closed_at:
+            record.gh_closed_at = gh_closed_at
+            changed = True
+            
+        # Backfill start_datetime from AI usage log if missing
+        if not record.start_datetime:
+            earliest_ts = get_earliest_usage_timestamp(workspace_path, record.issue_number)
+            if earliest_ts:
+                record.start_datetime = earliest_ts
+                changed = True
+
+        # Optional: update gh_mandays based on gh_closed_at and start_datetime/created_at
+        if record.gh_closed_at:
+            effective_start = record.start_datetime or record.created_at
+            if effective_start:
+                try:
+                    s_dt = datetime.fromisoformat(effective_start.replace("Z", "+00:00"))
+                    if s_dt.tzinfo is not None:
+                        s_dt = s_dt.replace(tzinfo=None)
+                        
+                    c_dt = datetime.fromisoformat(record.gh_closed_at.replace("Z", "+00:00"))
+                    if c_dt.tzinfo is not None:
+                        c_dt = c_dt.replace(tzinfo=None)
+                        
+                    diff_days = (c_dt - s_dt).total_seconds() / 86400.0
+                    new_gh_mandays = max(0.5, round(diff_days * 2) / 2.0)
+                    if record.gh_mandays != new_gh_mandays:
+                        record.gh_mandays = new_gh_mandays
+                        changed = True
+                except ValueError:
+                    pass
+
+        # Time Paradox Resolver
+        if record.actual_completion_date and record.start_datetime:
+            try:
+                actual_dt = datetime.fromisoformat(record.actual_completion_date.replace("Z", "+00:00"))
+                if actual_dt.tzinfo is not None:
+                    actual_dt = actual_dt.replace(tzinfo=None)
+                    
+                start_dt = datetime.fromisoformat(record.start_datetime.replace("Z", "+00:00"))
+                if start_dt.tzinfo is not None:
+                    start_dt = start_dt.replace(tzinfo=None)
+                
+                if start_dt > actual_dt:
+                    # Paradox detected! The issue was completed locally before it "started".
+                    est_mandays = record.estimated_mandays or 0.5
+                    new_start_dt = actual_dt - timedelta(hours=est_mandays * 24)
+                    
+                    record.start_datetime = new_start_dt.isoformat()
+                    changed = True
+                    
+                    # Recompute gh_mandays if we just shifted the start_datetime
+                    if record.gh_closed_at:
+                        c_dt = datetime.fromisoformat(record.gh_closed_at.replace("Z", "+00:00"))
+                        if c_dt.tzinfo is not None:
+                            c_dt = c_dt.replace(tzinfo=None)
+                        diff_days = (c_dt - new_start_dt).total_seconds() / 86400.0
+                        record.gh_mandays = max(0.5, round(diff_days * 2) / 2.0)
+            except ValueError:
+                pass
+                
+        if changed:
+            save_issue_metrics(workspace_path, record, overwrite_created_at=True)
+            updates_count += 1
+            
+    return {"updated": updates_count, "errors": 0}

@@ -13,6 +13,7 @@ from luma_core.issue_metrics import (
     parse_metric_datetime,
     prefill_metrics_from_roadmap,
     save_issue_metrics,
+    sync_github_metrics_for_project,
 )
 
 
@@ -463,3 +464,68 @@ def test_prefill_metrics_from_feature_dirs_without_roadmap(tmp_path):
     assert loaded is not None
     assert loaded.issue_title == "Feature tracking estimate points mandays and effort"
     assert loaded.due_date == "2026-03-26T23:59:59"
+
+
+def test_sync_github_metrics_for_project(tmp_path):
+    from unittest.mock import patch, MagicMock
+    
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#123",
+        issue_number=123,
+        issue_title="Testing Github Sync",
+        issue_url="https://github.com/oatrice/Luma/issues/123",
+        repository="oatrice/Luma",
+        start_datetime="2026-03-24T10:00:00",
+        actual_completion_date="2026-03-25T15:00:00",
+        estimated_mandays=1.5
+    )
+    save_issue_metrics(str(tmp_path), record)
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = '[{"number": 123, "createdAt": "2026-03-23T08:00:00Z", "closedAt": "2026-03-26T10:00:00Z"}]'
+        mock_run.return_value = mock_process
+
+        result = sync_github_metrics_for_project(str(tmp_path), "Luma", "oatrice/Luma")
+
+    assert result["updated"] == 1
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 123)
+    assert loaded.gh_closed_at == "2026-03-26T10:00:00Z"
+    assert loaded.created_at == "2026-03-23T08:00:00Z"
+    assert loaded.gh_mandays == 2.0  # 24th 10:00 to 26th 10:00 = exactly 48 hours = 2 days
+
+
+def test_sync_github_metrics_fixes_paradox(tmp_path):
+    from unittest.mock import patch, MagicMock
+    
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#124",
+        issue_number=124,
+        issue_title="Testing Paradox Fix",
+        issue_url="https://github.com/oatrice/Luma/issues/124",
+        repository="oatrice/Luma",
+        start_datetime="2026-03-26T00:00:00",  # Paradox: started after it finished locally
+        actual_completion_date="2026-03-25T15:00:00",
+        estimated_mandays=2.0
+    )
+    save_issue_metrics(str(tmp_path), record)
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = '[{"number": 124, "createdAt": "2026-03-23T08:00:00Z", "closedAt": "2026-03-27T15:00:00Z"}]'
+        mock_run.return_value = mock_process
+
+        result = sync_github_metrics_for_project(str(tmp_path), "Luma", "oatrice/Luma")
+
+    assert result["updated"] == 1
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 124)
+    assert loaded.gh_closed_at == "2026-03-27T15:00:00Z"
+    
+    # Due to paradox (start_datetime 26th > actual_completion 25th), 
+    # it should backfill start_datetime by subtracting estimated_mandays from actual_completion_date
+    # 25th 15:00 - 48 hours = 23rd 15:00
+    assert loaded.start_datetime == "2026-03-23T15:00:00"
+    
+    # gh_mandays = 23rd 15:00 to 27th 15:00 = 4 days
+    assert loaded.gh_mandays == 4.0
+

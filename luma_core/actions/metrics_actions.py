@@ -59,6 +59,7 @@ def action_view_dashboard(state: LumaState, project: dict):
 def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
     selected_project = project
+    from luma_core.issue_metrics import prefill_metrics_from_roadmap, sync_github_metrics_for_project
     prefill_result = prefill_metrics_from_roadmap(
         selected_project["path"],
         selected_project.get("name"),
@@ -75,9 +76,10 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
         print("  [1] List tracked issues")
         print("  [2] Select GitHub issue to view/edit metrics")
         print("  [3] Open tracked issue")
+        print("  [4] Audit & Sync from GitHub")
         print("  [0] Back")
 
-        choice = input("\nSelect [0-3]: ").strip()
+        choice = input("\nSelect [0-4]: ").strip()
         if choice == "0":
             return
         if choice == "1":
@@ -99,6 +101,17 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
             tracked_record = _select_tracked_issue_record(selected_project)
             if tracked_record:
                 _edit_issue_metrics_record(selected_project, tracked_record, is_new=False)
+            continue
+        if choice == "4":
+            print("\n   🐙 Auto-syncing issue metrics from GitHub...")
+            gh_sync_result = sync_github_metrics_for_project(
+                selected_project["path"],
+                selected_project.get("name"),
+                selected_project.get("repo"),
+            )
+            print(f"   📊 Synced {gh_sync_result['updated']} records from GH.")
+            if gh_sync_result["errors"] > 0:
+                print(f"   ⚠️ Encountered {gh_sync_result['errors']} errors during sync.")
             continue
 
         print("❌ Invalid selection")
@@ -122,6 +135,7 @@ def action_generate_project_report(state: LumaState, project: dict):
     custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
     
     print("\n🔄 Syncing metrics from ROADMAP...")
+    from luma_core.issue_metrics import prefill_metrics_from_roadmap, sync_github_metrics_for_project
     prefill_result = prefill_metrics_from_roadmap(
         project["path"],
         project.get("name"),
@@ -129,6 +143,15 @@ def action_generate_project_report(state: LumaState, project: dict):
     )
     if prefill_result["created"] or prefill_result["updated"]:
         print(f"   🗺️  Synced (created {prefill_result['created']}, updated {prefill_result['updated']})")
+        
+    print("\n   🐙 Auto-syncing issue metrics from GitHub...")
+    gh_sync_result = sync_github_metrics_for_project(
+        project["path"],
+        project.get("name"),
+        project.get("repo"),
+    )
+    if gh_sync_result["updated"] > 0:
+        print(f"   📊 Synced {gh_sync_result['updated']} records from GH.")
     
     print(f"🚀 Generating {period} report...")
     try:
