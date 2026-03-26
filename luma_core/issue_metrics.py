@@ -72,6 +72,14 @@ def issue_key_for(repository: str, issue_number: int) -> str:
     return str(issue_number)
 
 
+def _is_complete_status(status: Optional[str]) -> bool:
+    """Return True if status text indicates issue is done."""
+    if not status:
+        return False
+    s = status.lower()
+    return "complete" in s or "done" in s or "released" in s or "closed" in s
+
+
 def parse_metric_datetime(value: str) -> str:
     text = (value or "").strip()
     if not text:
@@ -1165,6 +1173,20 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
         if gh_closed_at and record.gh_closed_at != gh_closed_at:
             record.gh_closed_at = gh_closed_at
             changed = True
+
+        # If GitHub says the issue is closed → ensure local status reflects that
+        if gh_closed_at:
+            if not _is_complete_status(record.issue_status):
+                record.issue_status = "✅ Complete"
+                changed = True
+            # Backfill actual_completion_date from gh_closed_at if not already set
+            if not record.actual_completion_date:
+                # Normalize to naive datetime string (strip timezone)
+                import re as _re2
+                _closed_norm = _re2.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", gh_closed_at)
+                record.actual_completion_date = _closed_norm
+                changed = True
+
             
         # Backfill start_datetime from AI usage log if:
         # 1. start_datetime is missing (null), OR

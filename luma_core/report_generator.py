@@ -44,11 +44,23 @@ def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
     except ValueError:
         return None
 
-def _is_complete(status: Optional[str]) -> bool:
+def _is_complete(issue: object) -> bool:
+    """Return True if the issue is considered complete.
+
+    Checks (in priority order):
+    1. gh_closed_at field — GitHub is the authoritative source
+    2. issue_status text — local status field
+    """
+    # GitHub-authoritative: if closed on GitHub, it's done
+    gh_closed = getattr(issue, "gh_closed_at", None)
+    if gh_closed:
+        return True
+    status = getattr(issue, "issue_status", None)
     if not status:
         return False
     status_lower = status.lower()
     return "complete" in status_lower or "done" in status_lower or "released" in status_lower
+
 
 def _format_short_date(dt_str: Optional[str]) -> str:
     """Format ISO datetime string to short date like '2026-03-18'."""
@@ -155,7 +167,7 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     for issue in metrics:
         due_dt = _parse_datetime(issue.due_date)
         completed_dt = _parse_datetime(issue.actual_completion_date)
-        is_done = _is_complete(issue.issue_status)
+        is_done = _is_complete(issue)
         
         if is_done and completed_dt:
             if start_this <= completed_dt <= end_this:
