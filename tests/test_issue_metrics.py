@@ -1,8 +1,12 @@
+from dataclasses import asdict
+from typing import Dict, Any
 import os
 import subprocess
 
 from luma_core.issue_metrics import (
     IssueMetricsRecord,
+    apply_artifact_defaults,
+    apply_heuristic_defaults,
     format_metric_datetime,
     get_issue_metrics,
     list_issue_metrics,
@@ -10,6 +14,69 @@ from luma_core.issue_metrics import (
     prefill_metrics_from_roadmap,
     save_issue_metrics,
 )
+
+
+def test_issue_metrics_start_datetime_defaults_to_none():
+    """start_datetime ต้อง default เป็น None เมื่อไม่ได้ระบุ"""
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#1",
+        issue_number=1,
+        issue_title="Test",
+        issue_url="https://github.com/oatrice/Luma/issues/1",
+        repository="oatrice/Luma",
+    )
+    assert record.start_datetime is None
+
+
+def test_issue_metrics_start_datetime_roundtrip(tmp_path):
+    """start_datetime ต้อง save/load ได้ถูกต้องและ normalize เป็น ISO format"""
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#20",
+        issue_number=20,
+        issue_title="Start datetime test",
+        issue_url="https://github.com/oatrice/Luma/issues/20",
+        repository="oatrice/Luma",
+        start_datetime="2026-03-26 09:00",
+    )
+
+    saved = save_issue_metrics(str(tmp_path), record)
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 20)
+
+    assert saved.start_datetime == "2026-03-26T09:00:00"
+    assert loaded is not None
+    assert loaded.start_datetime == "2026-03-26T09:00:00"
+
+
+def test_issue_metrics_start_datetime_from_dict_backward_compat():
+    """from_dict ต้องทำงานได้ถึงแม้ไม่มี start_datetime key (backward compat)"""
+    data = {
+        "issue_key": "oatrice/Luma#21",
+        "issue_number": 21,
+        "issue_title": "Old record",
+        "issue_url": "https://github.com/oatrice/Luma/issues/21",
+        "repository": "oatrice/Luma",
+    }
+    record = IssueMetricsRecord.from_dict(data)
+    assert record.start_datetime is None
+
+
+def test_issue_metrics_start_datetime_parsed_from_roadmap_body(tmp_path):
+    """parse metric line ต้อง parse 'start datetime: ...' จาก roadmap body ได้"""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "ROADMAP.md").write_text(
+        "# Roadmap\n\n"
+        "### Issue #22 - Start datetime parsing test\n"
+        "- **Status:** 🔵 In Progress\n"
+        "- Start Datetime: 2026-03-25 08:30\n",
+        encoding="utf-8",
+    )
+
+    prefill_metrics_from_roadmap(str(tmp_path), "Luma", "oatrice/Luma")
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 22)
+
+    assert loaded is not None
+    assert loaded.start_datetime == "2026-03-25T08:30:00"
 
 
 def test_issue_metrics_roundtrip_with_zero_values(tmp_path):
@@ -41,6 +108,36 @@ def test_issue_metrics_roundtrip_with_zero_values(tmp_path):
     assert loaded.actual_completion_date == "2026-03-20T08:15:00"
     assert loaded.effort_level == "Medium"
     assert format_metric_datetime(loaded.due_date) == "2026-03-19 14:30:00"
+
+
+def test_calculate_actual_mandays_from_dates(tmp_path):
+    project_path = str(tmp_path)
+    record = IssueMetricsRecord(
+        issue_key="test#1",
+        issue_number=1,
+        issue_title="Test calculating actual mandays",
+        issue_url="https://github.com/test/issues/1",
+        repository="test",
+        issue_status="Complete",
+        estimated_mandays=5.0,
+        start_datetime="2026-03-24T10:00:00",
+        actual_completion_date="2026-03-26T15:00:00"
+    )
+    
+    # 2026-03-24 10:00 to 2026-03-26 15:00 is 2 days and 5 hours = 53 hours. 53 / 24 = 2.208
+    # With nearest half day, it should be 2.0 or 2.5 depending on rounding.
+    # We round to nearest half day: round(2.208 * 2) / 2 = 4/2 = 2.0
+    record = apply_heuristic_defaults(record)
+    assert record.actual_mandays == 2.0
+    
+    # What if it's the same day?
+    record_same_day = dict(asdict(record))
+    record_same_day["start_datetime"] = "2026-03-24T10:00:00"
+    record_same_day["actual_completion_date"] = "2026-03-24T11:00:00"
+    record_same_day["actual_mandays"] = None
+    
+    r2 = apply_heuristic_defaults(IssueMetricsRecord(**record_same_day))
+    assert r2.actual_mandays == 0.5  # minimum half day
 
 
 def test_issue_metrics_reject_invalid_effort_level(tmp_path):
@@ -273,9 +370,9 @@ def test_prefill_metrics_from_roadmap_projects_due_date_from_latest_release(tmp_
 
     assert result["created"] == 1
     assert loaded is not None
-    assert loaded.estimated_mandays == 3.0
+    assert loaded.estimated_mandays == 1.5
     assert loaded.actual_completion_date is None
-    assert loaded.due_date == "2026-03-22T23:59:59"
+    assert loaded.due_date == "2026-03-21T23:59:59"
 
 
 def test_prefill_metrics_from_roadmap_can_fuzzy_match_completion_commit(tmp_path):

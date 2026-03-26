@@ -83,6 +83,7 @@ def test_action_manage_issue_metrics_saves_selected_issue(monkeypatch, tmp_path)
             "8",
             "3.5",
             "1.25",
+            "2026-03-19 14:00",
             "2026-03-20 14:30",
             "2026-03-21 18:00",
             "High",
@@ -100,6 +101,7 @@ def test_action_manage_issue_metrics_saves_selected_issue(monkeypatch, tmp_path)
     assert saved.estimate_points == 8
     assert saved.estimated_mandays == 3.5
     assert saved.actual_mandays == 1.25
+    assert saved.start_datetime == "2026-03-19T14:00:00"
     assert saved.due_date == "2026-03-20T14:30:00"
     assert saved.actual_completion_date == "2026-03-21T18:00:00"
     assert saved.effort_level == "High"
