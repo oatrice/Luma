@@ -180,6 +180,7 @@ class IssueMetricsRecord:
     issue_status: Optional[str] = None
     estimate_points: Optional[int] = None
     estimated_mandays: Optional[float] = None
+    start_datetime: Optional[str] = None
     actual_mandays: Optional[float] = None
     due_date: Optional[str] = None
     actual_completion_date: Optional[str] = None
@@ -195,6 +196,8 @@ class IssueMetricsRecord:
         )
         self.actual_mandays = validate_mandays(self.actual_mandays, "Actual Mandays")
         self.effort_level = validate_effort_level(self.effort_level)
+        if self.start_datetime:
+            self.start_datetime = parse_metric_datetime(self.start_datetime)
         if self.due_date:
             self.due_date = parse_metric_datetime(self.due_date)
         if self.actual_completion_date:
@@ -665,7 +668,16 @@ def apply_heuristic_defaults(record: IssueMetricsRecord) -> IssueMetricsRecord:
         record.effort_level = str(defaults["effort_level"])
     if record.actual_mandays is None:
         if _status_is_complete(record.issue_status):
-            record.actual_mandays = float(record.estimated_mandays or 0.0)
+            if record.start_datetime and record.actual_completion_date:
+                try:
+                    start_dt = datetime.fromisoformat(record.start_datetime.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(record.actual_completion_date.replace("Z", "+00:00"))
+                    diff_days = (end_dt - start_dt).total_seconds() / 86400.0
+                    record.actual_mandays = max(0.5, round(diff_days * 2) / 2.0)
+                except Exception:
+                    record.actual_mandays = float(record.estimated_mandays or 0.0)
+            else:
+                record.actual_mandays = float(record.estimated_mandays or 0.0)
         else:
             record.actual_mandays = 0.0
     return record
@@ -752,6 +764,7 @@ def _maybe_parse_metric_line(record: IssueMetricsRecord, line: str) -> None:
             "actual_mandays",
             r"(?:actual mandays?|actual man-?days?)\s*[:=-]\s*([0-9]+(?:\.[0-9]+)?)",
         ),
+        ("start_datetime", r"(?:start datetime|start date/time|start date|started at|start)\s*[:=-]\s*(.+)$"),
         (
             "actual_completion_date",
             r"(?:actual completion(?: date/time| date)?|completed at|done at)\s*[:=-]\s*(.+)$",
@@ -770,7 +783,7 @@ def _maybe_parse_metric_line(record: IssueMetricsRecord, line: str) -> None:
             record.estimate_points = int(raw_value)
         elif field_name in ("estimated_mandays", "actual_mandays"):
             setattr(record, field_name, float(raw_value))
-        elif field_name in ("due_date", "actual_completion_date"):
+        elif field_name in ("start_datetime", "due_date", "actual_completion_date"):
             try:
                 setattr(record, field_name, parse_metric_datetime(raw_value))
             except ValueError:
@@ -974,6 +987,7 @@ def prefill_metrics_from_roadmap(
         metric_fields = (
             "estimate_points",
             "estimated_mandays",
+            "start_datetime",
             "actual_mandays",
             "due_date",
             "actual_completion_date",
@@ -989,7 +1003,16 @@ def prefill_metrics_from_roadmap(
 
         if existing.actual_mandays is None:
             if _status_is_complete(existing.issue_status):
-                existing.actual_mandays = float(existing.estimated_mandays or 0.0)
+                if existing.start_datetime and existing.actual_completion_date:
+                    try:
+                        start_dt = datetime.fromisoformat(existing.start_datetime.replace("Z", "+00:00"))
+                        end_dt = datetime.fromisoformat(existing.actual_completion_date.replace("Z", "+00:00"))
+                        diff_days = (end_dt - start_dt).total_seconds() / 86400.0
+                        existing.actual_mandays = max(0.5, round(diff_days * 2) / 2.0)
+                    except Exception:
+                        existing.actual_mandays = float(existing.estimated_mandays or 0.0)
+                else:
+                    existing.actual_mandays = float(existing.estimated_mandays or 0.0)
             else:
                 existing.actual_mandays = 0.0
             changed = True

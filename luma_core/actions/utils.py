@@ -428,9 +428,9 @@ def _display_tracked_issue_summary(project: dict):
     print(f"\n📋 Tracked Issues for {project['name']}")
     print(
         f"{'Idx':<5} {'#':<6} {'Title':<26} {'Pts':<5} {'EstMD':<7} "
-        f"{'ActMD':<7} {'Due':<19} {'Effort':<7}"
+        f"{'ActMD':<7} {'Start':<16} {'Due':<16} {'Effort':<7}"
     )
-    print("─" * 96)
+    print("─" * 110)
     for idx, record in enumerate(records, 1):
         title = (
             record.issue_title[:24] + ".."
@@ -442,10 +442,11 @@ def _display_tracked_issue_summary(project: dict):
             f"{(record.estimate_points if record.estimate_points is not None else '-'): <5} "
             f"{(record.estimated_mandays if record.estimated_mandays is not None else '-'): <7} "
             f"{(record.actual_mandays if record.actual_mandays is not None else '-'): <7} "
-            f"{format_metric_datetime(record.due_date):<19} "
+            f"{format_metric_datetime(record.start_datetime):<16} "
+            f"{format_metric_datetime(record.due_date):<16} "
             f"{(record.effort_level or '-'): <7}"
         )
-    print("─" * 96)
+    print("─" * 110)
     print(f"Total tracked: {len(records)}")
     return records
 
@@ -532,6 +533,7 @@ def _edit_issue_metrics_record(project: dict, record: IssueMetricsRecord, is_new
             "Actual Mandays",
             lambda value: _parse_optional_float(value, "Actual Mandays"),
         ),
+        ("start_datetime", "Start Date/Time", parse_metric_datetime),
         ("due_date", "Due Date/Time", parse_metric_datetime),
         (
             "actual_completion_date",
