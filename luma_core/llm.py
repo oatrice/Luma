@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -26,11 +27,11 @@ _session_gemini_cli_tokens = 0
 _current_gemini_session_id = None
 
 MODEL_TIMEOUTS = {
-    "gemini-2.5-flash": 120,
-    "gemini-3-flash-preview": 180,
-    "gemini-2.5-pro": 300,
-    "gemini-3-pro-preview": 600,
-    "gemini-2.0-flash-lite-preview-02-05": 60,
+    "gemini-2.0-flash-lite-preview-02-05": 30,
+    "gemini-2.5-flash": 60,
+    "gemini-3-flash-preview": 90,
+    "gemini-2.5-pro": 120,
+    "gemini-3-pro-preview": 300,
 }
 
 
@@ -64,10 +65,12 @@ class GeminiCLIModel(BaseChatModel):
         start_time = time.time()
 
         # ── Credential Rotation Setup ────────────────────────────────────────
+        # ── Credential Rotation Setup ────────────────────────────────────────
         _has_credentials = bool(config.GOOGLE_API_KEYS or config.GEMINI_CLI_PROFILES)
         if _has_credentials:
             try:
-                CredentialManager.reset_instance()  # re-init to pick up latest config
+                # Reset instance to pick up latest config (e.g. if .env changed)
+                CredentialManager.reset_instance()
                 cred_manager: Optional[CredentialManager] = CredentialManager.get_instance(
                     api_keys=config.GOOGLE_API_KEYS,
                     oauth_profiles=config.GEMINI_CLI_PROFILES,
@@ -76,13 +79,17 @@ class GeminiCLIModel(BaseChatModel):
                 cred_manager = None  # empty pool — fall through to bare env
         else:
             cred_manager = None
+
         current_cred = None
         OAUTH_PROFILES_BASE = os.path.join(
             os.path.expanduser("~"), ".luma", "profiles"
         )
         # ──────────────────────────────────────────────────────────────────────
 
-        max_retries = 2
+        # Dynamic max_retries based on available credentials
+        num_creds = len(cred_manager.pool) if cred_manager else 1
+        max_retries = max(2, num_creds)
+
         process: Optional[subprocess.Popen] = None
         output: str = "Error: No attempts were made."
         for attempt in range(max_retries):
@@ -133,7 +140,7 @@ class GeminiCLIModel(BaseChatModel):
                 )
 
                 # Send prompt and wait for completion
-                model_timeout = MODEL_TIMEOUTS.get(self.model, 300)
+                model_timeout = MODEL_TIMEOUTS.get(self.model, 120)
                 stdout, stderr = process.communicate(input=prompt, timeout=model_timeout)
 
                 if process.returncode != 0:
@@ -150,8 +157,12 @@ class GeminiCLIModel(BaseChatModel):
                                 f"🔄 Credential '{current_cred.value}' rate-limited. "
                                 "Switching to next available credential..."
                             )
+                            if attempt < max_retries - 1:
+                                time.sleep(1)
+                                continue  # Try with next credential
+
                         output = f"Error calling Gemini CLI: {stderr}"
-                        break  # Skip retry and bubble up immediately
+                        break  # Non-retryable or no more attempts allowed
 
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
                     if attempt < max_retries - 1:
@@ -596,9 +607,11 @@ class TrackedModel(BaseChatModel):
     ) -> ChatResult:
         call_id = uuid.uuid4().hex[:12]
         start_time = time.time()
+        start_dt = datetime.now(timezone.utc).isoformat()
         try:
             result = self.model._generate(messages, stop, run_manager, **kwargs)
             duration_ms = (time.time() - start_time) * 1000
+            end_dt = datetime.now(timezone.utc).isoformat()
             provider, model_name, model_type, purpose = _resolve_model_info(self.model)
             usage_tracker.record_llm_event(
                 provider=provider,
@@ -607,6 +620,8 @@ class TrackedModel(BaseChatModel):
                 purpose=purpose,
                 status="success",
                 duration_ms=duration_ms,
+                start_datetime=start_dt,
+                end_datetime=end_dt,
                 call_id=call_id,
                 chain_index=0,
                 chain_length=1,
@@ -614,6 +629,7 @@ class TrackedModel(BaseChatModel):
             return result
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
+            end_dt = datetime.now(timezone.utc).isoformat()
             provider, model_name, model_type, purpose = _resolve_model_info(self.model)
             error_type_enum = classify_error(str(e))
             usage_tracker.record_llm_event(
@@ -623,6 +639,8 @@ class TrackedModel(BaseChatModel):
                 purpose=purpose,
                 status="error",
                 duration_ms=duration_ms,
+                start_datetime=start_dt,
+                end_datetime=end_dt,
                 error=str(e),
                 error_type=error_type_enum.value,
                 call_id=call_id,
