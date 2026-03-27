@@ -230,6 +230,7 @@ def record_llm_event(
     error_type: Optional[str] = None,
     start_datetime: Optional[str] = None,
     end_datetime: Optional[str] = None,
+    account: Optional[str] = None,
 ) -> None:
     event: Dict[str, Any] = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -238,6 +239,9 @@ def record_llm_event(
         "session_id": _SESSION_ID,
         "luma_version": _get_luma_version(),
     }
+
+    if account:
+        event["account"] = account
 
     if provider:
         event["provider"] = provider
