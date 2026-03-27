@@ -9,6 +9,7 @@
 import json
 import os
 from collections import Counter
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 
@@ -39,7 +40,10 @@ def summarize_usage_stats(
     success = 0
     error = 0
     duration_ms = 0
+    start_ts: Optional[datetime] = None
+    end_ts: Optional[datetime] = None
     models: set = set()
+    model_counts: Counter = Counter()
     actions: Counter = Counter()
 
     if not os.path.exists(log_path):
@@ -47,8 +51,11 @@ def summarize_usage_stats(
             "total_calls": 0,
             "success_count": 0,
             "error_count": 0,
+            "success_rate": 0.0,
             "total_duration_ms": 0,
+            "elapsed_ms": 0,
             "unique_models": [],
+            "model_counts": {},
             "top_actions": {},
         }
 
@@ -77,9 +84,22 @@ def summarize_usage_stats(
 
                 duration_ms += event.get("duration_ms", 0)
 
+                ts_str = event.get("ts")
+                if ts_str:
+                    try:
+                        # Handle basic ISO format, replace Z with +00:00 for older fromisoformat
+                        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if start_ts is None or dt < start_ts:
+                            start_ts = dt
+                        if end_ts is None or dt > end_ts:
+                            end_ts = dt
+                    except (ValueError, TypeError):
+                        pass
+
                 model = event.get("model")
                 if model:
                     models.add(model)
+                    model_counts[model] += 1
 
                 action = event.get("action")
                 if action:
@@ -87,13 +107,24 @@ def summarize_usage_stats(
     except Exception:
         pass
 
+    elapsed_ms = 0
+    if start_ts and end_ts:
+        elapsed_ms = int((end_ts - start_ts).total_seconds() * 1000)
+
+    success_rate = 0.0
+    if total > 0:
+        success_rate = round((success / total) * 100, 1)
+
     return {
         "total_calls": total,
         "success_count": success,
         "error_count": error,
+        "success_rate": success_rate,
         "total_duration_ms": duration_ms,
+        "elapsed_ms": elapsed_ms,
         "unique_models": sorted(models),
-        "top_actions": dict(actions.most_common(5)),
+        "model_counts": dict(model_counts),
+        "top_actions": dict(actions.most_common(10)),
     }
 
 
@@ -164,6 +195,16 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
     }
 
 
+def _format_duration(ms: int) -> str:
+    """Format milliseconds to human readable string."""
+    s = (ms or 0) / 1000
+    if s < 60:
+        return f"{s:.0f}s"
+    mins = int(s // 60)
+    secs = int(s % 60)
+    return f"{mins}m {secs}s"
+
+
 def format_summary_message(
     usage: Dict[str, Any],
     metrics: Dict[str, Any],
@@ -171,13 +212,6 @@ def format_summary_message(
     """
     รวม usage + metrics summary เป็น Markdown message สำหรับ Telegram
     """
-    duration_s = (usage.get("total_duration_ms", 0) or 0) / 1000
-    duration_display = f"{duration_s:.0f}s"
-    if duration_s >= 60:
-        mins = int(duration_s // 60)
-        secs = int(duration_s % 60)
-        duration_display = f"{mins}m {secs}s"
-
     lines: List[str] = []
     lines.append("📊 **Workflow Summary**")
     lines.append("")
@@ -187,14 +221,35 @@ def format_summary_message(
     lines.append(f"  Calls: {usage.get('total_calls', 0)} "
                  f"(✅ {usage.get('success_count', 0)} / "
                  f"❌ {usage.get('error_count', 0)})")
-    lines.append(f"  Duration: {duration_display}")
+    
+    success_rate = usage.get("success_rate", 0.0)
+    lines.append(f"  Success Rate: {success_rate}%")
+    
+    proc_time = _format_duration(usage.get("total_duration_ms", 0))
+    elapsed_time = _format_duration(usage.get("elapsed_ms", 0))
+    lines.append(f"  Workflow Duration: {elapsed_time}")
+    lines.append(f"  AI Processing Time: {proc_time}")
+    
     models = usage.get("unique_models", [])
     if models:
         lines.append(f"  Models: {', '.join(models)}")
+    
+    # --- Model Breakdown ---
+    model_counts = usage.get("model_counts", {})
+    if model_counts:
+        lines.append("")
+        lines.append("🧱 **Model Breakdown**")
+        for model in sorted(model_counts.keys()):
+            lines.append(f"  - {model} ({model_counts[model]})")
+
+    # --- Action Breakdown ---
     top_actions = usage.get("top_actions", {})
     if top_actions:
-        top_str = ", ".join(f"{k}({v})" for k, v in list(top_actions.items())[:3])
-        lines.append(f"  Actions: {top_str}")
+        lines.append("")
+        lines.append("⚙️ **Action Breakdown**")
+        # Show top 10 actions
+        for action, count in list(top_actions.items())[:10]:
+            lines.append(f"  - {action} ({count})")
 
     lines.append("")
 
