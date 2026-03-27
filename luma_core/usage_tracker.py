@@ -125,6 +125,33 @@ def _resolve_project_from_global_config() -> Tuple[Optional[str], Optional[Dict[
     return project_key, None
 
 
+def _get_git_info(path: str) -> Tuple[Optional[str], Optional[str]]:
+    """Helper to get commit hash and ISO datetime for a given path."""
+    import subprocess
+
+    if not path or not os.path.isdir(path):
+        return None, None
+
+    try:
+        # Get commit hash
+        commit_hash = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        # Get ISO commit datetime
+        commit_dt = subprocess.check_output(
+            ["git", "show", "-s", "--format=%cI", "HEAD"],
+            cwd=path,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        return commit_hash, commit_dt
+    except Exception:
+        return None, None
+
+
 def _build_context() -> Dict[str, Any]:
     state: Optional[LumaState] = None
     project: Optional[Dict[str, Any]] = None
@@ -157,6 +184,16 @@ def _build_context() -> Dict[str, Any]:
         ctx["project_name"] = project.get("name")
         ctx["project_path"] = project.get("path")
         ctx["project_repo"] = project.get("repo")
+
+        # ── Add Git Info ───────────────────────────────────────────────────
+        if project.get("path"):
+            commit_hash, commit_dt = _get_git_info(project["path"])
+            if commit_hash:
+                ctx["commit_hash"] = commit_hash
+            if commit_dt:
+                ctx["commit_datetime"] = commit_dt
+        # ───────────────────────────────────────────────────────────────────
+
     if state:
         phase = getattr(state, "phase", None)
         if phase:
@@ -191,6 +228,8 @@ def record_llm_event(
     model_type: Optional[str] = None,
     purpose: Optional[str] = None,
     error_type: Optional[str] = None,
+    start_datetime: Optional[str] = None,
+    end_datetime: Optional[str] = None,
 ) -> None:
     event: Dict[str, Any] = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -210,6 +249,10 @@ def record_llm_event(
         event["purpose"] = purpose
     if duration_ms is not None:
         event["duration_ms"] = int(round(duration_ms))
+    if start_datetime:
+        event["start_datetime"] = start_datetime
+    if end_datetime:
+        event["end_datetime"] = end_datetime
     if error:
         event["error"] = str(error)[:500]
     if error_type:
