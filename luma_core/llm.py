@@ -41,6 +41,7 @@ class GeminiCLIModel(BaseChatModel):
 
     model: str = Field(default="gemini-2.5-pro")
     temperature: float = Field(default=0.7)
+    last_account_used: Optional[str] = None
 
     @property
     def _llm_type(self) -> str:
@@ -105,6 +106,7 @@ class GeminiCLIModel(BaseChatModel):
                 if cred_manager:
                     try:
                         current_cred = cred_manager.get_next_credential()
+                        self.last_account_used = current_cred.value
                     except AllCredentialsExhaustedError:
                         print(
                             "⚠️ All credentials are rate-limited. "
@@ -425,6 +427,89 @@ class FallbackModel(BaseChatModel):
         raise RuntimeError(f"All models failed. Errors: {'; '.join(errors)}")
 
 
+class GeminiAPIModel(BaseChatModel):
+    """Wrapper for ChatGoogleGenerativeAI that supports credential rotation"""
+
+    model: str = Field(default="gemini-1.5-pro")
+    temperature: float = Field(default=0.7)
+    last_account_used: Optional[str] = None
+
+    @property
+    def _llm_type(self) -> str:
+        return f"gemini-api:{self.model}"
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        # ── Credential Rotation Setup ────────────────────────────────────────
+        _has_credentials = bool(config.GOOGLE_API_KEYS)
+        if _has_credentials:
+            try:
+                CredentialManager.reset_instance()
+                cred_manager: Optional[CredentialManager] = CredentialManager.get_instance(
+                    api_keys=config.GOOGLE_API_KEYS
+                )
+            except ValueError:
+                cred_manager = None
+        else:
+            cred_manager = None
+        # ──────────────────────────────────────────────────────────────────────
+
+        num_creds = len(cred_manager.pool) if cred_manager else 1
+        max_retries = max(2, num_creds)
+
+        last_error = None
+        for attempt in range(max_retries):
+            current_key = config.GOOGLE_API_KEY
+            if cred_manager:
+                try:
+                    current_cred = cred_manager.get_next_credential()
+                    current_key = current_cred.value
+                    self.last_account_used = current_key
+                except AllCredentialsExhaustedError:
+                    print("⚠️ All Gemini API keys are rate-limited.")
+                    break
+
+            try:
+                print(
+                    f"🔌 [GeminiAPIModel]: Attempt {attempt + 1}/{max_retries} using key {current_key[:8]}..."
+                )
+                api_model = ChatGoogleGenerativeAI(
+                    model=self.model,
+                    google_api_key=current_key,
+                    temperature=self.temperature,
+                    request_timeout=MODEL_TIMEOUTS.get(self.model, 120),
+                )
+                return api_model.generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                print(f"⚠️ Gemini API Error (Attempt {attempt + 1}): {err_str}")
+
+                # Check if it's a rate limit error (429)
+                if "429" in err_str or "quota" in err_str.lower():
+                    if cred_manager:
+                        cred_manager.mark_rate_limited(current_key, retry_after=300)
+                        print(
+                            f"🔄 Key '{current_key[:8]}...' rate-limited. "
+                            "Switching to next available credential..."
+                        )
+                        continue
+
+                # For other errors, maybe retry once or just fail
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                    continue
+                break
+
+        raise last_error or RuntimeError("Gemini API failed after retries")
+
+
 def _create_model(
     provider: str,
     model_name: Optional[str] = None,
@@ -454,13 +539,8 @@ def _create_model(
             if purpose == "code"
             else config.GEMINI_GENERAL_MODEL
         )
-        print(f"🔌 Initializing Gemini SDK ({name})...")
-        model = ChatGoogleGenerativeAI(
-            model=name,
-            google_api_key=config.GOOGLE_API_KEY,
-            temperature=temperature,
-            request_timeout=120,
-        )
+        print(f"🔌 Initializing Gemini API Rotation Wrapper ({name})...")
+        model = GeminiAPIModel(model=name, temperature=temperature)
         _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
         return model
     elif provider == "gemini_cli":
@@ -613,6 +693,7 @@ class TrackedModel(BaseChatModel):
             duration_ms = (time.time() - start_time) * 1000
             end_dt = datetime.now(timezone.utc).isoformat()
             provider, model_name, model_type, purpose = _resolve_model_info(self.model)
+            account = getattr(self.model, "last_account_used", None)
             usage_tracker.record_llm_event(
                 provider=provider,
                 model=model_name,
@@ -622,6 +703,7 @@ class TrackedModel(BaseChatModel):
                 duration_ms=duration_ms,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
+                account=account,
                 call_id=call_id,
                 chain_index=0,
                 chain_length=1,
@@ -631,6 +713,7 @@ class TrackedModel(BaseChatModel):
             duration_ms = (time.time() - start_time) * 1000
             end_dt = datetime.now(timezone.utc).isoformat()
             provider, model_name, model_type, purpose = _resolve_model_info(self.model)
+            account = getattr(self.model, "last_account_used", None)
             error_type_enum = classify_error(str(e))
             usage_tracker.record_llm_event(
                 provider=provider,
@@ -641,6 +724,7 @@ class TrackedModel(BaseChatModel):
                 duration_ms=duration_ms,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
+                account=account,
                 error=str(e),
                 error_type=error_type_enum.value,
                 call_id=call_id,
