@@ -404,7 +404,17 @@ def action_guided_workflow(state: LumaState, project: dict):
     # We only run the actual document generation in the root project
     planning_proj = project
     
-    if True:  # Changed from loop to run once
+    skip_planning = state.checklist.get("step_planning", False) or state.phase in [
+        WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING
+    ]
+    
+    if skip_planning:
+        print("\n🔹 Step 2: Planning Phase (Skipped - already completed)")
+        combined_number = "-".join([str(i.number) for i in state.active_issues])
+        feature_dir = get_feature_dir(planning_proj["path"], combined_number)
+        if not feature_dir and state.context.get("last_feature_dir"):
+            feature_dir = state.context.get("last_feature_dir")
+    else:
         if len(target_planning_repos) > 1:
             print(f"\n   ────────────── Planning for {planning_proj['name']} (including {len(target_planning_repos)-1} siblings) ──────────────")
         else:
@@ -521,61 +531,95 @@ def action_guided_workflow(state: LumaState, project: dict):
                 usage_tracker.set_sub_action("Auto:Planning/Plan")
                 action_generate_plan(state, planning_proj)
 
+        state.checklist["step_planning"] = True
+        from luma_core.state_manager import save_state
+        save_state(state, project["path"])
+
     # 3. Coding (User)
-    print("\n🔹 Step 3: Coding Phase")
-    print("   🤖 AI Assist + 👤 Human Coding")
-
-    # Offer Multi-Agent Swarm
-    usage_tracker.set_sub_action("Auto:Coding/Multi-Agent")
-    action_run_multi_agent_coding(state, project)
-
-    print("   - Use your IDE to implement the feature.")
-    print("   - Run 'Luma' > 'Code Review' periodically.")
-
-    if feature_dir:
-        try:
-            os.path.relpath(feature_dir, project.get("path", "."))
-        except Exception:
-            pass
-
-    cont = input(
-        "\n   Have you finished coding and verified the feature? (y/N): "
-    ).lower()
-    if cont != "y":
-        print("\n⏳ Pausing workflow. Come back when you're done!")
-        return
-
-    print("\n   " + "🛠️" * 5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️" * 5)
+    skip_coding = state.checklist.get("step_coding", False) or state.phase in [
+        WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING
+    ]
+    if skip_coding:
+        print("\n🔹 Step 3: Coding Phase (Skipped - already completed)")
+    else:
+        print("\n🔹 Step 3: Coding Phase")
+        print("   🤖 AI Assist + 👤 Human Coding")
+    
+        # Offer Multi-Agent Swarm
+        usage_tracker.set_sub_action("Auto:Coding/Multi-Agent")
+        action_run_multi_agent_coding(state, project)
+    
+        print("   - Use your IDE to implement the feature.")
+        print("   - Run 'Luma' > 'Code Review' periodically.")
+    
+        if feature_dir:
+            try:
+                os.path.relpath(feature_dir, project.get("path", "."))
+            except Exception:
+                pass
+    
+        cont = input(
+            "\n   Have you finished coding and verified the feature? (y/N): "
+        ).lower()
+        if cont != "y":
+            print("\n⏳ Pausing workflow. Come back when you're done!")
+            return
+    
+        state.checklist["step_coding"] = True
+        if state.phase == WorkflowPhase.CODING:
+            transition_to(state, WorkflowPhase.REVIEWING)
+        from luma_core.state_manager import save_state
+        save_state(state, project["path"])
+    
+        print("\n   " + "🛠️" * 5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️" * 5)
 
     # 4. Review & Docs & Roadmap
     print("\n🔹 Step 4: Quality, Documentation & Roadmap")
-    if input("   Run Code Review? (Y/n): ").lower() != "n":
-        usage_tracker.set_sub_action("Auto:Quality/CodeReview")
-        action_code_review(state, project)
+    if not state.checklist.get("step_review", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
+        if input("   Run Code Review? (Y/n): ").lower() != "n":
+            usage_tracker.set_sub_action("Auto:Quality/CodeReview")
+            action_code_review(state, project)
+    
+            print("\n   " + "🔍" * 5 + " RE-VERIFY AFTER REVIEW " + "🔍" * 5)
+            print("   กรุณา Re-verify ฟังก์ชันต่างๆ อีกครั้งหลังจากทำการแก้ไขตาม Code Review")
+            print("   เพื่อยืนยันว่าไม่มีผลกระทบ (Regression) ต่อส่วนอื่นๆ ของระบบ")
+            print("   " + "-" * 75)
+        
+        state.checklist["step_review"] = True
+        from luma_core.state_manager import save_state
+        save_state(state, project["path"])
 
-        print("\n   " + "🔍" * 5 + " RE-VERIFY AFTER REVIEW " + "🔍" * 5)
-        print("   กรุณา Re-verify ฟังก์ชันต่างๆ อีกครั้งหลังจากทำการแก้ไขตาม Code Review")
-        print("   เพื่อยืนยันว่าไม่มีผลกระทบ (Regression) ต่อส่วนอื่นๆ ของระบบ")
-        print("   " + "-" * 75)
+    if not state.checklist.get("step_docs", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
+        if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != "n":
+            usage_tracker.set_sub_action("Auto:Quality/Docs")
+            action_update_docs(state, project)
+        state.checklist["step_docs"] = True
+        from luma_core.state_manager import save_state
+        save_state(state, project["path"])
 
-    if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != "n":
-        usage_tracker.set_sub_action("Auto:Quality/Docs")
-        action_update_docs(state, project)
-
-    if input("   Update Roadmap? (Y/n): ").lower() != "n":
-        usage_tracker.set_sub_action("Auto:Quality/Roadmap")
-        # Auto-sync closed issues first
-        if state.active_issues:
-            issue_nums = [i.number for i in state.active_issues]
-            synced = sync_roadmap_for_closed_issues(project, issue_nums)
-            if synced:
-                print(f"\n   🔄 Auto-synced {synced} closed issue(s) → Roadmap.md")
-        action_update_roadmap(state, project)
+    if not state.checklist.get("step_roadmap", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
+        if input("   Update Roadmap? (Y/n): ").lower() != "n":
+            usage_tracker.set_sub_action("Auto:Quality/Roadmap")
+            # Auto-sync closed issues first
+            if state.active_issues:
+                issue_nums = [i.number for i in state.active_issues]
+                synced = sync_roadmap_for_closed_issues(project, issue_nums)
+                if synced:
+                    print(f"\n   🔄 Auto-synced {synced} closed issue(s) → Roadmap.md")
+            action_update_roadmap(state, project)
+        state.checklist["step_roadmap"] = True
+        from luma_core.state_manager import save_state
+        save_state(state, project["path"])
 
     # 5. Archive Artifacts
     print("\n🔹 Step 5: Archive Artifacts")
-    if input("   Move artifacts to docs/features/...? (Y/n): ").lower() != "n":
-        action_archive_artifacts(state, project)
+    if not state.checklist.get("step_archive", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
+        user_input = input("   Move artifacts to docs/features/...? (Y/n): ").lower()
+        if user_input != "n":
+            action_archive_artifacts(state, project)
+        state.checklist["step_archive"] = True
+        from luma_core.state_manager import save_state
+        save_state(state, project["path"])
 
     # 6. Create PR (With Auto Option)
     print("\n🔹 Step 6: Create Pull Request")
