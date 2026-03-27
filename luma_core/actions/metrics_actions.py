@@ -1,4 +1,5 @@
 from .utils import *
+import subprocess
 
 def action_view_dashboard(state: LumaState, project: dict):
     """Display Usage & Metrics Dashboard in terminal."""
@@ -189,29 +190,13 @@ def action_generate_project_report(state: LumaState, project: dict):
         print(f"✅ Report generated successfully at: {output_path}")
 
         # If a previous version exists, generate a diff
+        # If a previous version exists, trigger a visual diff in VS Code
         if output_path != original_path and os.path.exists(original_path):
-            import difflib
-            with open(original_path, "r", encoding="utf-8") as f_old:
-                old_lines = f_old.readlines()
-            new_lines = report_content.splitlines(keepends=True)
-            diff = list(difflib.unified_diff(
-                old_lines, new_lines,
-                fromfile=os.path.basename(original_path),
-                tofile=os.path.basename(output_path),
-                lineterm=""
-            ))
-            if diff:
-                diff_path = os.path.join(base_dir, f"{base_name}_diff.md")
-                with open(diff_path, "w", encoding="utf-8") as f_diff:
-                    f_diff.write("# Report Diff\n\n")
-                    f_diff.write(f"**Previous:** `{os.path.basename(original_path)}`  \n")
-                    f_diff.write(f"**New:** `{os.path.basename(output_path)}`\n\n")
-                    f_diff.write("```diff\n")
-                    f_diff.write("\n".join(diff))
-                    f_diff.write("\n```\n")
-                print(f"📋 Diff saved at: {diff_path}")
-            else:
-                print("📋 No differences found vs previous report.")
+            try:
+                subprocess.run(["code", "--diff", original_path, output_path], check=True)
+                print(f"📋 Opening visual diff: {os.path.basename(original_path)} vs {os.path.basename(output_path)}")
+            except Exception as e:
+                print(f"⚠️ Failed to open visual diff: {e}")
         
     except ValueError:
         print("❌ Invalid date format. Please use YYYY-MM-DD.")
