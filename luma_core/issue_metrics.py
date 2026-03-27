@@ -4,7 +4,7 @@ import json
 import os
 import re
 import subprocess
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 
 
 METRICS_FILENAME = ".luma_metrics.json"
@@ -80,8 +80,16 @@ def _is_complete_status(status: Optional[str]) -> bool:
     return "complete" in s or "done" in s or "released" in s or "closed" in s
 
 
-def parse_metric_datetime(value: str) -> str:
-    text = (value or "").strip()
+def parse_metric_datetime(value: Union[str, List[str]]) -> str:
+    if isinstance(value, list):
+        if not value:
+            raise ValueError("Date/time list is empty.")
+        # Return the latest date in the list as the primary one for logic
+        # but the format allows storing history elsewhere if needed.
+        # For validation, we use the last element.
+        text = str(value[-1]).strip()
+    else:
+        text = (value or "").strip()
     if not text:
         raise ValueError("Date/time is required.")
 
@@ -201,7 +209,7 @@ class IssueMetricsRecord:
     estimated_mandays: Optional[float] = None
     start_datetime: Optional[str] = None
     actual_mandays: Optional[float] = None
-    due_date: Optional[str] = None
+    due_date: Optional[Union[str, List[str]]] = None
     actual_completion_date: Optional[str] = None
     effort_level: Optional[str] = None
     notes: Optional[str] = None
@@ -258,7 +266,11 @@ class IssueMetricsRecord:
 
     def to_dict(self) -> Dict[str, object]:
         self.validate()
-        return asdict(self)
+        d = asdict(self)
+        # Ensure due_date remains a list if it was a list
+        if isinstance(self.due_date, list):
+            d["due_date"] = self.due_date
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, object], validate: bool = True) -> "IssueMetricsRecord":
