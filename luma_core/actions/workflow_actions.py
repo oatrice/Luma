@@ -1,8 +1,18 @@
+import luma_core.ui as ui
+from luma_core.ui import safe_input
+from luma_core.state_manager import LumaState, WorkflowPhase, transition_to
+from luma_core.preflight_checker import PreflightChecker
+from luma_core.config import PROJECTS
+import luma_core.usage_tracker as usage_tracker
+from luma_core.agents.publisher import publisher_agent
 from .utils import *
+from .utils import _confirm_pending_doc_updates_before_pr, get_feature_dir, auto_fill_issue_metrics
 from .admin_actions import action_archive_artifacts
 from .issue_actions import action_select_issue
 from .plan_actions import action_generate_plan, action_generate_spec, action_refine_issue, check_planning_artifacts
 from .quality_actions import action_code_review, action_update_docs, action_update_roadmap, sync_roadmap_for_closed_issues
+import sys
+import os
 
 def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None):
     """Create Pull Request with Pre-flight Checks"""
@@ -52,7 +62,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         override = (
             "y"
             if auto_approve
-            else input("⚠️ Force create PR anyways? (y/N): ").strip().lower()
+            else ui.safe_input("⚠️ Force create PR anyways? (y/N): ").strip().lower()
         )
         if override != "y":
             # Revert to CODING
@@ -67,7 +77,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
     if not auto_approve:
         print("\n🤖 PR Creation Mode:")
         mode = (
-            input(
+            ui.safe_input(
                 "   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   [n] Cancel / Back to Coding\n   Select: "
             )
             .strip()
@@ -263,7 +273,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         # 3. Proceed to Create PR for this repo
         if not auto_approve:
             confirm = (
-                input(f"   ✨ Create PR for {proj['name']}? (Y/n): ").strip().lower()
+                ui.safe_input(f"   ✨ Create PR for {proj['name']}? (Y/n): ").strip().lower()
             )
             if confirm == "n":
                 continue
@@ -362,7 +372,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             issues_missing_metrics.append(issue)
             
     if issues_missing_metrics:
-        ans = input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (y/n): ").strip().lower()
+        ans = ui.safe_input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (y/n): ").strip().lower()
         if ans == 'y':
             auto_fill_issue_metrics(state, project, issues_missing_metrics)
 
@@ -385,8 +395,8 @@ def action_guided_workflow(state: LumaState, project: dict):
         for i, sib in enumerate(selectable_repos[1:], start=2):
             print(f"   [{i}] ☐  {sib['name']}")
             
-        repo_choice = input("   Select (e.g. 1,2,3 or 'a' for all, Enter for current only): ").strip().lower()
-        if repo_choice == 'a':
+        repo_choice = safe_input("   Select (e.g. 1,2,3 or 'a' for all, Enter for current only): ").lower()
+        if repo_choice in ['a', 'all']:
             target_planning_repos = selectable_repos
         elif repo_choice:
             selected_indices = [idx.strip() for idx in repo_choice.split(",") if idx.strip().isdigit()]
@@ -452,7 +462,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             print("   [3] Select Specific Documents")
             print("   [0] Skip Planning Phase")
 
-            p_choice = input("\n   Select [0-3]: ").strip()
+            p_choice = ui.safe_input("\n   Select [0-3]: ").strip()
 
             if p_choice == "0":
                 run_planning = False
@@ -462,11 +472,11 @@ def action_guided_workflow(state: LumaState, project: dict):
                 planning_mode = "selective"
                 # Ask for selection
                 selected_steps = []
-                if input("      - Run Analysis? (y/N): ").lower() == "y":
+                if ui.safe_input("      - Run Analysis? (y/N): ").lower() == "y":
                     selected_steps.append("analysis")
-                if input("      - Run Spec? (y/N): ").lower() == "y":
+                if ui.safe_input("      - Run Spec? (y/N): ").lower() == "y":
                     selected_steps.append("spec")
-                if input("      - Run Plan? (y/N): ").lower() == "y":
+                if ui.safe_input("      - Run Plan? (y/N): ").lower() == "y":
                     selected_steps.append("plan")
                 if not selected_steps:
                     print("      (No steps selected, skipping planning)")
@@ -477,7 +487,7 @@ def action_guided_workflow(state: LumaState, project: dict):
 
         else:
             # Standard flow
-            if input("   Run Planning Phase? (Y/n): ").lower() == "n":
+            if ui.safe_input("   Run Planning Phase? (Y/n): ").lower() == "n":
                 run_planning = False
 
         if run_planning:
@@ -558,7 +568,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             except Exception:
                 pass
     
-        cont = input(
+        cont = ui.safe_input(
             "\n   Have you finished coding and verified the feature? (y/N): "
         ).lower()
         if cont != "y":
@@ -576,7 +586,7 @@ def action_guided_workflow(state: LumaState, project: dict):
     # 4. Review & Docs & Roadmap
     print("\n🔹 Step 4: Quality, Documentation & Roadmap")
     if not state.checklist.get("step_review", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        if input("   Run Code Review? (Y/n): ").lower() != "n":
+        if ui.safe_input("   Run Code Review? (Y/n): ").lower() != "n":
             usage_tracker.set_sub_action("Auto:Quality/CodeReview")
             action_code_review(state, project)
     
@@ -590,7 +600,7 @@ def action_guided_workflow(state: LumaState, project: dict):
         save_state(state, project["path"])
 
     if not state.checklist.get("step_docs", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        if input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != "n":
+        if ui.safe_input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != "n":
             usage_tracker.set_sub_action("Auto:Quality/Docs")
             action_update_docs(state, project)
         state.checklist["step_docs"] = True
@@ -598,7 +608,7 @@ def action_guided_workflow(state: LumaState, project: dict):
         save_state(state, project["path"])
 
     if not state.checklist.get("step_roadmap", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        if input("   Update Roadmap? (Y/n): ").lower() != "n":
+        if ui.safe_input("   Update Roadmap? (Y/n): ").lower() != "n":
             usage_tracker.set_sub_action("Auto:Quality/Roadmap")
             # Auto-sync closed issues first
             if state.active_issues:
@@ -614,7 +624,7 @@ def action_guided_workflow(state: LumaState, project: dict):
     # 5. Archive Artifacts
     print("\n🔹 Step 5: Archive Artifacts")
     if not state.checklist.get("step_archive", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        user_input = input("   Move artifacts to docs/features/...? (Y/n): ").lower()
+        user_input = ui.safe_input("   Move artifacts to docs/features/...? (Y/n): ").lower()
         if user_input != "n":
             action_archive_artifacts(state, project)
         state.checklist["step_archive"] = True
@@ -626,7 +636,7 @@ def action_guided_workflow(state: LumaState, project: dict):
 
     # Check for "Yes to All" preference
     choice = (
-        input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
+        ui.safe_input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
         .strip()
         .lower()
     )
@@ -644,7 +654,7 @@ def action_guided_workflow(state: LumaState, project: dict):
 
         # 7. CI Check
         print("\n🔹 Step 7: Check CI Status")
-        if input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
+        if ui.safe_input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
             import subprocess
             import sys
             
@@ -676,7 +686,7 @@ def action_guided_workflow(state: LumaState, project: dict):
                 print("   ⚠️ Could not parse PR URL to check CI.")
 
         print("\n   Please merge the PR on GitHub.")
-        input("   Press Enter AFTER you have merged the PR...")
+        ui.safe_input("   Press Enter AFTER you have merged the PR...")
 
         # Use the refresh check logic from main loop or just assume
         from luma_core.github_project import check_pr_merged
@@ -747,7 +757,7 @@ def action_run_multi_agent_coding(state: LumaState, project: dict):
     print("  [6] 📝 Generate Prompts Only (for manual use)")
     print("  [0] Skip (Manual Coding)")
 
-    choice = input("\nSelect [0-6]: ").strip()
+    choice = ui.safe_input("\nSelect [0-6]: ").strip()
 
     if choice == "0":
         feature_dir = None

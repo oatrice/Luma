@@ -1,3 +1,4 @@
+from luma_core.ui import safe_input
 from .utils import *
 
 def action_refine_issue(state: LumaState, project: dict):
@@ -215,7 +216,7 @@ def action_generate_plan(state: LumaState, project: dict):
         for i, d in enumerate(dirs, 1):
             print(f"  [{i}] {d}")
 
-        choice = input("Select: ").strip()
+        choice = safe_input("Select: ")
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(dirs):

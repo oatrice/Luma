@@ -5,6 +5,8 @@ from langchain_core.messages import HumanMessage
 from ..state import AgentState
 from ..llm import get_llm
 from ..config import TARGET_DIR
+import luma_core.ui as ui
+from luma_core.ui import safe_input
 
 # GitHub Integration
 from ..github_client import get_open_pr, create_pull_request, update_pull_request, update_issue_status
@@ -186,7 +188,7 @@ def publisher_agent(state: AgentState):
             if not all_screens and not state.get('auto_approve', False):
                 print(f"\n📸 No screenshots found in: {screenshots_dir}")
                 print("   Please add screenshots now to help the LLM write a better PR description.")
-                inp = input("   Press Enter after adding screenshots (or 's' to skip)...").strip().lower()
+                inp = ui.safe_input("   Press Enter after adding screenshots (or 's' to skip)...").strip().lower()
                 if inp != 's':
                     all_screens = get_images()
             
@@ -266,11 +268,11 @@ INSTRUCTIONS:
             print(state["test_suggestions"])
             print("="*50 + "\n")
         print("👉 Options: [y] Auto-Generate, [m] Use Manual Body, [n] Cancel")
-        choice = input("👉 Select Check: ").strip().lower()
+        choice = ui.safe_input("👉 Select Check: ").strip().lower()
     
     while True:
         if not choice:
-            choice = input("👉 Select Check: ").strip().lower()
+            choice = ui.safe_input("👉 Select Check: ").strip().lower()
 
         if choice == 'y':
             # E. Generate Auto
@@ -297,7 +299,7 @@ INSTRUCTIONS:
                     confirm = 'y'
                 else:
                     print("💡 You can review or edit this file now.")
-                    confirm = input("👉 Submit this PR description? (y/N): ").strip().lower()
+                    confirm = ui.safe_input("👉 Submit this PR description? (y/N): ").strip().lower()
 
                 if confirm == 'y':
                     # Reload in case user edited it
@@ -334,7 +336,7 @@ INSTRUCTIONS:
                     if auto_approve:
                         confirm = 'y'
                     else:
-                        confirm = input("👉 Submit this manual PR description? (y/N): ").strip().lower()
+                        confirm = ui.safe_input("👉 Submit this manual PR description? (y/N): ").strip().lower()
                     
                     if confirm == 'y':
                         body = body_content
