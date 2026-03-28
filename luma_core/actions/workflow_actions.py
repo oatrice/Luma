@@ -728,13 +728,15 @@ def action_guided_workflow(state: LumaState, project: dict):
             print(f"   📊 Synced {gh_sync_result['updated']} records from GH.")
 
         usage_summary = summarize_usage_stats(
-            usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID
+            usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID,
+            branch=state.active_branch
         )
         # Fallback: If current session has 0 calls (e.g. session restart), 
-        # get project stats from the last 24 hours.
+        # get project stats from the branch (now prioritized) or last 24 hours.
         if usage_summary.get("total_calls", 0) == 0:
             usage_summary = summarize_usage_stats(
-                usage_tracker.get_log_path(), project, session_id=None, since_hours=24
+                usage_tracker.get_log_path(), project, session_id=None, 
+                since_hours=24, branch=state.active_branch
             )
         metrics_path = os.path.join(project["path"], ".luma_metrics.json")
         metrics_summary = summarize_issue_metrics(metrics_path)
