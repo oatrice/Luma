@@ -66,16 +66,20 @@ class GeminiCLIModel(BaseChatModel):
         start_time = time.time()
 
         # ── Credential Rotation Setup ────────────────────────────────────────
-        # ── Credential Rotation Setup ────────────────────────────────────────
         _has_credentials = bool(config.GOOGLE_API_KEYS or config.GEMINI_CLI_PROFILES)
         if _has_credentials:
             try:
                 # Reset instance to pick up latest config (e.g. if .env changed)
-                CredentialManager.reset_instance()
-                cred_manager: Optional[CredentialManager] = CredentialManager.get_instance(
-                    api_keys=config.GOOGLE_API_KEYS,
-                    oauth_profiles=config.GEMINI_CLI_PROFILES,
-                )
+                if config.GEMINI_CLI_PROFILES:
+                    try:
+                        cred_manager = CredentialManager.get_instance(
+                            oauth_profiles=config.GEMINI_CLI_PROFILES,
+                            name="cli"
+                        )
+                    except Exception:
+                        cred_manager = None  # empty pool — fall through to bare env
+                else:
+                    cred_manager = None
             except ValueError:
                 cred_manager = None  # empty pool — fall through to bare env
         else:
@@ -460,12 +464,12 @@ class GeminiAPIModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         # ── Credential Rotation Setup ────────────────────────────────────────
-        _has_credentials = bool(config.GOOGLE_API_KEYS)
-        if _has_credentials:
+        if config.GOOGLE_API_KEYS:
             try:
-                CredentialManager.reset_instance()
+                # Use a separate named pool for API keys to avoid mixing with CLI profiles
                 cred_manager: Optional[CredentialManager] = CredentialManager.get_instance(
-                    api_keys=config.GOOGLE_API_KEYS
+                    api_keys=config.GOOGLE_API_KEYS,
+                    name="api"
                 )
             except ValueError:
                 cred_manager = None
@@ -672,8 +676,10 @@ def _resolve_model_info(
             provider = "openrouter"
         elif "openai" in str(model_type):
             provider = "openai"
+        elif "gemini-api" in str(model_type):
+            provider = "gemini-api"
         elif "gemini" in str(model_type):
-            provider = "gemini"
+            provider = "gemini-cli"
     return provider, model_name, model_type, purpose
 
 
