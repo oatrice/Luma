@@ -288,6 +288,7 @@ class FallbackModel(BaseChatModel):
         run_manager: Optional[Any] = None,
         **kwargs: Any,
     ) -> ChatResult:
+
         errors = []
         chain_length = len(self.models)
 
@@ -322,7 +323,11 @@ class FallbackModel(BaseChatModel):
             call_id = uuid.uuid4().hex[:12]
             start_time = time.time()
             try:
-                result = model._generate(messages, stop, run_manager, **kwargs)
+                # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
+                clean_kwargs = dict(kwargs)
+                clean_kwargs.pop("run_manager", None)
+                # ------------------------------------------------------------------
+                result = model._generate(messages, stop, run_manager, **clean_kwargs)
                 duration_ms = (time.time() - start_time) * 1000
                 provider, model_name, model_type, purpose = _resolve_model_info(model)
                 account = getattr(model, "last_account_used", None)
@@ -382,9 +387,12 @@ class FallbackModel(BaseChatModel):
             for i in range(0, start_idx):
                 model = self.models[i]
                 call_id = uuid.uuid4().hex[:12]
-                start_time = time.time()
                 try:
-                    result = model._generate(messages, stop, run_manager, **kwargs)
+                    # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
+                    clean_kwargs = dict(kwargs)
+                    clean_kwargs.pop("run_manager", None)
+                    # ------------------------------------------------------------------
+                    result = model._generate(messages, stop, run_manager, **clean_kwargs)
                     duration_ms = (time.time() - start_time) * 1000
                     provider, model_name, model_type, purpose = _resolve_model_info(
                         model
@@ -725,11 +733,16 @@ class TrackedModel(BaseChatModel):
         run_manager: Optional[Any] = None,
         **kwargs: Any,
     ) -> ChatResult:
+
         call_id = uuid.uuid4().hex[:12]
         start_time = time.time()
         start_dt = datetime.now(timezone.utc).isoformat()
         try:
-            result = self.model._generate(messages, stop, run_manager, **kwargs)
+            # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
+            clean_kwargs = dict(kwargs)
+            clean_kwargs.pop("run_manager", None)
+            # ------------------------------------------------------------------
+            result = self.model._generate(messages, stop, run_manager, **clean_kwargs)
             duration_ms = (time.time() - start_time) * 1000
             end_dt = datetime.now(timezone.utc).isoformat()
             provider, model_name, model_type, purpose = _resolve_model_info(self.model)

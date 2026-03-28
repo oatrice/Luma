@@ -17,8 +17,16 @@ def _event_matches_project(event: dict, project: dict) -> bool:
     """Check if a usage event belongs to a given project."""
     if project.get("name") and event.get("project_name") == project["name"]:
         return True
-    if project.get("path") and event.get("project_path") == project["path"]:
-        return True
+    
+    # Path normalization for robustness
+    p_path = project.get("path")
+    e_path = event.get("project_path")
+    if p_path and e_path:
+        p_path = os.path.normpath(os.path.abspath(p_path))
+        e_path = os.path.normpath(os.path.abspath(e_path))
+        if p_path == e_path:
+            return True
+
     if project.get("repo") and event.get("project_repo") == project["repo"]:
         return True
     return False
@@ -28,6 +36,7 @@ def summarize_usage_stats(
     log_path: str,
     project: Optional[dict] = None,
     session_id: Optional[str] = None,
+    since_hours: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     อ่าน .luma_ai_usage.jsonl แล้วสรุปเป็น dict
@@ -74,6 +83,19 @@ def summarize_usage_stats(
                     continue
                 if session_id and event.get("session_id") != session_id:
                     continue
+                
+                # Check since_hours filter
+                if since_hours:
+                    ts_str = event.get("ts")
+                    if ts_str:
+                        try:
+                            dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                            now = datetime.now(dt.tzinfo) # Ensure same timezone
+                            age = now - dt
+                            if age.total_seconds() > since_hours * 3600:
+                                continue
+                        except (ValueError, TypeError):
+                            pass
 
                 total += 1
                 status = event.get("status", "")
