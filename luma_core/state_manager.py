@@ -175,7 +175,8 @@ def load_state(project_path: str) -> LumaState:
             data["active_issues"] = valid_issues
         
         # Remove unknown fields
-        known_fields = {f.name for f in LumaState.__dataclass_fields__.values()}
+        from dataclasses import fields
+        known_fields = {f.name for f in fields(LumaState)}
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         
         return LumaState(**filtered_data)
