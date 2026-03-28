@@ -19,6 +19,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
     # Allow if Coding OR (PR_Pending to sync other repos) OR Preflight (Retry)
     allowed_phases = [
         WorkflowPhase.CODING,
+        WorkflowPhase.REVIEWING,
         WorkflowPhase.PR_PENDING,
         WorkflowPhase.PREFLIGHT,
     ]
