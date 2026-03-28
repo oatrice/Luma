@@ -321,6 +321,7 @@ class FallbackModel(BaseChatModel):
                 result = model._generate(messages, stop, run_manager, **kwargs)
                 duration_ms = (time.time() - start_time) * 1000
                 provider, model_name, model_type, purpose = _resolve_model_info(model)
+                account = getattr(model, "last_account_used", None)
                 usage_tracker.record_llm_event(
                     provider=provider,
                     model=model_name,
@@ -331,6 +332,7 @@ class FallbackModel(BaseChatModel):
                     call_id=call_id,
                     chain_index=i,
                     chain_length=chain_length,
+                    account=_mask_account(account),
                 )
                 # Success! Remember this index for THIS project
                 config.save_fallback_index(i, current_path)
@@ -338,6 +340,7 @@ class FallbackModel(BaseChatModel):
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
                 provider, model_name, model_type, purpose = _resolve_model_info(model)
+                account = getattr(model, "last_account_used", None)
                 error_type_enum = classify_error(str(e))
                 usage_tracker.record_llm_event(
                     provider=provider,
@@ -351,6 +354,7 @@ class FallbackModel(BaseChatModel):
                     call_id=call_id,
                     chain_index=i,
                     chain_length=chain_length,
+                    account=_mask_account(account),
                 )
                 model_type = getattr(model, "_llm_type", "unknown")
                 print(f"⚠️ Model {i + 1} ({model_type}) failed [{error_type_enum.value}]: {e}")
@@ -381,6 +385,7 @@ class FallbackModel(BaseChatModel):
                     provider, model_name, model_type, purpose = _resolve_model_info(
                         model
                     )
+                    account = getattr(model, "last_account_used", None)
                     usage_tracker.record_llm_event(
                         provider=provider,
                         model=model_name,
@@ -391,6 +396,7 @@ class FallbackModel(BaseChatModel):
                         call_id=call_id,
                         chain_index=i,
                         chain_length=chain_length,
+                        account=_mask_account(account),
                     )
                     config.save_fallback_index(i, current_path)  # Remember this success
                     return result
@@ -399,6 +405,7 @@ class FallbackModel(BaseChatModel):
                     provider, model_name, model_type, purpose = _resolve_model_info(
                         model
                     )
+                    account = getattr(model, "last_account_used", None)
                     error_type_enum = classify_error(str(e))
                     usage_tracker.record_llm_event(
                         provider=provider,
@@ -412,6 +419,7 @@ class FallbackModel(BaseChatModel):
                         call_id=call_id,
                         chain_index=i,
                         chain_length=chain_length,
+                        account=_mask_account(account),
                     )
                     model_type = getattr(model, "_llm_type", "unknown")
                     print(f"⚠️ Model {i + 1} ({model_type}) failed [{error_type_enum.value}]: {e}")
@@ -669,6 +677,22 @@ def _resolve_model_info(
     return provider, model_name, model_type, purpose
 
 
+def _mask_account(account: Optional[str]) -> Optional[str]:
+    """
+    Returns a masked version of the account string.
+    - If it's an API key (starts with 'AIza' or length > 24), show last 4 chars.
+    - Otherwise (OAuth profile name), keep as is.
+    """
+    if not account:
+        return None
+    # Google API keys usually start with AIza and are long.
+    # OpenAI keys start with sk- and are also long.
+    if account.startswith("AIza") or account.startswith("sk-") or len(account) > 24:
+        # Show only last 4 chars for security
+        return f"****{account[-4:]}"
+    return account
+
+
 class TrackedModel(BaseChatModel):
     """Wrap a single model to record success/failure usage stats."""
 
@@ -713,7 +737,7 @@ class TrackedModel(BaseChatModel):
                 duration_ms=duration_ms,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
-                account=account,
+                account=_mask_account(account),
                 call_id=call_id,
                 chain_index=0,
                 chain_length=1,
@@ -734,7 +758,7 @@ class TrackedModel(BaseChatModel):
                 duration_ms=duration_ms,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
-                account=account,
+                account=_mask_account(account),
                 error=str(e),
                 error_type=error_type_enum.value,
                 call_id=call_id,
