@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 1.4.0  
+> **Version:** 1.6.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -103,7 +103,7 @@ Luma/
 
 - **Python 3.9+**
 - **GitHub CLI (`gh`)**: Must be authenticated.
-- **LLM Keys**: `.env` configured with `GOOGLE_API_KEY` or `OPENROUTER_API_KEY`.
+- **LLM Keys**: `.env` configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Also supports `OPENROUTER_API_KEY`.
 
 ---
 
@@ -130,3 +130,5 @@ python main.py
 - [x] **Cross-Repo Context & Planning**: Agents can plan and access context across multiple repositories. 🆕
 - [x] **Background CI**: CI checks now run as a background process for a non-blocking workflow. 🆕
 - [x] **Automated Issue Metrics**: Automatically calculates and fills story points and effort. 🆕
+- [x] **LLM Key Rotation**: Supports multiple Google API keys with automatic failover and cooldown. 🆕
+- [x] **Standardized Logging**: Clear visibility of which account/model is being used per request. 🆕

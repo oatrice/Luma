@@ -161,12 +161,18 @@ def load_state(project_path: str) -> LumaState:
         elif "active_issue" in data:
             data.pop("active_issue", None)
 
-        # Reconstruct active_issues list
+        # Reconstruct active_issues list with strict validation
         if data.get("active_issues") and isinstance(data["active_issues"], list):
-            data["active_issues"] = [
-                IssueData(**item) if isinstance(item, dict) else item
-                for item in data["active_issues"]
-            ]
+            valid_issues = []
+            for item in data["active_issues"]:
+                if isinstance(item, IssueData):
+                    valid_issues.append(item)
+                elif isinstance(item, dict) and "number" in item and "title" in item:
+                    try:
+                        valid_issues.append(IssueData(**item))
+                    except (TypeError, ValueError):
+                        continue # Skip invalid dicts
+            data["active_issues"] = valid_issues
         
         # Remove unknown fields
         known_fields = {f.name for f in LumaState.__dataclass_fields__.values()}
