@@ -37,6 +37,7 @@ def summarize_usage_stats(
     project: Optional[dict] = None,
     session_id: Optional[str] = None,
     since_hours: Optional[int] = None,
+    branch: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     อ่าน .luma_ai_usage.jsonl แล้วสรุปเป็น dict
@@ -54,6 +55,7 @@ def summarize_usage_stats(
     models: set = set()
     model_counts: Counter = Counter()
     actions: Counter = Counter()
+    sub_action_times: Dict[str, Dict[str, Any]] = {}  # {sub_action: {start, end}}
 
     if not os.path.exists(log_path):
         return {
@@ -81,8 +83,14 @@ def summarize_usage_stats(
 
                 if project and not _event_matches_project(event, project):
                     continue
-                if session_id and event.get("session_id") != session_id:
-                    continue
+                
+                # Filter priority: branch > session_id
+                if branch:
+                    if event.get("active_branch") != branch:
+                        continue
+                elif session_id:
+                    if event.get("session_id") != session_id:
+                        continue
                 
                 # Check since_hours filter
                 if since_hours:
@@ -126,6 +134,21 @@ def summarize_usage_stats(
                 action = event.get("action")
                 if action:
                     actions[action] += 1
+                
+                # Track per-sub-action timing
+                sub_action = event.get("sub_action")
+                if sub_action and ts_str:
+                    try:
+                        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if sub_action not in sub_action_times:
+                            sub_action_times[sub_action] = {"start": dt, "end": dt}
+                        else:
+                            if dt < sub_action_times[sub_action]["start"]:
+                                sub_action_times[sub_action]["start"] = dt
+                            if dt > sub_action_times[sub_action]["end"]:
+                                sub_action_times[sub_action]["end"] = dt
+                    except (ValueError, TypeError):
+                        pass
     except Exception:
         pass
 
@@ -137,6 +160,13 @@ def summarize_usage_stats(
     if total > 0:
         success_rate = round((success / total) * 100, 1)
 
+    # Process sub_action durations
+    sub_actions_flat = {}
+    for sa, timers in sub_action_times.items():
+        sub_actions_flat[sa] = {
+            "elapsed_ms": int((timers["end"] - timers["start"]).total_seconds() * 1000)
+        }
+
     return {
         "total_calls": total,
         "success_count": success,
@@ -147,6 +177,7 @@ def summarize_usage_stats(
         "unique_models": sorted(models),
         "model_counts": dict(model_counts),
         "top_actions": dict(actions.most_common(10)),
+        "sub_actions": sub_actions_flat,
     }
 
 
@@ -248,9 +279,22 @@ def format_summary_message(
     lines.append(f"  Success Rate: {success_rate}%")
     
     proc_time = _format_duration(usage.get("total_duration_ms", 0))
-    elapsed_time = _format_duration(usage.get("elapsed_ms", 0))
-    lines.append(f"  Workflow Duration: {elapsed_time}")
     lines.append(f"  AI Processing Time: {proc_time}")
+    
+    workflow_time = _format_duration(usage.get("elapsed_ms", 0))
+    lines.append(f"  Workflow Duration: {workflow_time}")
+    lines.append("")
+
+    # --- Sub-action Breakdown ---
+    sub_actions = usage.get("sub_actions", {})
+    if sub_actions:
+        lines.append("⏱️ **Breakdown (Elapsed Time)**")
+        # Sort by elapsed time descending or just alphabetically? Alpha is safer for stable UI.
+        for sa in sorted(sub_actions.keys()):
+            sa_duration = _format_duration(sub_actions[sa]["elapsed_ms"])
+            lines.append(f"  - {sa}: {sa_duration}")
+        lines.append(f"  - Total (Elapsed): {workflow_time}")
+        lines.append("")
     
     models = usage.get("unique_models", [])
     if models:
