@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0] - 2026-03-28
+
+### Added
+- **[LLM Rotation]** Robust Google Account & API Key rotation system.
+  - New `CredentialManager` supports alternating between multiple API keys and OAuth profiles.
+  - Automatic failover: Switches to the next available key immediately upon hitting Rate Limits (429).
+  - Cooldown management: Tracks exhausted keys and prevents reuse until they recover.
+  - Standardized masked account logging for enhanced traceability during rotation.
+- **[LLM Fixes]** Resolved critical bug in `GeminiAPIModel`.
+  - Fixed `TypeError: 'tuple' object has no attribute 'content'` by standardizing `invoke()` usage and `ChatResult` wrapping.
+  - Unified response handling across CLI and API models.
+
 ## [1.5.0] - 2026-03-25
 
 ### Added

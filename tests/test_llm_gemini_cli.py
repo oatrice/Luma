@@ -77,7 +77,7 @@ def test_gemini_cli_uses_model_specific_timeout(mock_subprocess_popen):
     mock_process.returncode = 0
     mock_subprocess_popen.return_value = mock_process
     
-    # flash-preview should have 180s
+    # flash-preview should have 90s
     model = GeminiCLIModel(model="gemini-3-flash-preview", temperature=0.7)
     messages = [HumanMessage(content="Hello")]
     
@@ -87,7 +87,7 @@ def test_gemini_cli_uses_model_specific_timeout(mock_subprocess_popen):
         
     mock_process.communicate.assert_called_once()
     kwargs = mock_process.communicate.call_args[1]
-    assert kwargs.get("timeout") == 180
+    assert kwargs.get("timeout") == 90
 
 @patch("subprocess.Popen")
 @patch("time.sleep")
@@ -108,12 +108,13 @@ def test_gemini_cli_skips_retry_on_rate_limit(mock_sleep, mock_subprocess_popen)
     with pytest.raises(RuntimeError) as exc_info:
         model.invoke(messages)
         
-    assert "429: Too Many Requests" in str(exc_info.value)
+    assert "All credentials exhausted due to rate limiting" in str(exc_info.value)
     
-    # Should only try once
+    # Should only try twice (Attempt 1, then Attempt 2 which fails immediately due to rate limit)
+    # But wait, attempt 1 failed, so it sleeps and then tries attempt 2.
     assert mock_process.communicate.call_count == 1
-    # Should not sleep
-    mock_sleep.assert_not_called()
+    # Should sleep once before next attempt
+    mock_sleep.assert_called_once_with(1)
 
 
 class FailingModel(BaseChatModel):

@@ -118,17 +118,23 @@ class GeminiCLIModel(BaseChatModel):
 
                     subprocess_env = dict(os.environ)
                     if current_cred.type == CredentialType.API_KEY:
+                        masked_account = f"{current_cred.value[:8]}..."
                         subprocess_env["GOOGLE_API_KEY"] = current_cred.value
                         subprocess_env.pop("GEMINI_CLI_PROFILE", None)
                     else:  # OAUTH_PROFILE
+                        masked_account = current_cred.value
                         profile_home = os.path.join(OAUTH_PROFILES_BASE, current_cred.value)
                         subprocess_env["HOME"] = profile_home
                         subprocess_env.pop("GOOGLE_API_KEY", None)  # force OAuth fallback
-                        print(
-                            f"🔑 Using OAuth profile: {current_cred.value} (HOME={profile_home})"
-                        )
+
+                    print(
+                        f"🔌 [GeminiCLIModel] Using account: {masked_account} (Model: {self.model}, Attempt: {attempt + 1}/{max_retries})"
+                    )
                 else:
                     subprocess_env = dict(os.environ)  # bare env — original behavior
+                    print(
+                        f"🔌 [GeminiCLIModel] Using environment default account (Model: {self.model}, Attempt: {attempt + 1}/{max_retries})"
+                    )
                 # ────────────────────────────────────────────────────────────
 
                 # Use Popen to pipe prompt via stdin
@@ -475,8 +481,9 @@ class GeminiAPIModel(BaseChatModel):
                     break
 
             try:
+                masked_account = f"{current_key[:8]}..." if current_key else "default"
                 print(
-                    f"🔌 [GeminiAPIModel]: Attempt {attempt + 1}/{max_retries} using key {current_key[:8]}..."
+                    f"🔌 [GeminiAPIModel] Using account: {masked_account} (Model: {self.model}, Attempt: {attempt + 1}/{max_retries})"
                 )
                 api_model = ChatGoogleGenerativeAI(
                     model=self.model,
@@ -484,7 +491,10 @@ class GeminiAPIModel(BaseChatModel):
                     temperature=self.temperature,
                     request_timeout=MODEL_TIMEOUTS.get(self.model, 120),
                 )
-                return api_model.generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                response = api_model.invoke(
+                    messages, stop=stop, run_manager=run_manager, **kwargs
+                )
+                return ChatResult(generations=[ChatGeneration(message=response)])
 
             except Exception as e:
                 last_error = e

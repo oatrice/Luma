@@ -72,15 +72,27 @@ def display_header(state: LumaState, project: dict):
     _print_boxed_line(format_row("📍", "Phase  ", f"{emoji} {phase_name}"), BOX_WIDTH)
     
     if state.active_issues:
+        issue = state.active_issues[0]
         if len(state.active_issues) == 1:
             max_title_len = 35 
-            title = state.active_issues[0].title
+            # Defensive check: ensure title is a string
+            title = getattr(issue, 'title', 'Unknown Task')
+            if callable(title): # Handle the str.title method case
+                title = str(issue)
+            
+            if not isinstance(title, str):
+                title = str(title)
+
             if len(title) > max_title_len:
                 title = title[:max_title_len] + "..."
-            task_info = f"#{state.active_issues[0].number} {title}"
+            task_info = f"#{getattr(issue, 'number', '?')} {title}"
         else:
-            nums = ", ".join(f"#{i.number}" for i in state.active_issues)
-            title = state.active_issues[0].title[:25] + "..."
+            nums = ", ".join(f"#{getattr(i, 'number', '?')}" for i in state.active_issues)
+            primary_title = getattr(issue, 'title', 'Tasks')
+            if callable(primary_title):
+                primary_title = str(issue)
+            
+            title = str(primary_title)[:25] + "..."
             task_info = f"[{nums}] {title}"
         _print_boxed_line(format_row("🎯", "Task   ", task_info), BOX_WIDTH)
     
