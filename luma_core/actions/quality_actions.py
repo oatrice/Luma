@@ -2,6 +2,36 @@ import re
 import subprocess
 from .utils import *
 
+def _extract_version_and_note(content: str):
+    """
+    Helper to extract (v1.2.3) and any following note from a status string.
+    Returns (version, note) strings.
+    """
+    # 1. Try to find (vX.Y.Z)
+    v_match = re.search(r"(\(v[\d\.]+\))", content)
+    version = v_match.group(1) if v_match else ""
+
+    # 2. Try to find note after a dash or after the version
+    # Match everything after version or after a dash if no version
+    note = ""
+    if version:
+        # Extract everything after the version
+        after_v = content.split(version)[-1].strip()
+        if after_v.startswith("-"):
+            note = after_v.lstrip("-").strip()
+        else:
+            note = after_v.strip()
+    else:
+        # No version, look for dash separator
+        # But ensure we don't pick up "In Progress" or other keywords as notes
+        if " - " in content:
+            potential_note = content.split(" - ", 1)[-1].strip()
+            # Heuristic: if it's too short or contains only status keywords, it's not a note
+            if len(potential_note) > 1 and not re.search(r"^(Ready|Done|Complete|Blocked|Todo|In Progress)$", potential_note, re.I):
+                note = potential_note
+
+    return version, note
+
 def action_code_review(state: LumaState, project: dict):
     """Run local code review agent"""
     print("\n🧐 Local Code Reviewer")
@@ -363,7 +393,16 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
             parts = lines[found_idx].split("|")
             status_col = -2 if lines[found_idx].rstrip().endswith("|") else -1
             if len(parts) >= 3:
-                parts[status_col] = " ✅ Complete "
+                existing_status = parts[status_col].strip()
+                v, n = _extract_version_and_note(existing_status)
+                
+                new_status = " ✅ Complete "
+                if v or n:
+                    if v and n: new_status = f" ✅ Complete {v} - {n} "
+                    elif v: new_status = f" ✅ Complete {v} "
+                    else: new_status = f" ✅ Complete - {n} "
+                
+                parts[status_col] = new_status
                 lines[found_idx] = "|".join(parts)
                 if not lines[found_idx].endswith("\n"):
                     lines[found_idx] += "\n"
@@ -375,7 +414,15 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
                 stripped = lines[i].strip()
                 if "Status:" in stripped or "**Done**" in stripped or "**In Progress**" in stripped or "**Blocked**" in stripped:
                     indent = "    - " if lines[i].startswith("    -") else "- "
-                    lines[i] = f"{indent}✅ **Done**\n"
+                    v, n = _extract_version_and_note(lines[i])
+                    
+                    new_line = f"{indent}✅ **Done**"
+                    if v or n:
+                        if v and n: new_line += f" {v} - {n}"
+                        elif v: new_line += f" {v}"
+                        else: new_line += f" - {n}"
+                    
+                    lines[i] = new_line + "\n"
                     print(f"   ✅ Issue #{issue_id_str} (CLOSED) → Roadmap status updated to ✅ Done")
                     synced += 1
                     break
@@ -736,22 +783,37 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         version = input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
         note = input("Enter Completion Note (Enter to skip): ").strip()
 
-    def _build_status_strings(is_table_row, indent):
+    def _build_status_strings(is_table_row, indent, existing_content=""):
+        # If user left version/note empty, try to preserve from existing content
+        curr_version = version
+        curr_note = note
+        
+        if status_choice == "1" and not curr_version and not curr_note and existing_content:
+            ex_v, ex_n = _extract_version_and_note(existing_content)
+            curr_version = ex_v
+            curr_note = ex_n
+
         if status_choice == "1":
             status_prefix = "✅ Complete" if is_table_row else "✅ **Done**"
-            if version and note:
-                new_table_status = f"{status_prefix} ({version}) - {note}"
-            elif version:
-                new_table_status = f"{status_prefix} ({version})"
-            elif note:
-                new_table_status = f"{status_prefix} - {note}"
+            
+            # Ensure version has parentheses if it didn't come from _extract_version_and_note
+            display_version = curr_version
+            if display_version and not display_version.startswith("("):
+                display_version = f"({display_version})"
+
+            if curr_version and curr_note:
+                new_table_status = f"{status_prefix} {display_version} - {curr_note}"
+            elif curr_version:
+                new_table_status = f"{status_prefix} {display_version}"
+            elif curr_note:
+                new_table_status = f"{status_prefix} - {curr_note}"
             else:
                 new_table_status = f"{status_prefix}"
-            new_status_line = (
-                f"{indent}✅ **Done**"
-                + (f" ({version})" if version else "")
-                + (f" - {note}" if note else "")
-            )
+            
+            new_status_line = f"{indent}{status_prefix}"
+            if display_version: new_status_line += f" {display_version}"
+            if curr_note: new_status_line += f" - {curr_note}"
+
         elif status_choice == "2":
             new_table_status = "🟢 Ready"
             new_status_line = f"{indent}**Status:** 🟢 **Ready**"
@@ -767,7 +829,17 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     for issue_id, found_idx, is_table_row, status_idx, indent in sorted(
         found_issues, key=lambda x: x[1], reverse=True
     ):
-        new_table_status, new_status_line = _build_status_strings(is_table_row, indent)
+        # Determine existing content for preservation
+        existing_text = ""
+        if is_table_row:
+            parts = lines[found_idx].split("|")
+            status_col_index = -2 if lines[found_idx].rstrip().endswith("|") else -1
+            if len(parts) >= 3:
+                existing_text = parts[status_col_index]
+        elif status_idx != -1:
+            existing_text = lines[status_idx]
+
+        new_table_status, new_status_line = _build_status_strings(is_table_row, indent, existing_text)
 
         if is_table_row:
             parts = lines[found_idx].split("|")
