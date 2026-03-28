@@ -8,6 +8,7 @@ import os
 import glob
 from datetime import datetime
 from typing import Dict, Tuple
+from luma_core.ui import safe_input
 
 # Pre-Coding Phases
 PHASES = {
@@ -359,7 +360,7 @@ def interactive_checklist(project_path: str, project_name: str, repo_slug: str =
     
     completed = []
     for i, (key, name, description) in enumerate(checklist, 1):
-        status = input(f"   [{i}] {name}\n       {description}\n       ✅ Done? (y/N/skip): ").strip().lower()
+        status = safe_input(f"   [{i}] {name}\n       {description}\n       ✅ Done? (y/N/skip): ").lower()
         if status == "y":
             completed.append(key)
             print("       ✅ Marked as done\n")
@@ -403,7 +404,7 @@ def create_feature_doc(project_path: str):
     next_num = max(numbers) + 1 if numbers else 1
     
     # Get feature name
-    feature_name = input("Feature Name (e.g., user_authentication): ").strip()
+    feature_name = safe_input("Feature Name (e.g., user_authentication): ")
     if not feature_name:
         print("❌ Feature name required")
         return None

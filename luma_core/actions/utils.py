@@ -1,3 +1,5 @@
+import luma_core.ui as ui
+from luma_core.ui import safe_input
 import datetime
 import json
 import os
@@ -271,7 +273,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     for i, name in enumerate(suggestions, 1):
         print(f"  [{i}] {name}")
 
-    choice = input("Select [1-3] or type custom name: ").strip()
+    choice = ui.safe_input("Select [1-3] or type custom name: ").strip()
 
     branch_name = suggestions[0]  # Default
 
@@ -403,7 +405,7 @@ def _select_issue_card_for_metrics(project: dict):
         title = card.title[:36] + ".." if len(card.title) > 38 else card.title
         print(f"{idx:<5} #{card.issue_number:<5} {title:<38} {card.status}")
 
-    choice = input("\nSelect index or use #issue-number [0=Back]: ").strip()
+    choice = ui.safe_input("\nSelect index or use #issue-number [0=Back]: ").strip()
     if choice == "0":
         return None
 
@@ -455,7 +457,7 @@ def _select_tracked_issue_record(project: dict):
     if not records:
         return None
 
-    choice = input("\nSelect index or use #issue-number [0=Back]: ").strip()
+    choice = ui.safe_input("\nSelect index or use #issue-number [0=Back]: ").strip()
     if choice == "0":
         return None
 
@@ -498,7 +500,7 @@ def _parse_optional_float(value: str, label: str) -> float:
 
 def _prompt_metric_value(label: str, current_value, parser):
     while True:
-        raw = input(
+        raw = ui.safe_input(
             f"{label} [{_format_metric_value(current_value)}] "
             "(Enter keep, - clear): "
         ).strip()
@@ -663,7 +665,7 @@ def _confirm_pending_doc_updates_before_pr(
         return True
 
     choice = (
-        input(
+        ui.safe_input(
             "   [u] Update now\n"
             "   [c] Continue anyway\n"
             "   [b] Back to Coding\n"
@@ -681,7 +683,7 @@ def _confirm_pending_doc_updates_before_pr(
             return True
 
         print(f"   ⚠️ Still pending after docs update: {summary}")
-        return input("   Continue PR anyway? (y/N): ").strip().lower() == "y"
+        return ui.safe_input("   Continue PR anyway? (y/N): ").strip().lower() == "y"
 
     if choice == "c":
         return True
@@ -694,18 +696,18 @@ def _add_new_project(state: LumaState) -> str:
     print("\n✨ Add New Project")
     print("=================")
 
-    name = input("Project Name: ").strip()
+    name = ui.safe_input("Project Name: ").strip()
     if not name:
         print("❌ Project Name is required.")
         return None
 
-    path = input("Absolute Path to Project: ").strip()
+    path = ui.safe_input("Absolute Path to Project: ").strip()
     if not path or not os.path.isabs(path):
         print("❌ Absolute Path is required.")
         return None
 
-    repo = input("GitHub Repo (e.g. oatrice/Akasa) [Optional]: ").strip()
-    kanban_number_str = input("GitHub Project Board Number [Optional]: ").strip()
+    repo = ui.safe_input("GitHub Repo (e.g. oatrice/Akasa) [Optional]: ").strip()
+    kanban_number_str = ui.safe_input("GitHub Project Board Number [Optional]: ").strip()
 
     # Generate a unique key based on auto-incrementing existing numeric keys
     max_key = 0

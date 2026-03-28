@@ -1,4 +1,5 @@
 import re
+from luma_core.ui import safe_input
 from .utils import *
 from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
 
@@ -71,7 +72,7 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
     print("  [0] Cancel")
     print("  ℹ️  Comma-separated for multi-select (e.g. 1,3)")
 
-    choice = input("\nSelect issue(s): ").strip()
+    choice = safe_input("\nSelect issue(s): ")
 
     if choice == "0":
         return False
@@ -122,7 +123,7 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
         print(f"  [{i}] #{card.issue_number}: {card.title[:50]} ({card.status})")
     print("  [0] Cancel")
 
-    choice = input("\nSelect issue to add: ").strip()
+    choice = safe_input("\nSelect issue to add: ")
     if choice == "0":
         return False
 
@@ -172,7 +173,7 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
         print(f"  [{i}] #{issue.number}: {issue.title[:50]}{primary}")
     print("  [0] Cancel")
 
-    choice = input("\nSelect issue to remove: ").strip()
+    choice = safe_input("\nSelect issue to remove: ")
     if choice == "0":
         return False
 

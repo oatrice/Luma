@@ -1,3 +1,4 @@
+from luma_core.ui import safe_input
 from .utils import *
 
 def action_test_telegram_notification(state: LumaState, project: dict):
@@ -22,7 +23,7 @@ def action_test_telegram_notification(state: LumaState, project: dict):
     else:
         print("\n❌ Failed to send notification (Check AKASA_CHAT_ID or backend config).")
     
-    input("\nPress Enter to return to menu...")
+    safe_input("\nPress Enter to return to menu...")
 
 def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
     """Manually trigger AI Brain Sync with preview + confirm + session picker. Supports Antigravity and Gemini CLI."""
@@ -47,8 +48,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
             print(f"   📄 Preview: {latest['preview']}")
 
             confirm = (
-                input("\n   ✅ Use this Antigravity session? (Y/n/s to skip): ")
-                .strip()
+                safe_input("\n   ✅ Use this Antigravity session? (Y/n/s to skip): ")
                 .lower()
             )
 
@@ -65,10 +65,9 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
                         )
 
                     choice = (
-                        input(
+                        safe_input(
                             f"\n   Select session [1-{display_limit}] or [c] Cancel: "
                         )
-                        .strip()
                         .lower()
                     )
                     if choice != "c" and choice:
@@ -117,8 +116,7 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
             print(f"   📄 Preview: {latest['preview'][:80]}")
 
             confirm = (
-                input("\n   ✅ Sync this Gemini CLI session? (Y/n/s to skip): ")
-                .strip()
+                safe_input("\n   ✅ Sync this Gemini CLI session? (Y/n/s to skip): ")
                 .lower()
             )
 
@@ -135,10 +133,9 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
                         )
 
                     choice = (
-                        input(
+                        safe_input(
                             f"\n   Select session [1-{display_limit}] or [c] Cancel: "
                         )
-                        .strip()
                         .lower()
                     )
                     if choice != "c" and choice:
@@ -199,7 +196,7 @@ def action_switch_project(state: LumaState) -> str:
 
     print("  [+] Add New Project")
 
-    choice = input("\nSelect: ").strip()
+    choice = safe_input("\nSelect: ")
 
     if choice == "+":
         return _add_new_project(state)
@@ -246,7 +243,7 @@ def action_settings():
         print(f"  [3] Gemini CLI Model:  {current_model}")
         print("  [4] 🔙 Back")
 
-        choice = input("\nSelect setting to change [1-4]: ").strip()
+        choice = safe_input("\nSelect setting to change [1-4]: ")
 
         if choice == "1":
             print("\nSelect LLM Provider:")
@@ -254,7 +251,7 @@ def action_settings():
             print("  [2] openrouter")
             print("  [3] gemini_cli (Local CLI)")
 
-            p_choice = input("Select [1-3]: ").strip()
+            p_choice = safe_input("Select [1-3]: ")
             if p_choice == "1":
                 current_llm = "gemini"
             elif p_choice == "2":
@@ -267,7 +264,7 @@ def action_settings():
             print("  [1] gemini_cli")
             print("  [2] opencode")
 
-            c_choice = input("Select [1-2]: ").strip()
+            c_choice = safe_input("Select [1-2]: ")
             if c_choice == "1":
                 current_cli = "gemini_cli"
             elif c_choice == "2":
@@ -279,7 +276,7 @@ def action_settings():
                 marker = " ← current" if model == current_model else ""
                 print(f"  [{i}] {model}{marker}")
 
-            m_choice = input(f"Select [1-{len(AVAILABLE_GEMINI_CLI_MODELS)}]: ").strip()
+            m_choice = safe_input(f"Select [1-{len(AVAILABLE_GEMINI_CLI_MODELS)}]: ")
             try:
                 idx = int(m_choice) - 1
                 if 0 <= idx < len(AVAILABLE_GEMINI_CLI_MODELS):

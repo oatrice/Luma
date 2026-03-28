@@ -1,3 +1,4 @@
+from luma_core.ui import safe_input
 from .utils import *
 import subprocess
 
@@ -55,7 +56,7 @@ def action_view_dashboard(state: LumaState, project: dict):
     print("║                                                    ║")
     print("╚" + "═" * 52 + "╝")
 
-    input("\nPress Enter to return...")
+    safe_input("\nPress Enter to return...")
 
 def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
@@ -80,7 +81,7 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
         print("  [4] Audit & Sync from GitHub")
         print("  [0] Back")
 
-        choice = input("\nSelect [0-4]: ").strip()
+        choice = safe_input("\nSelect [0-4]: ")
         if choice == "0":
             return
         if choice == "1":
@@ -130,7 +131,7 @@ def action_generate_project_report(state: LumaState, project: dict):
     print("  [2] Monthly Report (Based on today's month)")
     print("  [0] Back")
 
-    choice = input("\nSelect [0-2]: ").strip()
+    choice = safe_input("\nSelect [0-2]: ")
     if choice == "0":
         return
     
@@ -139,7 +140,7 @@ def action_generate_project_report(state: LumaState, project: dict):
         print("❌ Invalid selection")
         return
 
-    custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
+    custom_date = safe_input("Enter reference date (YYYY-MM-DD) or press Enter for today: ")
     
     print("\n🔄 Syncing metrics from ROADMAP...")
     from luma_core.issue_metrics import prefill_metrics_from_roadmap, sync_github_metrics_for_project
@@ -214,7 +215,7 @@ def action_view_stats_files(state: LumaState, project: dict):
         print("  [2] Show file path")
         print("  [0] Back")
 
-        choice = input("\nSelect [0-2]: ").strip()
+        choice = safe_input("\nSelect [0-2]: ")
 
         if choice == "0":
             return
@@ -222,7 +223,7 @@ def action_view_stats_files(state: LumaState, project: dict):
         if choice == "1":
             if not os.path.exists(usage_path):
                 print("\n❌ .luma_ai_usage.jsonl not found.")
-                input("\nPress Enter to return...")
+                safe_input("\nPress Enter to return...")
                 continue
 
             print("\n📄 Usage Log View")
@@ -231,7 +232,7 @@ def action_view_stats_files(state: LumaState, project: dict):
             print("  [3] Raw tail (last 50 lines)")
             print("  [0] Back")
 
-            sub = input("\nSelect [0-3]: ").strip()
+            sub = safe_input("\nSelect [0-3]: ")
 
             if sub == "0":
                 continue
@@ -264,7 +265,7 @@ def action_view_stats_files(state: LumaState, project: dict):
                             tail.append(line.rstrip())
                 except Exception as e:
                     print(f"⚠️ Failed to read usage log: {e}")
-                    input("\nPress Enter to return...")
+                    safe_input("\nPress Enter to return...")
                     continue
 
                 print("\nLast 50 lines:")
@@ -275,13 +276,13 @@ def action_view_stats_files(state: LumaState, project: dict):
             else:
                 print("❌ Invalid option")
 
-            input("\nPress Enter to return...")
+            safe_input("\nPress Enter to return...")
             continue
 
         if choice == "2":
             print("\n📁 File Path")
             print(f"  .luma_ai_usage.jsonl: {usage_path}")
-            input("\nPress Enter to return...")
+            safe_input("\nPress Enter to return...")
             continue
 
         print("❌ Invalid option")

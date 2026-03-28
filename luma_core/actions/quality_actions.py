@@ -1,5 +1,5 @@
-import re
-import subprocess
+import luma_core.ui as ui
+from luma_core.ui import safe_input
 from .utils import *
 
 def _extract_version_and_note(content: str):
@@ -60,7 +60,7 @@ def action_code_review(state: LumaState, project: dict):
             for i, proj in enumerate(potential_projects, 1):
                 print(f"   [{i}] {proj['name']} ({proj.get('type', 'unknown')})")
 
-            choice = input("\n   Select [all]: ").strip().lower()
+            choice = ui.safe_input("\n   Select [all]: ").strip().lower()
             if not choice or choice == "all":
                 target_projects = potential_projects
             else:
@@ -259,7 +259,7 @@ def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = Fal
                     print(f"      [{idx}] {cand['name']}")
                 print("      [a] All (Default)")
     
-                selected = input("\n   Select indices (e.g., 1,3) or 'a' for all: ").strip().lower()
+                selected = ui.safe_input("\n   Select indices (e.g., 1,3) or 'a' for all: ").strip().lower()
                 if selected and selected != 'a':
                     target_repos = []
                     for s in selected.split(','):
@@ -281,7 +281,7 @@ def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = Fal
         print(f"   - {repo['name']}")
 
     if not skip_confirm:
-        confirm = input("\nProceed with docs update? (y/N): ").lower()
+        confirm = ui.safe_input("\nProceed with docs update? (y/N): ").lower()
         if confirm != "y":
             return []
 
@@ -549,7 +549,7 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         return
 
     # ── Input: รองรับ single ("65"), comma-separated ("33, 34"), หรือพิมพ์ "new" เพื่อสร้างใหม่ ──
-    issue_input = input("Enter Issue # to update, or 'new' to create one: ").strip()
+    issue_input = ui.safe_input("Enter Issue # to update, or 'new' to create one: ").strip()
     if not issue_input:
         return
 
@@ -558,12 +558,12 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
 
     if issue_input.lower() == "new":
         print("\n➕ Creating new GitHub Issue...")
-        title = input("   Issue Title: ").strip()
+        title = ui.safe_input("   Issue Title: ").strip()
         if not title:
             print("❌ Title cannot be empty.")
             return
 
-        body = input("   Issue Body (optional): ").strip()
+        body = ui.safe_input("   Issue Body (optional): ").strip()
         
         gh_args = ["issue", "create", "--title", title, "--body", body]
         repo_name = project.get("repo")
@@ -770,7 +770,7 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     print("  [3] 🟡 In Progress / Todo")
     print("  [4] 🔴 Blocked")
 
-    status_choice = input(prompt_str).strip()
+    status_choice = ui.safe_input(prompt_str).strip()
     if all_closed and status_choice == "":
         status_choice = "1"
     if status_choice not in ("1", "2", "3", "4"):
@@ -780,8 +780,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     version = ""
     note = ""
     if status_choice == "1":
-        version = input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
-        note = input("Enter Completion Note (Enter to skip): ").strip()
+        version = ui.safe_input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
+        note = ui.safe_input("Enter Completion Note (Enter to skip): ").strip()
 
     def _build_status_strings(is_table_row, indent, existing_content=""):
         # If user left version/note empty, try to preserve from existing content

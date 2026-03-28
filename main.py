@@ -260,7 +260,7 @@ def main():
             # Fallback for environments where simple-term-menu might fail
             print(f"⚠️ Interactive menu unavailable: {e}")
             # ui.display_menu(state, MENU_ACTIONS) # StartLine 111 in ui.py was defined legacy
-            choice = input(f"\n{menu_title}\n👉 Select: ").strip()
+            choice = ui.safe_input(f"\n{menu_title}\n👉 Select: ")
         
         if choice == "0":
             # Save state before exit
@@ -446,7 +446,7 @@ def main():
         else:
             print("❌ Invalid option")
         
-        input("\nPress Enter to continue...")
+        ui.safe_input("\nPress Enter to continue...")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,17 @@
+import os
+import sys
 import unicodedata
+
+# Unix-specific terminal imports
+try:
+    import tty
+    import termios
+except ImportError:
+    tty = None
+    termios = None
 from simple_term_menu import TerminalMenu
 from luma_core.doc_updates import get_pending_doc_updates, pending_doc_update_summary
-from luma_core.state_manager import LumaState, get_phase_display, get_next_step_recommendation# =============================================================================
+from luma_core.state_manager import LumaState, get_phase_display, get_next_step_recommendation
 # Constants
 # =============================================================================
 
@@ -9,6 +19,72 @@ BOX_WIDTH = 58
 
 # MENU_ACTIONS is now passed from main.py to avoid duplication.
 # See select_menu_option `actions` parameter.
+
+# =============================================================================
+# Input Handlers
+# =============================================================================
+
+def safe_input(prompt: str = "") -> str:
+    """
+    A robust input replacement that reads character by character using TTY/termios.
+    Handles messed up terminal states where standard input() hangs or shows ^M.
+    """
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+
+    # Try low-level terminal read if on Unix
+    if tty is None or termios is None:
+        try:
+            line = sys.stdin.readline()
+            return line.replace("\r", "").replace("\n", "").strip()
+        except EOFError:
+            return ""
+
+    try:
+        fd = sys.stdin.fileno()
+        
+        # Fallback if NOT a real TTY (e.g. in some IDE consoles or pipes)
+        if not os.isatty(fd):
+            line = sys.stdin.readline()
+            return line.replace("\r", "").replace("\n", "").strip()
+
+        old_settings = termios.tcgetattr(fd)
+        try:
+            # Put terminal in cbreak mode to read single chars
+            tty.setcbreak(fd)
+            chars = []
+            while True:
+                c = sys.stdin.read(1)
+                if not c:
+                    break
+                if c in ("\n", "\r"):  # Both represent "Enter"
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    break
+                # ord(c) == 127 is Backspace on macOS, 8 on some others
+                if ord(c) in (8, 127):
+                    if chars:
+                        chars.pop()
+                        sys.stdout.write("\b \b")
+                        sys.stdout.flush()
+                elif ord(c) == 3:  # Ctrl+C
+                    raise KeyboardInterrupt()
+                elif ord(c) == 4:  # Ctrl+D
+                    break
+                else:
+                    chars.append(c)
+                    sys.stdout.write(c)
+                    sys.stdout.flush()
+            return "".join(chars).strip()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    except (ImportError, Exception):
+        # Fallback to standard input if tty/termios not available or error occurs
+        try:
+            line = sys.stdin.readline()
+            return line.replace("\r", "").replace("\n", "").strip()
+        except EOFError:
+            return ""
 
 # =============================================================================
 # Display Functions
