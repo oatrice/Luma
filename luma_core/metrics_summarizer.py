@@ -249,13 +249,20 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
 
 
 def _format_duration(ms: int) -> str:
-    """Format milliseconds to human readable string."""
+    """Format milliseconds to human readable string (e.g. 5s, 1m 5s, 1h 2m 3s)."""
     s = (ms or 0) / 1000
     if s < 60:
         return f"{s:.0f}s"
+    
     mins = int(s // 60)
     secs = int(s % 60)
-    return f"{mins}m {secs}s"
+    
+    if mins < 60:
+        return f"{mins}m {secs}s"
+    
+    hours = int(mins // 60)
+    mins = int(mins % 60)
+    return f"{hours}h {mins}m {secs}s"
 
 
 def format_summary_message(
@@ -289,16 +296,22 @@ def format_summary_message(
     sub_actions = usage.get("sub_actions", {})
     if sub_actions:
         lines.append("⏱️ **Breakdown (Elapsed Time)**")
-        # Sort by elapsed time descending or just alphabetically? Alpha is safer for stable UI.
-        for sa in sorted(sub_actions.keys()):
-            sa_duration = _format_duration(sub_actions[sa]["elapsed_ms"])
+        # Sort by durationDescending and limit to 10
+        sorted_sa = sorted(sub_actions.items(), key=lambda x: x[1].get("elapsed_ms", 0), reverse=True)
+        for sa, data in sorted_sa[:10]:
+            sa_duration = _format_duration(data["elapsed_ms"])
             lines.append(f"  - {sa}: {sa_duration}")
-        lines.append(f"  - Total (Elapsed): {workflow_time}")
+        
+        if len(sorted_sa) > 10:
+            lines.append(f"  - (... and {len(sorted_sa) - 10} more)")
+        
+        # Use a more compact Total Elapsed line
+        lines.append(f"  ⌛ **Total: {workflow_time}**")
         lines.append("")
     
     models = usage.get("unique_models", [])
     if models:
-        lines.append(f"  Models: {', '.join(models)}")
+        lines.append(f"🤖 Models: {', '.join(models)}")
     
     # --- Model Breakdown ---
     model_counts = usage.get("model_counts", {})
@@ -313,9 +326,11 @@ def format_summary_message(
     if top_actions:
         lines.append("")
         lines.append("⚙️ **Action Breakdown**")
-        # Show top 10 actions
-        for action, count in list(top_actions.items())[:10]:
+        # Show top 5 actions to save space
+        for action, count in list(top_actions.items())[:5]:
             lines.append(f"  - {action} ({count})")
+        if len(top_actions) > 5:
+            lines.append(f"  - ...")
 
     lines.append("")
 

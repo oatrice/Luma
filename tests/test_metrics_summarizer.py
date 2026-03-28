@@ -185,5 +185,5 @@ def test_format_summary_message_expanded():
     assert "AI Processing Time: 2m 0s" in msg
     assert "Model Breakdown" in msg
     assert "gemini-2.5-pro (12)" in msg
-    assert "Action10 (1)" in msg
+    assert "Action5 (1)" in msg
     assert len(msg) > 100
