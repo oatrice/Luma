@@ -563,7 +563,7 @@ def _create_model(
         )
         _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
         return model
-    elif provider == "gemini":
+    elif provider == "gemini-api":
         name = model_name or (
             config.GEMINI_CODE_MODEL
             if purpose == "code"
@@ -571,7 +571,7 @@ def _create_model(
         )
         print(f"🔌 Initializing Gemini API Rotation Wrapper ({name})...")
         model = GeminiAPIModel(model=name, temperature=temperature)
-        _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        _attach_usage_metadata(model, provider="gemini-api", model_name=name, purpose=purpose)
         return model
     elif provider == "gemini_cli":
         name = model_name or config.GEMINI_CLI_MODEL
@@ -623,9 +623,9 @@ def get_llm(temperature=0.7, purpose="general"):
         model_sequence.append(("openai", None))
 
     # --- Tier 4: Gemini API direct — pro → flash → lite ---
-    if config.GOOGLE_API_KEY and primary_provider != "gemini":
-        for gemini_model in config.GEMINI_API_FALLBACK_MODELS:
-            model_sequence.append(("gemini", gemini_model))
+    if config.GOOGLE_API_KEY and primary_provider != "gemini-api":
+        if config.GEMINI_GENERAL_MODEL:
+            model_sequence.append(("gemini-api", config.GEMINI_GENERAL_MODEL))
 
     # 3. Initialize all models in the sequence
     models = []
@@ -687,6 +687,9 @@ def _resolve_model_info(
         elif "gemini-api" in str(model_type):
             provider = "gemini-api"
         elif "gemini" in str(model_type):
+            # Fallback for older Log types or other Gemini wrappers
+            provider = "gemini-api"
+        elif "gemini-cli" in str(model_type):
             provider = "gemini-cli"
     return provider, model_name, model_type, purpose
 
