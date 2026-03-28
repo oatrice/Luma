@@ -138,30 +138,40 @@ class CredentialManager:
                 return cred
         return None
 
-    # ── Singleton Pattern ────────────────────────────────────────────────────
+    # ── Named Singleton Pattern ─────────────────────────────────────────────
+    _instances: dict[str, CredentialManager] = {}
+    _lock: Lock = Lock()
 
     @classmethod
     def get_instance(
         cls,
         api_keys: Optional[List[str]] = None,
         oauth_profiles: Optional[List[str]] = None,
+        name: str = "default",
     ) -> "CredentialManager":
         """
-        Return the global singleton CredentialManager.
-
-        On first call, api_keys and oauth_profiles are required to initialize.
-        Subsequent calls return the cached instance regardless of arguments.
+        Return a named singleton instance of CredentialManager.
+        
+        On first call for a given name, api_keys and oauth_profiles are used to initialize.
+        Subsequent calls return the cached instance for that name.
         """
         with cls._lock:
-            if cls._instance is None:
-                cls._instance = cls(
+            if name not in cls._instances:
+                cls._instances[name] = cls(
                     api_keys=api_keys or [],
                     oauth_profiles=oauth_profiles or [],
                 )
-            return cls._instance
+            return cls._instances[name]
 
     @classmethod
-    def reset_instance(cls) -> None:
-        """Reset singleton (primarily used for testing)."""
+    def reset_instance(cls, name: str = "default") -> None:
+        """Reset a specific named singleton (primarily used for testing)."""
         with cls._lock:
-            cls._instance = None
+            if name in cls._instances:
+                del cls._instances[name]
+
+    @classmethod
+    def reset_all_instances(cls) -> None:
+        """Reset all named singletons."""
+        with cls._lock:
+            cls._instances.clear()

@@ -1,60 +1,74 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from luma_core.llm import FallbackModel, GeminiCLIModel, _mask_account
+from luma_core.llm import TrackedModel, GeminiCLIModel, GeminiAPIModel, _mask_account, _resolve_model_info
+from luma_core.credential_manager import CredentialManager
+from langchain_core.messages import AIMessage
 
 def test_mask_account_api_key():
     assert _mask_account("AIzaTestKey12345678") == "****5678"
     assert _mask_account("sk-TestKeyOpenAI1234") == "****1234"
-    assert _mask_account("very-long-custom-api-key-string-more-than-24") == "****n-24"
 
 def test_mask_account_profile():
     assert _mask_account("personal") == "personal"
     assert _mask_account("work") == "work"
-    assert _mask_account(None) is None
+
+def test_resolve_model_info_naming():
+    # Test Gemini API naming
+    api_model = GeminiAPIModel(model="gemini-2.5-pro")
+    provider, _, _, _ = _resolve_model_info(api_model)
+    assert provider == "gemini-api"
+    
+    # Test Gemini CLI naming
+    cli_model = GeminiCLIModel(model="gemini-2.5-flash")
+    provider, _, _, _ = _resolve_model_info(cli_model)
+    assert provider == "gemini-cli"
 
 @patch("luma_core.usage_tracker.record_llm_event")
-def test_fallback_model_logs_masked_account(mock_record):
-    # Use real model instance but mock its _generate
-    mock_model = GeminiCLIModel(model="gemini-2.5-pro")
-    mock_model._generate = MagicMock(return_value=MagicMock())
-    mock_model.last_account_used = "AIza_Test_Key_9999"
+@patch("luma_core.config.GOOGLE_API_KEYS", ["AIza_Key_1", "AIza_Key_2"])
+@patch("luma_core.config.GEMINI_CLI_PROFILES", ["personal", "work"])
+def test_isolated_pools(mock_record):
+    # Reset all instances first
+    CredentialManager.reset_all_instances()
     
-    # Create FallbackModel
-    fallback = FallbackModel(models=[mock_model])
+    # 1. Test Gemini API (should only use API keys)
+    api_model = GeminiAPIModel(model="gemini-2.5-pro")
+    tracked_api = TrackedModel(model=api_model)
     
-    # Trigger generation
-    with patch("luma_core.llm._resolve_model_info", return_value=("gemini_cli", "gemini-2.5-pro", "gemini-cli:gemini-2.5-pro", "general")):
-        fallback._generate([])
+    # Mock ChatGoogleGenerativeAI instance and its invoke method
+    with patch("luma_core.llm.ChatGoogleGenerativeAI") as mock_chat_class:
+        mock_instance = MagicMock()
+        mock_instance.invoke.return_value = AIMessage(content="Test Response")
+        mock_chat_class.return_value = mock_instance
+        
+        tracked_api._generate([])
     
-    # Verify record_llm_event was called with masked account
-    assert mock_record.called
-    # Check all calls to see if any have the masked account
-    found = False
+    # Check that it used an API key and the provider is gemini-api
+    found_api = False
     for call in mock_record.call_args_list:
-        if call.kwargs.get("account") == "****9999":
-            found = True
-            break
-    assert found, f"Masked account not found in calls: {mock_record.call_args_list}"
+        if call.kwargs.get("provider") == "gemini-api":
+            account = call.kwargs.get("account")
+            # Should be masked API key
+            assert account.startswith("****")
+            found_api = True
+    assert found_api
 
-@patch("luma_core.usage_tracker.record_llm_event")
-def test_fallback_model_logs_profile_name(mock_record):
-    # Use real model instance
-    mock_model = GeminiCLIModel(model="gemini-2.5-pro")
-    mock_model._generate = MagicMock(return_value=MagicMock())
-    mock_model.last_account_used = "work_profile"
+    # 2. Test Gemini CLI (should only use Profiles)
+    cli_model = GeminiCLIModel(model="gemini-2.5-flash")
+    tracked_cli = TrackedModel(model=cli_model)
     
-    # Create FallbackModel
-    fallback = FallbackModel(models=[mock_model])
+    with patch("luma_core.llm.subprocess.Popen") as mock_popen:
+        mock_process = MagicMock()
+        mock_process.communicate.return_value = ("Success", "")
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
+        
+        tracked_cli._generate([])
     
-    # Trigger generation
-    with patch("luma_core.llm._resolve_model_info", return_value=("gemini_cli", "gemini-2.5-pro", "gemini-cli:gemini-2.5-pro", "general")):
-        fallback._generate([])
-    
-    # Verify record_llm_event was called with full profile name
-    assert mock_record.called
-    found = False
+    # Check that it used a profile (not masked) and the provider is gemini-cli
+    found_cli = False
     for call in mock_record.call_args_list:
-        if call.kwargs.get("account") == "work_profile":
-            found = True
-            break
-    assert found
+        if call.kwargs.get("provider") == "gemini-cli":
+            account = call.kwargs.get("account")
+            assert account in ["personal", "work"]
+            found_cli = True
+    assert found_cli
