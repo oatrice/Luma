@@ -38,9 +38,9 @@ if _legacy_api_key and _legacy_api_key not in _parsed_keys:
     _parsed_keys.insert(0, _legacy_api_key)
 GOOGLE_API_KEYS: list = _parsed_keys  # deduplicated, order preserved
 
-# OAuth Profile folders (relative names resolved against ~/.luma/profiles/).
-# Example: GEMINI_CLI_PROFILES=default,account_1,account_2
-_raw_profiles: str = os.getenv("GEMINI_CLI_PROFILES", "")
+# OAuth Profile folders (relative names resolved against ~/.config/gemini/).
+# Supports both GEMINI_CLI_PROFILES and GEMINI_OAUTH_PROFILES.
+_raw_profiles: str = os.getenv("GEMINI_OAUTH_PROFILES") or os.getenv("GEMINI_CLI_PROFILES", "")
 GEMINI_CLI_PROFILES: list = [p.strip() for p in _raw_profiles.split(",") if p.strip()]
 # ────────────────────────────────────────────────────────────────────────────
 

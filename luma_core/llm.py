@@ -83,7 +83,7 @@ class GeminiCLIModel(BaseChatModel):
 
         current_cred = None
         OAUTH_PROFILES_BASE = os.path.join(
-            os.path.expanduser("~"), ".luma", "profiles"
+            os.path.expanduser("~"), ".config", "gemini"
         )
         # ──────────────────────────────────────────────────────────────────────
 
