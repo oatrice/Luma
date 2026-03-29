@@ -104,7 +104,7 @@ class GeminiCLIModel(BaseChatModel):
                 )
 
                 # Always start a new session (no -r flag)
-                cmd = ["gemini", "-m", self.model]
+                cmd = ["/opt/homebrew/bin/gemini", "-m", self.model]
 
                 # ── Build env with active credential ────────────────────────
                 if cred_manager:
@@ -511,8 +511,12 @@ class GeminiAPIModel(BaseChatModel):
                     temperature=self.temperature,
                     request_timeout=MODEL_TIMEOUTS.get(self.model, 120),
                 )
+                # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
+                clean_kwargs = dict(kwargs)
+                clean_kwargs.pop("run_manager", None)
+                # ------------------------------------------------------------------
                 response = api_model.invoke(
-                    messages, stop=stop, run_manager=run_manager, **kwargs
+                    messages, stop=stop, **clean_kwargs
                 )
                 return ChatResult(generations=[ChatGeneration(message=response)])
 
