@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.6.0] - 2026-03-30
+
+### Added
+- feat: add branch-based filtering and sub-action timing to metrics
+- ✨ feat(credential_manager): Implement named singletons for credential management
+- ✨ feat(logging): Mask sensitive account info in logs
+- ✨ feat(llm): Implement Google API key rotation
+- feat(roadmap): Preserve version and note in status updates
+
+### Fixed
+- Harden credential rotation and fix interactive tests
+- 🐛 fix(llm): Prevent duplicate run_manager in kwargs
+- fix: allow PR creation from REVIEWING phase
+- 🐛 fix(llm): Prevent duplicate run_manager in kwargs
+- fix: Gemini CLI OAuth profile isolation via HOME override
+
+### Changed
+- Fix GitHub metrics sync for reopened issues and paradoxes
+- docs: establish project conventions with AGENTS.md
+- refactor: Standardize Gemini provider naming and improve metrics display
+- docs: add input stabilization plan and documentation
+- refactor(ui): Use safe_input for all user inputs
+
 ## [1.6.0] - 2026-03-28
 
 ### Added
