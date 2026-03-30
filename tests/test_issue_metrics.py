@@ -525,7 +525,86 @@ def test_sync_github_metrics_fixes_paradox(tmp_path):
     # it should backfill start_datetime by subtracting estimated_mandays from actual_completion_date
     # 25th 15:00 - 48 hours = 23rd 15:00
     assert loaded.start_datetime == "2026-03-23T15:00:00"
+    assert loaded.actual_completion_date == "2026-03-27T15:00:00"
     
     # gh_mandays = 23rd 15:00 to 27th 15:00 = 4 days
     assert loaded.gh_mandays == 4.0
+    assert loaded.actual_mandays == 4.0
 
+
+def test_sync_github_metrics_clears_stale_closed_fields_for_open_issue(tmp_path):
+    from unittest.mock import patch, MagicMock
+
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#125",
+        issue_number=125,
+        issue_title="Open issue with stale closed fields",
+        issue_url="https://github.com/oatrice/Luma/issues/125",
+        repository="oatrice/Luma",
+        issue_status="✅ Done",
+        start_datetime="2026-03-24T10:00:00",
+        actual_mandays=2.0,
+        actual_completion_date="2026-03-25T15:00:00",
+        gh_closed_at="2026-03-25T15:00:00Z",
+        gh_mandays=1.5,
+        estimated_mandays=1.5,
+    )
+    save_issue_metrics(str(tmp_path), record)
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = (
+            '[{"number": 125, "createdAt": "2026-03-23T08:00:00Z", "closedAt": null, '
+            '"projectItems": [{"status": {"name": "Ready"}}], "stateReason": ""}]'
+        )
+        mock_run.return_value = mock_process
+
+        result = sync_github_metrics_for_project(str(tmp_path), "Luma", "oatrice/Luma")
+
+    assert result["updated"] == 1
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 125)
+    assert loaded.created_at == "2026-03-23T08:00:00Z"
+    assert loaded.issue_status == "🟢 Ready"
+    assert loaded.gh_closed_at is None
+    assert loaded.actual_completion_date is None
+    assert loaded.gh_mandays is None
+    assert loaded.actual_mandays == 0.0
+
+
+def test_sync_github_metrics_maps_backlog_for_open_issue_with_stale_completion(tmp_path):
+    from unittest.mock import patch, MagicMock
+
+    record = IssueMetricsRecord(
+        issue_key="oatrice/JarWise-Root#86",
+        issue_number=86,
+        issue_title="Select date range export data to Excel/CSV",
+        issue_url="https://github.com/oatrice/JarWise-Root/issues/86",
+        repository="oatrice/JarWise-Root",
+        issue_status="✅ Done",
+        start_datetime="2026-02-12T13:00:33",
+        actual_mandays=1.0,
+        actual_completion_date="2026-03-28T15:14:14",
+        gh_closed_at="2026-03-28T15:14:14Z",
+        gh_mandays=44.5,
+        estimated_mandays=0.5,
+    )
+    save_issue_metrics(str(tmp_path), record)
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = (
+            '[{"number": 86, "createdAt": "2026-02-12T13:00:30Z", "closedAt": null, '
+            '"projectItems": [{"status": {"name": "Backlog"}}], "stateReason": ""}]'
+        )
+        mock_run.return_value = mock_process
+
+        result = sync_github_metrics_for_project(str(tmp_path), "JarWise", "oatrice/JarWise-Root")
+
+    assert result["updated"] == 1
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/JarWise-Root", 86)
+    assert loaded.created_at == "2026-02-12T13:00:30Z"
+    assert loaded.issue_status == "🔵 Backlog"
+    assert loaded.gh_closed_at is None
+    assert loaded.actual_completion_date is None
+    assert loaded.gh_mandays is None
+    assert loaded.actual_mandays == 0.0
