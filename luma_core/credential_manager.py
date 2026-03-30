@@ -3,15 +3,23 @@ credential_manager.py — Hybrid Credential Rotation for Luma CLI
 
 Manages a mixed pool of Google API Keys and Gemini CLI OAuth Profiles.
 Supports round-robin rotation with per-credential cooldown on 429 errors.
+Now includes global cross-process cooldown synchronization via ~/.luma/cooldowns.json.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from dataclasses import dataclass
 from enum import Enum
 from threading import Lock
-from typing import List, Optional
+from typing import List, Optional, Dict
+
+
+# Global storage for cooldowns across processes
+LUMA_HOME = os.path.expanduser("~/.luma")
+COOLDOWN_FILE = os.path.join(LUMA_HOME, "cooldowns.json")
 
 
 class CredentialType(str, Enum):
@@ -21,6 +29,36 @@ class CredentialType(str, Enum):
 
 class AllCredentialsExhaustedError(RuntimeError):
     """Raised when every credential in the pool is currently rate-limited."""
+
+
+def _load_global_cooldowns() -> Dict[str, float]:
+    """Load cooldown map from ~/.luma/cooldowns.json"""
+    if not os.path.exists(COOLDOWN_FILE):
+        return {}
+    try:
+        with open(COOLDOWN_FILE, "r") as f:
+            data = json.load(f)
+            # Filter out expired cooldowns immediately
+            now = time.time()
+            return {k: v for k, v in data.items() if v > now}
+    except Exception:
+        return {}
+
+
+def _save_global_cooldowns(cooldowns: Dict[str, float]) -> None:
+    """Save cooldown map to ~/.luma/cooldowns.json"""
+    try:
+        os.makedirs(LUMA_HOME, exist_ok=True)
+        # Load existing, merge with new, and filter expired
+        existing = _load_global_cooldowns()
+        existing.update(cooldowns)
+        now = time.time()
+        final = {k: v for k, v in existing.items() if v > now}
+        
+        with open(COOLDOWN_FILE, "w") as f:
+            json.dump(final, f)
+    except Exception:
+        pass
 
 
 @dataclass
@@ -33,26 +71,37 @@ class CredentialStatus:
 
     def is_available(self) -> bool:
         """Return True if the credential is ready to use."""
+        now = time.time()
+        
+        # 1. Check local in-memory status first
         if not self.is_active:
-            # Auto-recover if cooldown has expired
-            if self.cooldown_until is not None and time.time() >= self.cooldown_until:
+            if self.cooldown_until is not None and now >= self.cooldown_until:
                 self.is_active = True
                 self.cooldown_until = None
+            else:
+                # Still in local cooldown
+                return False
+        
+        # 2. Check global cooldown file for cross-process synchronization
+        global_cooldowns = _load_global_cooldowns()
+        if self.value in global_cooldowns:
+            until = global_cooldowns[self.value]
+            if now < until:
+                # Sync local status with global if global is still in cooldown
+                self.is_active = False
+                self.cooldown_until = until
+                return False
+            else:
+                # Global cooldown expired, we can potentially reuse it
+                pass
+
         return self.is_active
 
 
 class CredentialManager:
     """
     Manages a mixed pool of API Keys and OAuth Profiles.
-
-    Usage:
-        manager = CredentialManager.get_instance(
-            api_keys=["key_A", "key_B"],
-            oauth_profiles=["profile_1"],
-        )
-        cred = manager.get_next_credential()
-        # cred.type == CredentialType.API_KEY or OAUTH_PROFILE
-        # cred.value == the key string or profile folder name
+    Now supports global cross-process cooldown synchronization.
     """
 
     def __init__(
@@ -96,6 +145,7 @@ class CredentialManager:
     def get_next_credential(self) -> CredentialStatus:
         """
         Return the next available credential using round-robin.
+        Skips those currently in cooldown (checked globally).
 
         Raises:
             AllCredentialsExhaustedError: when all credentials are rate-limited.
@@ -109,14 +159,14 @@ class CredentialManager:
                     return cred
 
             raise AllCredentialsExhaustedError(
-                "All credentials are currently rate-limited. "
+                "All credentials are currently rate-limited across all Luma processes. "
                 "Please add a new API key (from a different Google Account) "
                 "or wait for the cooldown to expire."
             )
 
     def mark_rate_limited(self, value: str, retry_after: int = 60) -> None:
         """
-        Mark a credential as rate-limited.
+        Mark a credential as rate-limited and persist to global file.
 
         Args:
             value: The API key string or OAuth profile name.
@@ -125,15 +175,21 @@ class CredentialManager:
         Raises:
             ValueError: If the credential is not in the pool.
         """
+        until = time.time() + retry_after
+        
         with self._pool_lock:
             status = self._get_status_unsafe(value)
             if status is None:
                 raise ValueError(
                     f"Credential '{value}' not found in the pool."
                 )
+            # 1. Update in-memory pool
             status.is_active = False
-            status.cooldown_until = time.time() + retry_after
+            status.cooldown_until = until
             status.fail_count += 1
+        
+        # 2. Persist to global file for other processes
+        _save_global_cooldowns({value: until})
 
     def _get_status(self, value: str) -> Optional[CredentialStatus]:
         """Public thread-safe lookup by value."""
@@ -162,9 +218,6 @@ class CredentialManager:
     ) -> "CredentialManager":
         """
         Return a named singleton instance of CredentialManager.
-        
-        On first call for a given name, api_keys and oauth_profiles are used to initialize.
-        Subsequent calls return the cached instance for that name.
         """
         with cls._lock:
             if name not in cls._instances:
@@ -176,7 +229,7 @@ class CredentialManager:
 
     @classmethod
     def reset_instance(cls, name: str = "default") -> None:
-        """Reset a specific named singleton (primarily used for testing)."""
+        """Reset a specific named singleton."""
         with cls._lock:
             if name in cls._instances:
                 del cls._instances[name]
