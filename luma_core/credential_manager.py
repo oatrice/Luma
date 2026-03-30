@@ -8,7 +8,7 @@ Supports round-robin rotation with per-credential cooldown on 429 errors.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from threading import Lock
 from typing import List, Optional
@@ -55,9 +55,6 @@ class CredentialManager:
         # cred.value == the key string or profile folder name
     """
 
-    _instance: Optional[CredentialManager] = None
-    _lock: Lock = Lock()
-
     def __init__(
         self,
         api_keys: List[str],
@@ -67,6 +64,20 @@ class CredentialManager:
             raise ValueError(
                 "CredentialManager requires at least one credential "
                 "(API key or OAuth profile)."
+            )
+
+        duplicate_values: set[str] = set()
+        seen_values: set[str] = set()
+        for value in [*api_keys, *oauth_profiles]:
+            if value in seen_values:
+                duplicate_values.add(value)
+            seen_values.add(value)
+
+        if duplicate_values:
+            duplicates = ", ".join(sorted(duplicate_values))
+            raise ValueError(
+                "Credential values must be unique across API keys and OAuth "
+                f"profiles. Duplicates found: {duplicates}"
             )
 
         self.pool: List[CredentialStatus] = []

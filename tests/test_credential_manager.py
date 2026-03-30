@@ -4,14 +4,14 @@ These tests are written FIRST and will fail until the implementation is created.
 """
 
 import time
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from luma_core.credential_manager import (
-    CredentialManager,
-    CredentialStatus,
-    CredentialType,
     AllCredentialsExhaustedError,
+    CredentialStatus,
+    CredentialManager,
+    CredentialType,
 )
 
 
@@ -78,6 +78,17 @@ class TestCredentialManagerInit:
     def test_empty_pool_raises(self):
         with pytest.raises(ValueError, match="at least one credential"):
             CredentialManager(api_keys=[], oauth_profiles=[])
+
+    def test_duplicate_api_keys_raise(self):
+        with pytest.raises(ValueError, match="must be unique"):
+            CredentialManager(api_keys=["key_A", "key_A"], oauth_profiles=[])
+
+    def test_cross_type_value_collisions_raise(self):
+        with pytest.raises(ValueError, match="must be unique"):
+            CredentialManager(
+                api_keys=["shared_value"],
+                oauth_profiles=["shared_value"],
+            )
 
 
 # ─────────────── Round-Robin Rotation ───────────────
@@ -154,6 +165,7 @@ class TestCooldownRecovery:
 
 class TestSingletonPattern:
     def test_get_instance_returns_same_object(self):
+        CredentialManager.reset_all_instances()
         mgr1 = CredentialManager.get_instance(
             api_keys=["key_X"], oauth_profiles=[]
         )
@@ -163,6 +175,7 @@ class TestSingletonPattern:
         assert mgr1 is mgr2
 
     def test_get_instance_resets_when_forced(self):
+        CredentialManager.reset_all_instances()
         CredentialManager.reset_instance()
         mgr1 = CredentialManager.get_instance(
             api_keys=["key_Y"], oauth_profiles=[]
