@@ -3,7 +3,8 @@ credential_manager.py — Hybrid Credential Rotation for Luma CLI
 
 Manages a mixed pool of Google API Keys and Gemini CLI OAuth Profiles.
 Supports round-robin rotation with per-credential cooldown on 429 errors.
-Now includes global cross-process cooldown synchronization via ~/.luma/cooldowns.json.
+Now includes global cross-process persistence for both cooldowns and rotation index
+via ~/.luma/state.json.
 """
 
 from __future__ import annotations
@@ -14,12 +15,12 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from threading import Lock
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 
-# Global storage for cooldowns across processes
+# Global storage for state across processes
 LUMA_HOME = os.path.expanduser("~/.luma")
-COOLDOWN_FILE = os.path.join(LUMA_HOME, "cooldowns.json")
+STATE_FILE = os.path.join(LUMA_HOME, "state.json")
 
 
 class CredentialType(str, Enum):
@@ -31,32 +32,45 @@ class AllCredentialsExhaustedError(RuntimeError):
     """Raised when every credential in the pool is currently rate-limited."""
 
 
-def _load_global_cooldowns() -> Dict[str, float]:
-    """Load cooldown map from ~/.luma/cooldowns.json"""
-    if not os.path.exists(COOLDOWN_FILE):
-        return {}
+def _load_global_state() -> Dict[str, Any]:
+    """Load global state (cooldowns and indices) from ~/.luma/state.json"""
+    if not os.path.exists(STATE_FILE):
+        return {"cooldowns": {}, "indices": {}}
     try:
-        with open(COOLDOWN_FILE, "r") as f:
+        with open(STATE_FILE, "r") as f:
             data = json.load(f)
+            if "cooldowns" not in data:
+                data["cooldowns"] = {}
+            if "indices" not in data:
+                data["indices"] = {}
+            
             # Filter out expired cooldowns immediately
             now = time.time()
-            return {k: v for k, v in data.items() if v > now}
+            data["cooldowns"] = {k: v for k, v in data["cooldowns"].items() if v > now}
+            return data
     except Exception:
-        return {}
+        return {"cooldowns": {}, "indices": {}}
 
 
-def _save_global_cooldowns(cooldowns: Dict[str, float]) -> None:
-    """Save cooldown map to ~/.luma/cooldowns.json"""
+def _save_global_state(cooldowns: Optional[Dict[str, float]] = None, 
+                      indices: Optional[Dict[str, int]] = None) -> None:
+    """Save global state to ~/.luma/state.json"""
     try:
         os.makedirs(LUMA_HOME, exist_ok=True)
-        # Load existing, merge with new, and filter expired
-        existing = _load_global_cooldowns()
-        existing.update(cooldowns)
-        now = time.time()
-        final = {k: v for k, v in existing.items() if v > now}
+        # In a real multi-process env, we'd use file locking (fcntl), 
+        # but for Luma, simple overwrite/merge is usually enough.
+        state = _load_global_state()
+        if cooldowns:
+            state["cooldowns"].update(cooldowns)
+        if indices:
+            state["indices"].update(indices)
         
-        with open(COOLDOWN_FILE, "w") as f:
-            json.dump(final, f)
+        # Filter expired before saving
+        now = time.time()
+        state["cooldowns"] = {k: v for k, v in state["cooldowns"].items() if v > now}
+        
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f)
     except Exception:
         pass
 
@@ -79,11 +93,11 @@ class CredentialStatus:
                 self.is_active = True
                 self.cooldown_until = None
             else:
-                # Still in local cooldown
                 return False
         
-        # 2. Check global cooldown file for cross-process synchronization
-        global_cooldowns = _load_global_cooldowns()
+        # 2. Check global state for cross-process synchronization
+        state = _load_global_state()
+        global_cooldowns = state.get("cooldowns", {})
         if self.value in global_cooldowns:
             until = global_cooldowns[self.value]
             if now < until:
@@ -91,9 +105,6 @@ class CredentialStatus:
                 self.is_active = False
                 self.cooldown_until = until
                 return False
-            else:
-                # Global cooldown expired, we can potentially reuse it
-                pass
 
         return self.is_active
 
@@ -101,13 +112,14 @@ class CredentialStatus:
 class CredentialManager:
     """
     Manages a mixed pool of API Keys and OAuth Profiles.
-    Now supports global cross-process cooldown synchronization.
+    Now supports global cross-process persistence.
     """
 
     def __init__(
         self,
         api_keys: List[str],
         oauth_profiles: List[str],
+        name: str = "default"
     ) -> None:
         if not api_keys and not oauth_profiles:
             raise ValueError(
@@ -115,6 +127,7 @@ class CredentialManager:
                 "(API key or OAuth profile)."
             )
 
+        # Validation: Ensure all credential values are unique
         duplicate_values: set[str] = set()
         seen_values: set[str] = set()
         for value in [*api_keys, *oauth_profiles]:
@@ -129,6 +142,7 @@ class CredentialManager:
                 f"profiles. Duplicates found: {duplicates}"
             )
 
+        self.name = name
         self.pool: List[CredentialStatus] = []
         for key in api_keys:
             self.pool.append(CredentialStatus(type=CredentialType.API_KEY, value=key))
@@ -137,7 +151,9 @@ class CredentialManager:
                 CredentialStatus(type=CredentialType.OAUTH_PROFILE, value=profile)
             )
 
-        self._index: int = 0
+        # Load last used index from global state
+        state = _load_global_state()
+        self._index: int = state.get("indices", {}).get(self.name, 0)
         self._pool_lock: Lock = Lock()
 
     # ── Public API ──────────────────────────────────────────────────────────
@@ -155,6 +171,10 @@ class CredentialManager:
             for _ in range(n):
                 cred = self.pool[self._index % n]
                 self._index = (self._index + 1) % n
+                
+                # Persist index change immediately
+                _save_global_state(indices={self.name: self._index})
+                
                 if cred.is_available():
                     return cred
 
@@ -166,7 +186,7 @@ class CredentialManager:
 
     def mark_rate_limited(self, value: str, retry_after: int = 60) -> None:
         """
-        Mark a credential as rate-limited and persist to global file.
+        Mark a credential as rate-limited and persist to global state.
 
         Args:
             value: The API key string or OAuth profile name.
@@ -189,10 +209,10 @@ class CredentialManager:
             status.fail_count += 1
         
         # 2. Persist to global file for other processes
-        _save_global_cooldowns({value: until})
+        _save_global_state(cooldowns={value: until})
 
     def _get_status(self, value: str) -> Optional[CredentialStatus]:
-        """Public thread-safe lookup by value."""
+        """Public thread-safe lookup by value (used in tests)."""
         with self._pool_lock:
             return self._get_status_unsafe(value)
 
@@ -224,6 +244,7 @@ class CredentialManager:
                 cls._instances[name] = cls(
                     api_keys=api_keys or [],
                     oauth_profiles=oauth_profiles or [],
+                    name=name
                 )
             return cls._instances[name]
 

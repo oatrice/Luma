@@ -474,8 +474,6 @@ class GeminiAPIModel(BaseChatModel):
         # ── Credential Rotation Setup ────────────────────────────────────────
         if config.GOOGLE_API_KEYS:
             try:
-                # Ensure we have the latest pool
-                CredentialManager.reset_instance("api")
                 # Use a separate named pool for API keys to avoid mixing with CLI profiles
                 cred_manager: Optional[CredentialManager] = CredentialManager.get_instance(
                     api_keys=config.GOOGLE_API_KEYS,
