@@ -3,37 +3,36 @@
 ## [1.6.0] - 2026-03-30
 
 ### Added
-- feat: add branch-based filtering and sub-action timing to metrics
-- ✨ feat(credential_manager): Implement named singletons for credential management
-- ✨ feat(logging): Mask sensitive account info in logs
-- ✨ feat(llm): Implement Google API key rotation
-- feat(roadmap): Preserve version and note in status updates
+- **LLM & Credential Rotation System:**
+    - Implemented a robust `CredentialManager` supporting Google Account and API Key rotation.
+    - Added **Global Cooldown Synchronization** and automatic failover (switching keys immediately upon 429 Rate Limits).
+    - Support for named singletons in credential management.
+    - Automatic masking of sensitive account info in logs for enhanced security.
+- **Workflow & Metrics:**
+    - Added a **Reviewing Phase** to menu actions and enabled Pull Request (PR) creation directly from this phase.
+    - Introduced branch-based filtering and sub-action timing to the metrics dashboard.
+- **Project Roadmap:**
+    - Added version and note preservation during status updates.
 
 ### Fixed
-- Harden credential rotation and fix interactive tests
-- 🐛 fix(llm): Prevent duplicate run_manager in kwargs
-- fix: allow PR creation from REVIEWING phase
-- 🐛 fix(llm): Prevent duplicate run_manager in kwargs
-- fix: Gemini CLI OAuth profile isolation via HOME override
+- **LLM Engine & API:**
+    - Fixed `TypeError: 'tuple' object has no attribute 'content'` in `GeminiAPIModel` by standardizing `invoke()` usage and `ChatResult` wrapping.
+    - Prevented duplicate `run_manager` instances in `kwargs`.
+    - Unified response handling across CLI and API models.
+- **Stability & CLI:**
+    - Hardened credential rotation logic and fixed interactive test failures.
+    - Resolved Gemini CLI OAuth profile isolation issues via `HOME` environment override.
 
 ### Changed
-- Fix GitHub metrics sync for reopened issues and paradoxes
-- docs: establish project conventions with AGENTS.md
-- refactor: Standardize Gemini provider naming and improve metrics display
-- docs: add input stabilization plan and documentation
-- refactor(ui): Use safe_input for all user inputs
-
-## [1.6.0] - 2026-03-28
-
-### Added
-- **[LLM Rotation]** Robust Google Account & API Key rotation system.
-  - New `CredentialManager` supports alternating between multiple API keys and OAuth profiles.
-  - Automatic failover: Switches to the next available key immediately upon hitting Rate Limits (429).
-  - Cooldown management: Tracks exhausted keys and prevents reuse until they recover.
-  - Standardized masked account logging for enhanced traceability during rotation.
-- **[LLM Fixes]** Resolved critical bug in `GeminiAPIModel`.
-  - Fixed `TypeError: 'tuple' object has no attribute 'content'` by standardizing `invoke()` usage and `ChatResult` wrapping.
-  - Unified response handling across CLI and API models.
+- **UI & Input Handling:**
+    - Standardized the use of `safe_input` for all user prompts.
+    - Implemented the Input Stabilization plan and documentation.
+- **Documentation:**
+    - Established project-wide conventions with the introduction of `AGENTS.md`.
+    - Synchronized AI brain artifacts and updated internal documentation.
+- **Refactors:**
+    - Standardized Gemini provider naming conventions.
+    - Improved GitHub metrics synchronization for reopened issues and paradoxes.
 
 ## [1.5.0] - 2026-03-25
 
