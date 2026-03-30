@@ -17,7 +17,7 @@ flowchart TB
         CIC[CI Checker]
         PCTX[Project Context]
         UI["Terminal UI (ui.py)"]
-        ACT["Actions Logic (actions.py)"]
+        ACT["Actions Logic (actions/)"]
     end
     
     subgraph Agents["LLM Agents"]
@@ -43,7 +43,7 @@ flowchart TB
 - **Project Context:** Provides LLM agents with context from across multiple specified repositories. 🆕
 - **SBE Generator:** AI-powered Specification by Example for pre-coding phase.
 - **Smart Fallback:** Error Classification, Rate Limit circumvention, and specific per-model timeouts.
-- **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions.py`, `config.py`).
+- **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions/`, `config.py`).
 
 ---
 
@@ -54,16 +54,18 @@ stateDiagram-v2
     [*] --> idle
     idle --> selecting: Select Issue
     selecting --> coding: Start Coding
-    coding --> preflight: Run Checks
+    coding --> reviewing: Code Review
+    reviewing --> preflight: Run Checks
     preflight --> pr_pending: Checks Passed
     pr_pending --> idle: PR Merged
 ```
 
 | State | Description |
 |-------|-------------|
-| `idel` | Waiting for new task |
+| `idle` | Waiting for new task |
 | `selecting` | Browsing Kanban for 'Ready' issues |
 | `coding` | Active development (Analyst/Coder/Reviewer active) |
+| `reviewing` | AI Review and PR preparation |
 | `preflight` | Pre-PR validation |
 | `pr_pending` | PR created, waiting for merge |
 
@@ -74,7 +76,7 @@ stateDiagram-v2
 ```
 Luma/
 ├── luma_core/
-│   ├── actions.py           # Business logic for menu actions
+│   ├── actions/             # Modular business logic for menu actions
 │   ├── config.py            # Centralized configuration (supports deep merging)
 │   ├── sbe.py               # SBE core module
 │   ├── ui.py                # UI & Display logic
@@ -93,6 +95,7 @@ Luma/
 │   └── templates/
 │       └── sbe_template.md  # SBE template
 ├── v1_legacy/               # Archived V1 code
+├── AGENTS.md                # Project conventions & agent roles
 ├── main.py                  # Entry Controller
 └── README.md                # Documentation
 ```
@@ -132,3 +135,4 @@ python main.py
 - [x] **Automated Issue Metrics**: Automatically calculates and fills story points and effort. 🆕
 - [x] **LLM Key Rotation**: Supports multiple Google API keys with automatic failover and cooldown. 🆕
 - [x] **Standardized Logging**: Clear visibility of which account/model is being used per request. 🆕
+- [x] **Reviewing Phase**: Dedicated state for AI code review with direct PR creation support. 🆕
