@@ -624,6 +624,70 @@ def _status_is_complete(status: Optional[str]) -> bool:
     return "complete" in normalized or "done" in normalized or "released" in normalized
 
 
+def _canonical_metrics_status_from_lane(status: Optional[str]) -> Optional[str]:
+    if not status:
+        return None
+
+    normalized = re.sub(r"\s+", " ", status).strip()
+    if not normalized:
+        return None
+
+    mapping = {
+        "backlog": "🔵 Backlog",
+        "ready": "🟢 Ready",
+        "todo": "🔲 Todo",
+        "in progress": "🟡 In Progress",
+        "in review": "👀 In Review",
+    }
+    return mapping.get(normalized.lower(), normalized)
+
+
+def _normalize_metric_datetime_or_none(value: Optional[str]) -> Optional[str]:
+    if value in (None, ""):
+        return None
+    try:
+        return parse_metric_datetime(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _select_completion_anchor(
+    previous_completion: Optional[str], gh_closed_at: Optional[str]
+) -> Optional[str]:
+    candidates: List[tuple[datetime, str]] = []
+
+    for candidate in (previous_completion, gh_closed_at):
+        normalized = _normalize_metric_datetime_or_none(candidate)
+        if not normalized:
+            continue
+        try:
+            candidates.append((datetime.fromisoformat(normalized), normalized))
+        except ValueError:
+            continue
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
+
+
+def _clear_close_fields_for_open_issue(record: "IssueMetricsRecord") -> bool:
+    changed = False
+
+    if record.gh_closed_at is not None:
+        record.gh_closed_at = None
+        changed = True
+    if record.actual_completion_date is not None:
+        record.actual_completion_date = None
+        changed = True
+    if record.gh_mandays is not None:
+        record.gh_mandays = None
+        changed = True
+
+    return changed
+
+
 def _humanize_feature_slug(text: str) -> str:
     humanized = re.sub(r"[_-]+", " ", text or "").strip()
     humanized = re.sub(r"\s+", " ", humanized)
@@ -1251,36 +1315,22 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             continue
             
         changed = False
+        previous_completion_date = record.actual_completion_date
         gh_created_at = issue_data.get("createdAt")
         gh_closed_at = issue_data.get("closedAt")
         gh_project_items = issue_data.get("projectItems") or []
+        gh_status_name = None
         
-        # Sync Status from Project Lane
         if gh_project_items:
-            # Take the status of the first project found
-            gh_status_name = gh_project_items[0].get("status", {}).get("name")
-            if gh_status_name and not gh_closed_at:
-                # Map common names to Luma format if needed, or use as is
-                if gh_status_name.lower() == "todo":
-                    gh_status_name = "Todo"
-                elif gh_status_name.lower() == "in progress":
-                    gh_status_name = "In Progress"
-                
-                if record.issue_status != gh_status_name:
-                    record.issue_status = gh_status_name
-                    changed = True
+            gh_status_name = _canonical_metrics_status_from_lane(
+                gh_project_items[0].get("status", {}).get("name")
+            )
         
         # Sync Created At (We prefer GitHub's truth if available)
         if gh_created_at and record.created_at != gh_created_at:
             record.created_at = gh_created_at
             changed = True
-            
-        # Sync Closed At
-        if gh_closed_at and record.gh_closed_at != gh_closed_at:
-            record.gh_closed_at = gh_closed_at
-            changed = True
 
-        # If GitHub says the issue is closed → ensure local status reflects that
         if gh_closed_at:
             gh_reason = issue_data.get("stateReason")
             if gh_reason == "NOT_PLANNED":
@@ -1296,11 +1346,15 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             elif not _is_complete_status(record.issue_status):
                 record.issue_status = "✅ Complete"
                 changed = True
-            # Enforce actual_completion_date from gh_closed_at (Authoritative)
-            import re as _re2
-            _closed_norm = _re2.sub(r"(\.\d+)?(Z|[+-]\d{2}:\d{2})$", "", gh_closed_at)
-            if record.actual_completion_date != _closed_norm:
-                record.actual_completion_date = _closed_norm
+        else:
+            if gh_status_name:
+                if record.issue_status != gh_status_name:
+                    record.issue_status = gh_status_name
+                    changed = True
+            elif _is_complete_status(record.issue_status):
+                record.issue_status = None
+                changed = True
+            if _clear_close_fields_for_open_issue(record):
                 changed = True
 
             
@@ -1340,6 +1394,35 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
                     record.start_datetime = earliest_ts
                     changed = True
 
+        if gh_closed_at:
+            completion_anchor = _select_completion_anchor(
+                previous_completion_date,
+                gh_closed_at,
+            )
+            if completion_anchor and record.start_datetime:
+                try:
+                    anchor_dt = datetime.fromisoformat(completion_anchor)
+                    start_dt = datetime.fromisoformat(record.start_datetime.replace("Z", "+00:00"))
+                    if start_dt.tzinfo is not None:
+                        start_dt = start_dt.replace(tzinfo=None)
+
+                    if start_dt > anchor_dt:
+                        est_mandays = record.estimated_mandays or 0.5
+                        new_start_dt = anchor_dt - timedelta(hours=est_mandays * 24)
+                        record.start_datetime = new_start_dt.isoformat()
+                        changed = True
+                except ValueError:
+                    pass
+
+            if record.gh_closed_at != gh_closed_at:
+                record.gh_closed_at = gh_closed_at
+                changed = True
+
+            closed_norm = _normalize_metric_datetime_or_none(gh_closed_at)
+            if closed_norm and record.actual_completion_date != closed_norm:
+                record.actual_completion_date = closed_norm
+                changed = True
+
         # Optional: update gh_mandays based on gh_closed_at and start_datetime/created_at
         if record.gh_closed_at:
             effective_start = record.start_datetime or record.created_at
@@ -1360,35 +1443,6 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
                         changed = True
                 except ValueError:
                     pass
-
-        # Time Paradox Resolver
-        if record.actual_completion_date and record.start_datetime:
-            try:
-                actual_dt = datetime.fromisoformat(record.actual_completion_date.replace("Z", "+00:00"))
-                if actual_dt.tzinfo is not None:
-                    actual_dt = actual_dt.replace(tzinfo=None)
-                    
-                start_dt = datetime.fromisoformat(record.start_datetime.replace("Z", "+00:00"))
-                if start_dt.tzinfo is not None:
-                    start_dt = start_dt.replace(tzinfo=None)
-                
-                if start_dt > actual_dt:
-                    # Paradox detected! The issue was completed locally before it "started".
-                    est_mandays = record.estimated_mandays or 0.5
-                    new_start_dt = actual_dt - timedelta(hours=est_mandays * 24)
-                    
-                    record.start_datetime = new_start_dt.isoformat()
-                    changed = True
-                    
-                    # Recompute gh_mandays if we just shifted the start_datetime
-                    if record.gh_closed_at:
-                        c_dt = datetime.fromisoformat(record.gh_closed_at.replace("Z", "+00:00"))
-                        if c_dt.tzinfo is not None:
-                            c_dt = c_dt.replace(tzinfo=None)
-                        diff_days = (c_dt - new_start_dt).total_seconds() / 86400.0
-                        record.gh_mandays = max(0.5, round(diff_days * 2) / 2.0)
-            except ValueError:
-                pass
                 
         # Track if mandays changed during validation
         old_mandays = record.actual_mandays
