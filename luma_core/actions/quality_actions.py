@@ -3,9 +3,18 @@ import os
 import json
 import subprocess
 import datetime
+import os
 import luma_core.ui as ui
 from luma_core.ui import safe_input
-from .utils import *
+from luma_core.state_manager import LumaState
+from luma_core.config import PROJECTS
+from .utils import (
+    get_git_changed_files,
+    _build_code_review_followup_prompt,
+    update_multi_repo_docs,
+    refresh_pending_doc_updates,
+    run_gh_command
+)
 
 def _extract_version_and_note(content: str):
     """
@@ -385,7 +394,7 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
             if issue_url:
                 block.append(f"- **GitHub:** [#{issue_id_str}]({issue_url})\n")
             block.append(f"- **State:** {data.get('state', 'CLOSED')}\n")
-            block.append(f"- ✅ **Done**\n")
+            block.append("- ✅ **Done**\n")
             block.append("\n")
             lines[insert_at:insert_at] = block
             print(f"   📌 Issue #{issue_id_str} (CLOSED) → appended to Roadmap as ✅ Done")
@@ -403,9 +412,12 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
                 
                 new_status = " ✅ Complete "
                 if v or n:
-                    if v and n: new_status = f" ✅ Complete {v} - {n} "
-                    elif v: new_status = f" ✅ Complete {v} "
-                    else: new_status = f" ✅ Complete - {n} "
+                    if v and n:
+                        new_status = f" ✅ Complete {v} - {n} "
+                    elif v:
+                        new_status = f" ✅ Complete {v} "
+                    else:
+                        new_status = f" ✅ Complete - {n} "
                 
                 parts[status_col] = new_status
                 lines[found_idx] = "|".join(parts)
@@ -423,9 +435,12 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
                     
                     new_line = f"{indent}✅ **Done**"
                     if v or n:
-                        if v and n: new_line += f" {v} - {n}"
-                        elif v: new_line += f" {v}"
-                        else: new_line += f" - {n}"
+                        if v and n:
+                            new_line += f" {v} - {n}"
+                        elif v:
+                            new_line += f" {v}"
+                        else:
+                            new_line += f" - {n}"
                     
                     lines[i] = new_line + "\n"
                     print(f"   ✅ Issue #{issue_id_str} (CLOSED) → Roadmap status updated to ✅ Done")
@@ -603,7 +618,7 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
             return
             
     if not issue_ids:
-        print(f"❌ No valid issue numbers found to update.")
+        print("❌ No valid issue numbers found to update.")
         return
 
     def _fetch_issue_from_github(issue_id: str):
@@ -816,8 +831,10 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
                 new_table_status = f"{status_prefix}"
             
             new_status_line = f"{indent}{status_prefix}"
-            if display_version: new_status_line += f" {display_version}"
-            if curr_note: new_status_line += f" - {curr_note}"
+            if display_version:
+                new_status_line += f" {display_version}"
+            if curr_note:
+                new_status_line += f" - {curr_note}"
 
         elif status_choice == "2":
             new_table_status = "🟢 Ready"

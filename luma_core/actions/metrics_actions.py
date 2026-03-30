@@ -1,6 +1,18 @@
-from luma_core.ui import safe_input
-from .utils import *
+import os
 import subprocess
+from collections import deque
+from luma_core.ui import safe_input
+from luma_core.state_manager import LumaState
+from luma_core import usage_tracker
+from .utils import (
+    get_issue_metrics,
+    _display_tracked_issue_summary,
+    _select_issue_card_for_metrics,
+    _edit_issue_metrics_record,
+    _build_issue_metrics_record,
+    _load_recent_usage_events,
+    _format_event_line
+)
 
 def action_view_dashboard(state: LumaState, project: dict):
     """Display Usage & Metrics Dashboard in terminal."""

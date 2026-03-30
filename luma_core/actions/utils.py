@@ -676,6 +676,7 @@ def _confirm_pending_doc_updates_before_pr(
     )
 
     if choice in ("", "u"):
+        from .quality_actions import action_update_docs
         action_update_docs(state, project, skip_confirm=True)
         status = refresh_pending_doc_updates(state, project)
         summary = pending_doc_update_summary(status)
