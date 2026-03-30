@@ -1,6 +1,18 @@
 import re
 from luma_core.ui import safe_input
-from .utils import *
+from luma_core.state_manager import LumaState, WorkflowPhase, IssueData
+from .utils import (
+    fetch_kanban_cards,
+    get_status_workflow,
+    _get_selectable_cards,
+    _status_key,
+    _status_priority,
+    _get_status_icon,
+    _display_selection_blockers,
+    _start_issues,
+    sync_kanban_on_action,
+    KanbanCard
+)
 from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
 
 def action_select_issue(state: LumaState, project: dict) -> bool:

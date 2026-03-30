@@ -1,5 +1,13 @@
+import os
+import shutil
 from luma_core.ui import safe_input
-from .utils import *
+from luma_core.state_manager import LumaState
+from luma_core.config import PROJECTS
+from .utils import (
+    sync_kanban_on_action, 
+    _add_new_project, 
+    _humanize_feature_slug
+)
 
 def action_test_telegram_notification(state: LumaState, project: dict):
     """Test sending a Telegram notification directly from the CLI."""

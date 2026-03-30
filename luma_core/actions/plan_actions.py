@@ -1,5 +1,9 @@
+import os
 from luma_core.ui import safe_input
-from .utils import *
+from luma_core.state_manager import LumaState
+from .utils import (
+    generate_draft_code_review
+)
 
 def action_refine_issue(state: LumaState, project: dict):
     """Run Analyst Agent to refine issue"""
