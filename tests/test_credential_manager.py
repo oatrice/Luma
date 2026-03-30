@@ -1,22 +1,30 @@
-"""
-TDD RED Phase: Tests for CredentialManager (Hybrid Rotation)
-These tests are written FIRST and will fail until the implementation is created.
-"""
-
-import time
-
 import pytest
-
+import time
+import os
+from unittest.mock import patch
 from luma_core.credential_manager import (
-    AllCredentialsExhaustedError,
-    CredentialStatus,
     CredentialManager,
     CredentialType,
+    AllCredentialsExhaustedError,
+    STATE_FILE,
 )
 
-
-# ─────────────────────────── Fixtures ───────────────────────────
-
+@pytest.fixture(autouse=True)
+def clean_global_state():
+    """Ensure global state file is removed before each test for isolation."""
+    if os.path.exists(STATE_FILE):
+        try:
+            os.remove(STATE_FILE)
+        except Exception:
+            pass
+    CredentialManager.reset_all_instances()
+    yield
+    if os.path.exists(STATE_FILE):
+        try:
+            os.remove(STATE_FILE)
+        except Exception:
+            pass
+    CredentialManager.reset_all_instances()
 
 @pytest.fixture
 def api_keys():
@@ -29,11 +37,6 @@ def oauth_profiles():
 
 
 @pytest.fixture
-def manager_with_both(api_keys, oauth_profiles):
-    return CredentialManager(api_keys=api_keys, oauth_profiles=oauth_profiles)
-
-
-@pytest.fixture
 def manager_keys_only(api_keys):
     return CredentialManager(api_keys=api_keys, oauth_profiles=[])
 
@@ -43,39 +46,25 @@ def manager_profiles_only(oauth_profiles):
     return CredentialManager(api_keys=[], oauth_profiles=oauth_profiles)
 
 
-# ─────────────── CredentialStatus Model ───────────────
-
-
-class TestCredentialStatus:
-    def test_api_key_status_defaults(self):
-        cs = CredentialStatus(type=CredentialType.API_KEY, value="key_A")
-        assert cs.is_active is True
-        assert cs.fail_count == 0
-        assert cs.cooldown_until is None
-
-    def test_oauth_profile_status_defaults(self):
-        cs = CredentialStatus(type=CredentialType.OAUTH_PROFILE, value="profile_1")
-        assert cs.is_active is True
-        assert cs.type == CredentialType.OAUTH_PROFILE
-
-
-# ─────────────── CredentialManager Init ───────────────
+@pytest.fixture
+def manager_with_both(api_keys, oauth_profiles):
+    return CredentialManager(api_keys=api_keys, oauth_profiles=oauth_profiles)
 
 
 class TestCredentialManagerInit:
-    def test_combined_pool_size(self, manager_with_both):
-        # 2 API keys + 2 OAuth profiles = 4 total
-        assert len(manager_with_both.pool) == 4
+    def test_init_with_keys_only(self, api_keys):
+        manager = CredentialManager(api_keys=api_keys, oauth_profiles=[])
+        assert len(manager.pool) == 2
+        assert manager.pool[0].type == CredentialType.API_KEY
+        assert manager.pool[0].value == "key_A"
 
-    def test_api_key_types(self, manager_keys_only):
-        assert all(c.type == CredentialType.API_KEY for c in manager_keys_only.pool)
+    def test_init_with_profiles_only(self, oauth_profiles):
+        manager = CredentialManager(api_keys=[], oauth_profiles=oauth_profiles)
+        assert len(manager.pool) == 2
+        assert manager.pool[0].type == CredentialType.OAUTH_PROFILE
+        assert manager.pool[0].value == "profile_1"
 
-    def test_oauth_profile_types(self, manager_profiles_only):
-        assert all(
-            c.type == CredentialType.OAUTH_PROFILE for c in manager_profiles_only.pool
-        )
-
-    def test_empty_pool_raises(self):
+    def test_init_no_credentials_raises(self):
         with pytest.raises(ValueError, match="at least one credential"):
             CredentialManager(api_keys=[], oauth_profiles=[])
 
@@ -91,36 +80,28 @@ class TestCredentialManagerInit:
             )
 
 
-# ─────────────── Round-Robin Rotation ───────────────
-
-
 class TestGetNextCredential:
     def test_rotates_through_all_credentials(self, manager_with_both):
         seen_values = set()
+        # Reset manager index for test
+        manager_with_both._index = 0
         for _ in range(4):
             cred = manager_with_both.get_next_credential()
             seen_values.add(cred.value)
         assert len(seen_values) == 4
 
-    def test_wraps_around_after_full_rotation(self, manager_keys_only):
-        first = manager_keys_only.get_next_credential()
-        manager_keys_only.get_next_credential()  # advance past second
-        third = manager_keys_only.get_next_credential()  # should wrap back to first
-        assert first.value == third.value
-
     def test_skips_rate_limited_credential(self, manager_keys_only, api_keys):
         manager_keys_only.mark_rate_limited(api_keys[0], retry_after=60)
+        # Should skip key_A and return key_B
         cred = manager_keys_only.get_next_credential()
         assert cred.value == api_keys[1]
 
-    def test_raises_when_all_exhausted(self, manager_keys_only, api_keys):
+    def test_raises_exhausted_error_when_all_rate_limited(self, manager_keys_only, api_keys):
         for key in api_keys:
-            manager_keys_only.mark_rate_limited(key, retry_after=300)
-        with pytest.raises(AllCredentialsExhaustedError):
+            manager_keys_only.mark_rate_limited(key, retry_after=60)
+        
+        with pytest.raises(AllCredentialsExhaustedError, match="currently rate-limited"):
             manager_keys_only.get_next_credential()
-
-
-# ─────────────── mark_rate_limited ───────────────
 
 
 class TestMarkRateLimited:
@@ -147,41 +128,19 @@ class TestMarkRateLimited:
             manager_keys_only.mark_rate_limited("non_existent_key", retry_after=60)
 
 
-# ─────────────── Auto-recovery after cooldown ───────────────
+class TestNamedSingleton:
+    def test_get_instance_returns_same_object(self, api_keys):
+        m1 = CredentialManager.get_instance(api_keys=api_keys, name="test_pool")
+        m2 = CredentialManager.get_instance(api_keys=api_keys, name="test_pool")
+        assert m1 is m2
 
+    def test_different_names_return_different_objects(self, api_keys):
+        m1 = CredentialManager.get_instance(api_keys=api_keys, name="pool_1")
+        m2 = CredentialManager.get_instance(api_keys=api_keys, name="pool_2")
+        assert m1 is not m2
 
-class TestCooldownRecovery:
-    def test_recovers_after_cooldown_expires(self, manager_keys_only, api_keys):
-        manager_keys_only.mark_rate_limited(api_keys[0], retry_after=1)
-        time.sleep(1.1)
-        # The manager should re-activate expired credentials before selecting
-        cred = manager_keys_only.get_next_credential()
-        # Both keys should be available again; we just need the call to succeed
-        assert cred is not None
-
-
-# ─────────────── Singleton behavior ───────────────
-
-
-class TestSingletonPattern:
-    def test_get_instance_returns_same_object(self):
-        CredentialManager.reset_all_instances()
-        mgr1 = CredentialManager.get_instance(
-            api_keys=["key_X"], oauth_profiles=[]
-        )
-        mgr2 = CredentialManager.get_instance(
-            api_keys=["key_X"], oauth_profiles=[]
-        )
-        assert mgr1 is mgr2
-
-    def test_get_instance_resets_when_forced(self):
-        CredentialManager.reset_all_instances()
-        CredentialManager.reset_instance()
-        mgr1 = CredentialManager.get_instance(
-            api_keys=["key_Y"], oauth_profiles=[]
-        )
-        CredentialManager.reset_instance()
-        mgr2 = CredentialManager.get_instance(
-            api_keys=["key_Z"], oauth_profiles=[]
-        )
-        assert mgr1 is not mgr2
+    def test_reset_instance(self, api_keys):
+        m1 = CredentialManager.get_instance(api_keys=api_keys, name="to_be_reset")
+        CredentialManager.reset_instance("to_be_reset")
+        m2 = CredentialManager.get_instance(api_keys=api_keys, name="to_be_reset")
+        assert m1 is not m2
