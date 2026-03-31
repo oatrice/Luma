@@ -1386,7 +1386,7 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
                 changed = True
                 print(f"  ✨ Updated start_datetime from GitHub: {gh_start_ts}")
             elif gh_start_ts:
-                print(f"  ✅ Already up-to-date with GitHub events.")
+                print("  ✅ Already up-to-date with GitHub events.")
             else:
                 # 2. Fallback to AI usage log
                 earliest_ts = get_earliest_usage_timestamp(workspace_path, record.issue_number)
@@ -1452,12 +1452,12 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             
         if record.actual_mandays != old_mandays:
             if record.issue_number == 110:
-                print(f"DEBUG #110: changed detected via mandays!")
+                print("DEBUG #110: changed detected via mandays!")
             changed = True
 
         if changed:
             if record.issue_number == 110:
-                print(f"DEBUG #110: SAVING RECORD")
+                print("DEBUG #110: SAVING RECORD")
             save_issue_metrics(workspace_path, record, overwrite_created_at=True)
             updates_count += 1
             
