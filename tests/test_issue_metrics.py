@@ -2,9 +2,11 @@ from dataclasses import asdict
 from typing import Dict, Any
 import os
 import subprocess
+from unittest.mock import patch
 
 from luma_core.issue_metrics import (
     IssueMetricsRecord,
+    _fetch_github_issue_activity_hint,
     apply_artifact_defaults,
     apply_heuristic_defaults,
     format_metric_datetime,
@@ -406,6 +408,17 @@ def test_suggest_post_story_point_uses_git_history_for_issue_number(tmp_path):
     )
 
     assert suggest_post_story_point(str(tmp_path), record) == 3.0
+
+
+@patch("luma_core.issue_metrics.subprocess.run")
+def test_fetch_github_issue_activity_hint_sets_timeout(mock_run):
+    mock_run.return_value.stdout = '{"comments": []}'
+
+    hint = _fetch_github_issue_activity_hint("/tmp/project", "oatrice/Luma", 20)
+
+    assert hint == 0
+    mock_run.assert_called_once()
+    assert mock_run.call_args.kwargs["timeout"] == 5
 
 
 def test_prefill_metrics_from_roadmap_uses_git_history_and_changelog_dates(tmp_path):
