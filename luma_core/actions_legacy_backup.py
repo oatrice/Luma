@@ -2948,7 +2948,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             issues_missing_metrics.append(issue)
             
     if issues_missing_metrics:
-        ans = input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (y/n): ").strip().lower()
+        ans = input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (Y/n): ").strip().lower()
         if ans == 'y':
             auto_fill_issue_metrics(state, project, issues_missing_metrics)
 
