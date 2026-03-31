@@ -367,7 +367,7 @@ def main():
             # ----------------------------
             
             # --- AUTO-DETECT PR OUTSIDE LUMA ---
-            if state.phase in [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and state.active_branch:
+            if state.phase in [WorkflowPhase.CODING, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and state.active_branch:
                 import subprocess
                 try:
                     res = subprocess.run(
@@ -397,7 +397,7 @@ def main():
             # -----------------------------------
             
             # Auto-detect merged PR
-            if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
+            if state.phase in [WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and state.pr_url:
                 from luma_core.github_project import check_pr_merged, sync_kanban_on_action
                 print(f"🔍 Checking PR status: {state.pr_url}")
                 pr_status = check_pr_merged(state.pr_url)

@@ -423,35 +423,33 @@ def action_guided_workflow(state: LumaState, project: dict):
     # We only run the actual document generation in the root project
     planning_proj = project
     
-    skip_planning = state.checklist.get("step_planning", False) or state.phase in [
+    # Check for existing artifacts
+    combined_number = "-".join([str(i.number) for i in state.active_issues])
+    feature_dir = get_feature_dir(planning_proj["path"], combined_number)
+    # Also check context if just created
+    if not feature_dir and state.context.get("last_feature_dir"):
+        feature_dir = state.context.get("last_feature_dir")
+
+    artifacts_status = check_planning_artifacts(feature_dir) if feature_dir else {"analysis": False, "spec": False, "plan": False}
+    has_any_artifact = any(artifacts_status.values())
+
+    skip_planning = (state.checklist.get("step_planning", False) or state.phase in [
         WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING
-    ]
+    ]) and has_any_artifact
     
     if skip_planning:
         print("\n🔹 Step 2: Planning Phase (Skipped - already completed)")
-        combined_number = "-".join([str(i.number) for i in state.active_issues])
-        feature_dir = get_feature_dir(planning_proj["path"], combined_number)
-        if not feature_dir and state.context.get("last_feature_dir"):
-            feature_dir = state.context.get("last_feature_dir")
     else:
         if len(target_planning_repos) > 1:
             print(f"\n   ────────────── Planning for {planning_proj['name']} (including {len(target_planning_repos)-1} siblings) ──────────────")
         else:
             print(f"\n   ────────────── Planning for {planning_proj['name']} ──────────────")
 
-        # Check for existing artifacts
-        combined_number = "-".join([str(i.number) for i in state.active_issues])
-        feature_dir = get_feature_dir(planning_proj["path"], combined_number)
-        # Also check context if just created
-        if not feature_dir and state.context.get("last_feature_dir"):
-            feature_dir = state.context.get("last_feature_dir")
-
         # Save to context immediately so action_generate_plan will use it
         if feature_dir:
             state.context["last_feature_dir"] = feature_dir
 
-        artifacts_status = check_planning_artifacts(feature_dir)
-        has_any = any(artifacts_status.values())
+        has_any = has_any_artifact
 
         run_planning = True
         planning_mode = "all"  # all, missing, selective
