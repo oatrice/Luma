@@ -28,7 +28,7 @@ def get_issue_created_at(issue_number, repo):
         try:
             data = json.loads(out)
             return data.get("createdAt")
-        except:
+        except Exception:
             pass
     return None
 
@@ -90,7 +90,7 @@ def main():
                     
             updated_count += 1
         else:
-            print(f"  -> Could not determine start_datetime.")
+            print("  -> Could not determine start_datetime.")
 
     if updated_count > 0:
         with open(METRICS_FILE, "w") as f:

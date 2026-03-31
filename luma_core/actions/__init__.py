@@ -15,7 +15,9 @@ from .plan_actions import (
 from .quality_actions import (
     action_code_review,
     action_update_docs,
-    action_update_roadmap
+    action_update_roadmap,
+    sync_roadmap_for_closed_issues,
+    sync_roadmap_for_new_issues
 )
 from .workflow_actions import (
     action_create_pr,
@@ -38,8 +40,10 @@ from .utils import (
     get_status_workflow,
     fetch_kanban_cards,
     sync_kanban_on_action,
-    _build_code_review_followup_prompt
+    _build_code_review_followup_prompt,
+    prefill_metrics_from_roadmap
 )
+from luma_core.config import PROJECTS
 
 __all__ = [
     "action_select_issue",
@@ -55,6 +59,8 @@ __all__ = [
     "action_code_review",
     "action_update_docs",
     "action_update_roadmap",
+    "sync_roadmap_for_closed_issues",
+    "sync_roadmap_for_new_issues",
     "action_create_pr",
     "action_guided_workflow",
     "action_test_telegram_notification",
@@ -69,5 +75,7 @@ __all__ = [
     "get_status_workflow",
     "fetch_kanban_cards",
     "sync_kanban_on_action",
-    "_build_code_review_followup_prompt"
+    "_build_code_review_followup_prompt",
+    "prefill_metrics_from_roadmap",
+    "PROJECTS"
 ]

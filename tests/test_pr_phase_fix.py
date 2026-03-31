@@ -15,7 +15,7 @@ class TestPRPhaseFix(unittest.TestCase):
         
         # We need to mock transition_to and PreflightChecker to avoid side effects
         with patch("luma_core.actions.workflow_actions.transition_to") as mock_transition:
-            with patch("luma_core.actions.workflow_actions.PreflightChecker") as mock_checker:
+            with patch("luma_core.actions.workflow_actions.PreflightChecker"):
                 # Mock transition result (success)
                 mock_transition.return_value = (True, "OK")
                 

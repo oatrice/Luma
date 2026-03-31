@@ -12,10 +12,11 @@ def get_github_issue_dates(repo, issue_number):
         return None, None
 
 def parse_iso(dt_str):
-    if not dt_str: return None
+    if not dt_str:
+        return None
     try:
         return datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=None)
-    except:
+    except Exception:
         return None
 
 def main():

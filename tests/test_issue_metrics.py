@@ -112,7 +112,6 @@ def test_issue_metrics_roundtrip_with_zero_values(tmp_path):
 
 
 def test_calculate_actual_mandays_from_dates(tmp_path):
-    project_path = str(tmp_path)
     record = IssueMetricsRecord(
         issue_key="test#1",
         issue_number=1,
