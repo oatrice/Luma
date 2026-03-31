@@ -71,14 +71,15 @@ def action_view_dashboard(state: LumaState, project: dict):
     print("╚" + "═" * 52 + "╝")
 
     safe_input("\nPress Enter to return...")
-
 def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
     selected_project = project
-    from luma_core.issue_metrics import prefill_metrics_from_roadmap, sync_github_metrics_for_project
+    from luma_core.issue_metrics import sync_github_metrics_for_project
     prefill_result = prefill_metrics_from_roadmap(
         selected_project["path"],
-        selected_project.get("name"),
+        selected_project.get("repo", "")
+    )
+
         selected_project.get("repo"),
     )
     if prefill_result["created"] or prefill_result["updated"]:
