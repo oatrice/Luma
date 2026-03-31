@@ -612,6 +612,7 @@ def _fetch_github_issue_activity_hint(
             capture_output=True,
             text=True,
             check=True,
+            timeout=5,
         )
         payload = json.loads(result.stdout or "{}")
         comments = payload.get("comments", [])
