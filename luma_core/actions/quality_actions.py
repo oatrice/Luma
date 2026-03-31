@@ -10,6 +10,7 @@ from luma_core.config import PROJECTS
 from .utils import (
     get_git_changed_files,
     _build_code_review_followup_prompt,
+    prompt_post_story_points_for_records,
     update_multi_repo_docs,
     refresh_pending_doc_updates,
     run_gh_command
@@ -801,6 +802,45 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     if status_choice == "1":
         version = ui.safe_input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
         note = ui.safe_input("Enter Completion Note (Enter to skip): ").strip()
+
+        from luma_core.issue_metrics import (
+            IssueMetricsRecord,
+            get_issue_metrics,
+            issue_key_for,
+        )
+
+        records_to_update = []
+        for issue_id in issues_to_update:
+            issue_number = int(issue_id)
+            issue_data = verified_issues.get(issue_id, {})
+            repository = project.get("repo", "")
+            existing = get_issue_metrics(project["path"], repository, issue_number)
+
+            if existing:
+                existing.issue_status = "✅ Complete"
+                existing.project_name = project.get("name")
+                title = (issue_data.get("title") or "").strip()
+                url = (issue_data.get("url") or "").strip()
+                if title:
+                    existing.issue_title = title
+                if url:
+                    existing.issue_url = url
+                records_to_update.append(existing)
+                continue
+
+            records_to_update.append(
+                IssueMetricsRecord(
+                    issue_key=issue_key_for(repository, issue_number),
+                    issue_number=issue_number,
+                    issue_title=(issue_data.get("title") or f"Issue {issue_number}").strip(),
+                    issue_url=(issue_data.get("url") or "").strip(),
+                    repository=repository,
+                    project_name=project.get("name"),
+                    issue_status="✅ Complete",
+                )
+            )
+
+        prompt_post_story_points_for_records(project, records_to_update)
 
     def _build_status_strings(is_table_row, indent, existing_content=""):
         # If user left version/note empty, try to preserve from existing content

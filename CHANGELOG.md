@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.0] - 2026-03-31
+
+### Added
+- **Metrics & Estimation:**
+    - Introduced `post_story_point` tracking in `.luma_metrics.json` and `IssueMetricsRecord` to record actual effort vs. initial estimates.
+    - Added comprehensive feature analysis and technical specifications for post-implementation metrics.
+- **CLI Experience:**
+    - Enhanced state refresh feedback with change detection, providing clear visibility when the workspace state is updated.
+
+### Fixed
+- **Stability:**
+    - Added a timeout to subprocess calls within the issue activity hint logic to prevent potential CLI hangs during Git operations.
+
+### Changed
+- **Workflow Automation:**
+    - Refined workflow planning logic with improved skip detection and more robust Pull Request identification.
+    - Updated the metrics summarizer and report generator to integrate and display post-implementation story point data.
+
 ## [1.6.0] - 2026-03-30
 
 ### Added

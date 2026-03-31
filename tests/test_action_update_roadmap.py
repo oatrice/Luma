@@ -3,6 +3,7 @@ import subprocess
 from unittest.mock import patch
 
 from luma_core.actions import action_update_roadmap
+from luma_core.issue_metrics import IssueMetricsRecord, get_issue_metrics, save_issue_metrics
 from luma_core.state_manager import LumaState
 
 
@@ -124,12 +125,59 @@ def test_action_update_roadmap_auto_sync_closed_issues(monkeypatch, tmp_path):
 
     with patch(
         "luma_core.actions.quality_actions.ui.safe_input",
-        side_effect=["42", "", "v1.2.0", "Auto fixed"],
+        side_effect=["42", "", "v1.2.0", "Auto fixed", ""],
     ):
         action_update_roadmap(LumaState(), project)
 
     updated = roadmap_path.read_text(encoding="utf-8")
     assert "✅ **Done** (v1.2.0) - Auto fixed" in updated
+
+
+def test_action_update_roadmap_done_saves_post_story_point(monkeypatch, tmp_path):
+    project, _ = _make_project_with_roadmap(
+        tmp_path,
+        (
+            "# Roadmap\n\n"
+            "## Current\n\n"
+            "### Issue #42 - Feature X\n"
+            "- **Status:** 🟡 **In Progress**\n"
+        ),
+    )
+
+    save_issue_metrics(
+        project["path"],
+        IssueMetricsRecord(
+            issue_key="oatrice/Test-Repo#42",
+            issue_number=42,
+            issue_title="Feature X",
+            issue_url="https://github.com/oatrice/Test-Repo/issues/42",
+            repository="oatrice/Test-Repo",
+            issue_status="🟡 In Progress",
+            estimate_points=3,
+        ),
+    )
+
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.run_gh_command",
+        lambda args, timeout=15: json.dumps(
+            {
+                "number": 42,
+                "title": "Feature X",
+                "state": "CLOSED",
+                "url": "https://github.com/oatrice/Test-Repo/issues/42",
+            }
+        ),
+    )
+
+    with patch(
+        "luma_core.actions.quality_actions.ui.safe_input",
+        side_effect=["42", "", "v1.2.0", "Auto fixed", "5"],
+    ):
+        action_update_roadmap(LumaState(), project)
+
+    loaded = get_issue_metrics(project["path"], "oatrice/Test-Repo", 42)
+    assert loaded is not None
+    assert loaded.post_story_point == 5
 
 
 def test_action_update_roadmap_create_new_issue_via_gh(monkeypatch, tmp_path):
