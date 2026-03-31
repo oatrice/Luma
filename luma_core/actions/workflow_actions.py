@@ -553,12 +553,21 @@ def action_guided_workflow(state: LumaState, project: dict):
         save_state(state, project["path"])
 
     # 3. Coding (User)
-    skip_coding = state.checklist.get("step_coding", False) or state.phase in [
+    skip_coding = (state.checklist.get("step_coding", False) or state.phase in [
         WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING
-    ]
+    ]) and has_any_artifact
+    
     if skip_coding:
         print("\n🔹 Step 3: Coding Phase (Skipped - already completed)")
     else:
+        # If we are in a later phase but artifacts are missing, we should probably be in CODING
+        if state.phase in [WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and not has_any_artifact:
+            print(f"⚠️ Current phase is {state.phase.value} but no planning artifacts found.")
+            print("   Reverting to CODING phase to ensure proper implementation.")
+            transition_to(state, WorkflowPhase.CODING)
+            from luma_core.state_manager import save_state
+            save_state(state, project["path"])
+
         print("\n🔹 Step 3: Coding Phase")
         print("   🤖 AI Assist + 👤 Human Coding")
     

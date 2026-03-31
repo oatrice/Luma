@@ -154,6 +154,7 @@ POINTS_TO_MANDAYS: Dict[int, float] = {
     13: 10.0,
     21: 15.0,
 }
+POST_STORY_POINT_VALUES = (0.0, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0)
 
 
 def points_to_mandays(points: int) -> float:
@@ -171,6 +172,22 @@ def validate_estimate_points(value: Optional[int]) -> Optional[int]:
     if value < 0:
         raise ValueError("Estimate Points must be 0 or greater.")
     return value
+
+
+def validate_post_story_point(value: Optional[Union[int, float]]) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("Post Story Point must be a number.")
+
+    normalized = float(value)
+    if normalized not in POST_STORY_POINT_VALUES:
+        allowed = ", ".join(
+            str(int(candidate)) if candidate.is_integer() else str(candidate)
+            for candidate in POST_STORY_POINT_VALUES
+        )
+        raise ValueError(f"Post Story Point must be one of: {allowed}.")
+    return normalized
 
 
 def validate_mandays(value: Optional[float], field_name: str) -> Optional[float]:
@@ -206,6 +223,7 @@ class IssueMetricsRecord:
     project_name: Optional[str] = None
     issue_status: Optional[str] = None
     estimate_points: Optional[int] = None
+    post_story_point: Optional[float] = None
     estimated_mandays: Optional[float] = None
     start_datetime: Optional[str] = None
     actual_mandays: Optional[float] = None
@@ -220,6 +238,7 @@ class IssueMetricsRecord:
 
     def validate(self) -> "IssueMetricsRecord":
         self.estimate_points = validate_estimate_points(self.estimate_points)
+        self.post_story_point = validate_post_story_point(self.post_story_point)
         self.estimated_mandays = validate_mandays(
             self.estimated_mandays, "Estimated Mandays"
         )
@@ -557,6 +576,55 @@ def _parse_git_history_evidence(project_path: str) -> Dict[str, object]:
     }
 
 
+def _load_state_activity(project_path: str) -> Dict[str, object]:
+    state_path = os.path.join(project_path, ".luma_state.json")
+    if not os.path.exists(state_path):
+        return {}
+
+    try:
+        with open(state_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _fetch_github_issue_activity_hint(
+    project_path: str, repository: str, issue_number: int
+) -> int:
+    if not repository or not issue_number:
+        return 0
+
+    cmd = [
+        "gh",
+        "issue",
+        "view",
+        str(issue_number),
+        "--repo",
+        repository,
+        "--json",
+        "comments",
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(result.stdout or "{}")
+        comments = payload.get("comments", [])
+        return len(comments) if isinstance(comments, list) else 0
+    except Exception:
+        return 0
+
+
+def _normalize_post_story_point_value(value: Union[int, float]) -> float:
+    normalized = float(value)
+    return int(normalized) if normalized.is_integer() else normalized
+
+
 def _best_fuzzy_date_match(
     title: str,
     entries: List[Dict[str, object]],
@@ -790,6 +858,71 @@ def _infer_story_profile(title: str) -> Dict[str, object]:
         return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "High"}
     pts = 13
     return {"estimate_points": pts, "estimated_mandays": points_to_mandays(pts), "effort_level": "High"}
+
+
+def suggest_post_story_point(
+    project_path: str, record: IssueMetricsRecord
+) -> Optional[float]:
+    if record.post_story_point is not None:
+        return validate_post_story_point(record.post_story_point)
+
+    baseline = (
+        float(record.estimate_points)
+        if record.estimate_points is not None
+        else float(_infer_story_profile(record.issue_title)["estimate_points"])
+    )
+
+    git_history = _parse_git_history_evidence(project_path)
+    commits = git_history.get("commits", [])
+    title_tokens = set(_tokenize_for_match(record.issue_title))
+    matched_commits = 0
+
+    for commit in commits if isinstance(commits, list) else []:
+        if not isinstance(commit, dict):
+            continue
+        issue_numbers = commit.get("issue_numbers", [])
+        if isinstance(issue_numbers, list) and record.issue_number in issue_numbers:
+            matched_commits += 1
+            continue
+
+        commit_tokens = set(commit.get("tokens", []))
+        if title_tokens and len(title_tokens & commit_tokens) >= 2:
+            matched_commits += 1
+
+    state_data = _load_state_activity(project_path)
+    active_issues = state_data.get("active_issues", [])
+    if isinstance(active_issues, list):
+        for item in active_issues:
+            if isinstance(item, dict) and item.get("number") == record.issue_number:
+                matched_commits += 1
+                break
+
+    if matched_commits == 0:
+        matched_commits += min(
+            _fetch_github_issue_activity_hint(
+                project_path, record.repository, record.issue_number
+            ),
+            3,
+        )
+
+    if matched_commits <= 0:
+        return _normalize_post_story_point_value(baseline)
+    if matched_commits == 1:
+        suggestion = 1.0
+    elif matched_commits == 2:
+        suggestion = 2.0
+    elif matched_commits <= 4:
+        suggestion = 3.0
+    elif matched_commits <= 7:
+        suggestion = 5.0
+    elif matched_commits <= 10:
+        suggestion = 8.0
+    elif matched_commits <= 14:
+        suggestion = 13.0
+    else:
+        suggestion = 21.0
+
+    return _normalize_post_story_point_value(max(baseline, suggestion))
 
 
 def apply_heuristic_defaults(record: IssueMetricsRecord) -> IssueMetricsRecord:

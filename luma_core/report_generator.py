@@ -206,6 +206,12 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     # Velocity Summary
     lines.append("## Velocity Summary")
     this_points = sum(iss.estimate_points or 0 for iss in this_period_completed)
+    this_post_points = sum(iss.post_story_point or 0.0 for iss in this_period_completed)
+    this_gap_points = sum(
+        (iss.post_story_point or 0.0) - (iss.estimate_points or 0.0)
+        for iss in this_period_completed
+        if iss.post_story_point is not None and iss.estimate_points is not None
+    )
     prev_points = sum(iss.estimate_points or 0 for iss in prev_period_completed)
     trend = "↑" if this_points > prev_points else "↓" if this_points < prev_points else "→"
     
@@ -214,6 +220,8 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
     
     lines.append(f"- **Issues completed in this period:** {len(this_period_completed)}")
     lines.append(f"- **Total points:** {this_points}")
+    lines.append(f"- **Post-completion points:** {this_post_points:.1f}")
+    lines.append(f"- **Estimation gap:** {this_gap_points:+.1f} points")
     lines.append(f"- **Trend vs previous period:** {trend} (was {prev_points} points)")
     lines.append(f"- **Mandays (Completed):** {est_mandays:.1f} estimated vs {act_mandays:.1f} actual")
     lines.append("")
@@ -233,7 +241,12 @@ def generate_report(project_path: str, period: str = "weekly", reference_date: O
 
         this_period_completed.sort(key=_sort_key, reverse=True)
         for iss in this_period_completed:
-            pts_str = f" ({iss.estimate_points} pts)" if iss.estimate_points else ""
+            if iss.estimate_points is not None and iss.post_story_point is not None:
+                pts_str = f" (est {iss.estimate_points} pts / post {iss.post_story_point:g} pts)"
+            elif iss.estimate_points is not None:
+                pts_str = f" ({iss.estimate_points} pts)"
+            else:
+                pts_str = ""
             iss_gh = gh_dates.get(iss.issue_number, {})
             created_str = _format_short_date(iss_gh.get("createdAt"))
             due_str = _format_short_date(iss.due_date)
