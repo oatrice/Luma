@@ -10,6 +10,7 @@ from .utils import (
     _select_issue_card_for_metrics,
     _edit_issue_metrics_record,
     _build_issue_metrics_record,
+    _select_tracked_issue_record,
     _load_recent_usage_events,
     _format_event_line
 )

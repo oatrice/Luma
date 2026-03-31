@@ -37,7 +37,8 @@ from .metrics_actions import (
 from .utils import (
     get_status_workflow,
     fetch_kanban_cards,
-    sync_kanban_on_action
+    sync_kanban_on_action,
+    _build_code_review_followup_prompt
 )
 
 __all__ = [
@@ -67,5 +68,6 @@ __all__ = [
     "action_view_stats_files",
     "get_status_workflow",
     "fetch_kanban_cards",
-    "sync_kanban_on_action"
+    "sync_kanban_on_action",
+    "_build_code_review_followup_prompt"
 ]
