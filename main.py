@@ -354,13 +354,16 @@ def main():
                 print(f"   ⏱️  Fixed {result['paradoxes_fixed']} Time Paradox(es).")
         
         elif choice.upper() == "R":
+            print("🔄 Refreshing state...")
             state = load_state(project["path"])
+            changes_detected = False
             
             # --- AUTO-FIX STUCK STATE ---
             if state.phase == WorkflowPhase.PREFLIGHT and not state.pr_url:
                 print("⚠️ State was stuck in Pre-flight (interrupted?). Reverting to CODING.")
                 transition_to(state, WorkflowPhase.CODING)
                 save_state(state, project["path"])
+                changes_detected = True
             # ----------------------------
             
             # --- AUTO-DETECT PR OUTSIDE LUMA ---
@@ -380,13 +383,15 @@ def main():
                             pr_url = pr_info.get("url")
                             
                             if pr_state in ["OPEN", "MERGED"] and state.phase != WorkflowPhase.PR_PENDING:
-                                print(f"🔄 Detected PR '{pr_state}' outside Luma: {pr_url}")
+                                print(f"📡 Detected PR '{pr_state}' outside Luma: {pr_url}")
                                 state.phase = WorkflowPhase.PR_PENDING
                                 state.pr_url = pr_url
                                 save_state(state, project["path"])
+                                changes_detected = True
                             elif pr_state in ["OPEN", "MERGED"] and state.phase == WorkflowPhase.PR_PENDING and not state.pr_url:
                                 state.pr_url = pr_url
                                 save_state(state, project["path"])
+                                changes_detected = True
                 except Exception:
                     pass
             # -----------------------------------
@@ -415,14 +420,16 @@ def main():
                     state = LumaState(project_key=state.project_key)
                     save_state(state, project["path"])
                     print("🎉 State reset to IDLE. Ready for next task!")
+                    changes_detected = True
                 elif pr_status["error"]:
                     print(f"⚠️ Could not check PR: {pr_status['error']}")
-                    print("🔄 State refreshed")
                 else:
                     print(f"📋 PR status: {pr_status['state']} (not merged yet)")
-                    print("🔄 State refreshed")
+            
+            if not changes_detected:
+                print("🔄 State refreshed (no changes detected)")
             else:
-                print("🔄 State refreshed")
+                print("✨ State refreshed and updated")
 
         elif choice.upper() == "S":
             new_key = actions.action_switch_project(state)
