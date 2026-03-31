@@ -13,6 +13,7 @@ def project_mock(tmp_path):
     }
 
 @patch("luma_core.actions.workflow_actions.action_select_issue")
+@patch("luma_core.actions.workflow_actions.get_feature_dir")
 @patch("luma_core.actions.workflow_actions.check_planning_artifacts")
 @patch("luma_core.actions.workflow_actions.action_generate_plan")
 @patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
@@ -33,7 +34,7 @@ def project_mock(tmp_path):
 def test_guided_workflow_resume_from_review(
     mock_input, mock_format, mock_sum_metrics, mock_sum_usage, mock_notify,
     mock_prefill, mock_sync_gh, mock_check_merged, mock_pr, mock_archive, mock_roadmap,
-    mock_docs, mock_review, mock_swarm, mock_plan, mock_check_plan, mock_select,
+    mock_docs, mock_review, mock_swarm, mock_plan, mock_check_plan, mock_get_feature_dir, mock_select,
     project_mock
 ):
     from luma_core.actions import action_guided_workflow
@@ -61,6 +62,7 @@ def test_guided_workflow_resume_from_review(
     mock_input.side_effect = ["n", "y", "y", "y", "y", "y", "y", "n", ""]
 
     mock_check_plan.return_value = {"analysis": True, "spec": True, "plan": True}
+    mock_get_feature_dir.return_value = "/mock/feature/dir"
     mock_check_merged.return_value = {"merged": True}
     mock_prefill.return_value = {"created": 0, "updated": 0}
     mock_sync_gh.return_value = {"updated": 0}
@@ -77,4 +79,3 @@ def test_guided_workflow_resume_from_review(
     mock_roadmap.assert_called_once()
     mock_archive.assert_called_once()
     mock_notify.assert_called_once()
-

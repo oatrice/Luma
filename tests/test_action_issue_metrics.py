@@ -81,6 +81,7 @@ def test_action_manage_issue_metrics_saves_selected_issue(monkeypatch, tmp_path)
             "2",
             "1",
             "8",
+            "5",
             "3.5",
             "1.25",
             "2026-03-19 14:00",
@@ -99,6 +100,7 @@ def test_action_manage_issue_metrics_saves_selected_issue(monkeypatch, tmp_path)
     assert saved is not None
     assert saved.issue_title == "Keep this repo only"
     assert saved.estimate_points == 8
+    assert saved.post_story_point == 5
     assert saved.estimated_mandays == 3.5
     assert saved.actual_mandays == 1.25
     assert saved.start_datetime == "2026-03-19T14:00:00"
@@ -138,3 +140,44 @@ def test_action_manage_issue_metrics_prefills_from_roadmap(monkeypatch, tmp_path
     assert saved is not None
     assert saved.issue_title == "Prefilled from roadmap"
     assert saved.issue_status == "🔲 Todo"
+
+
+def test_action_manage_issue_metrics_audit_sync_can_reestimate_post_story_point(monkeypatch, tmp_path):
+    project = {
+        "name": "Metrics Repo",
+        "path": str(tmp_path),
+        "repo": "oatrice/Metrics",
+        "kanban_number": 99,
+        "status_workflow": {},
+    }
+
+    save_issue_metrics(
+        str(tmp_path),
+        IssueMetricsRecord(
+            issue_key="oatrice/Metrics#88",
+            issue_number=88,
+            issue_title="Closed issue missing post point",
+            issue_url="https://github.com/oatrice/Metrics/issues/88",
+            repository="oatrice/Metrics",
+            issue_status="✅ Complete",
+            estimate_points=3,
+        ),
+    )
+
+    monkeypatch.setattr(
+        "luma_core.actions.metrics_actions.prefill_metrics_from_roadmap",
+        lambda path, name, repo: {"created": 0, "updated": 0},
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.metrics_actions.sync_github_metrics_for_project",
+        lambda path, name, repo: {"updated": 1, "errors": 0, "paradoxes_fixed": 0},
+    )
+
+    inputs = iter(["4", "5", "0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    action_manage_issue_metrics(LumaState(), project)
+
+    saved = get_issue_metrics(str(tmp_path), "oatrice/Metrics", 88)
+    assert saved is not None
+    assert saved.post_story_point == 5

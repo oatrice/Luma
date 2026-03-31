@@ -187,7 +187,8 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
 
     Returns:
         dict with keys: total_issues, done_count, in_progress_count,
-        todo_count, total_points, total_estimated_mandays, total_actual_mandays
+        todo_count, total_points, total_post_points, total_accuracy_gap,
+        total_estimated_mandays, total_actual_mandays
     """
     empty = {
         "total_issues": 0,
@@ -195,6 +196,8 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
         "in_progress_count": 0,
         "todo_count": 0,
         "total_points": 0,
+        "total_post_points": 0.0,
+        "total_accuracy_gap": 0.0,
         "total_estimated_mandays": 0.0,
         "total_actual_mandays": 0.0,
     }
@@ -217,6 +220,8 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
     in_progress = 0
     todo = 0
     points = 0
+    post_points = 0.0
+    accuracy_gap = 0.0
     est_mandays = 0.0
     act_mandays = 0.0
 
@@ -234,6 +239,12 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
             todo += 1
 
         points += item.get("estimate_points", 0) or 0
+        post_story_point = item.get("post_story_point")
+        if post_story_point is not None:
+            post_points += float(post_story_point)
+            estimate_points = item.get("estimate_points")
+            if estimate_points is not None:
+                accuracy_gap += float(post_story_point) - float(estimate_points)
         est_mandays += item.get("estimated_mandays", 0.0) or 0.0
         act_mandays += item.get("actual_mandays", 0.0) or 0.0
 
@@ -243,6 +254,8 @@ def summarize_issue_metrics(metrics_path: str) -> Dict[str, Any]:
         "in_progress_count": in_progress,
         "todo_count": todo,
         "total_points": points,
+        "total_post_points": post_points,
+        "total_accuracy_gap": accuracy_gap,
         "total_estimated_mandays": est_mandays,
         "total_actual_mandays": act_mandays,
     }
@@ -341,6 +354,8 @@ def format_summary_message(
                  f"🔄 {metrics.get('in_progress_count', 0)} / "
                  f"🔲 {metrics.get('todo_count', 0)})")
     lines.append(f"  Points: {metrics.get('total_points', 0)}")
+    lines.append(f"  Post Points: {metrics.get('total_post_points', 0.0):.1f}")
+    lines.append(f"  Accuracy Gap: {metrics.get('total_accuracy_gap', 0.0):+.1f}")
     lines.append(f"  Mandays: "
                  f"Est {metrics.get('total_estimated_mandays', 0):.1f} / "
                  f"Act {metrics.get('total_actual_mandays', 0):.1f}")

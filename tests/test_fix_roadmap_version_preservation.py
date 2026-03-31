@@ -87,8 +87,8 @@ def test_action_update_roadmap_preserves_existing_version_when_skipping_input(mo
         ),
     )
 
-    # Inputs: "42" (issue), "1" (Done), "" (version skip), "" (note skip)
-    inputs = iter(["42", "1", "", ""])
+    # Inputs: "42" (issue), "1" (Done), "" (version skip), "" (note skip), "" (accept post-point suggestion)
+    inputs = iter(["42", "1", "", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     monkeypatch.setattr(

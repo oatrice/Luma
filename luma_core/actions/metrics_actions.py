@@ -4,6 +4,7 @@ from collections import deque
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState
 from luma_core import usage_tracker
+from luma_core.issue_metrics import sync_github_metrics_for_project
 from .utils import (
     get_issue_metrics,
     _display_tracked_issue_summary,
@@ -13,7 +14,9 @@ from .utils import (
     _select_tracked_issue_record,
     _load_recent_usage_events,
     _format_event_line,
-    prefill_metrics_from_roadmap
+    list_issue_metrics,
+    prefill_metrics_from_roadmap,
+    prompt_post_story_points_for_records,
 )
 
 def action_view_dashboard(state: LumaState, project: dict):
@@ -64,9 +67,13 @@ def action_view_dashboard(state: LumaState, project: dict):
     print(f"║    🔄 In Progress:  {metrics['in_progress_count']:<31}║")
     print(f"║    🔲 Todo:         {metrics['todo_count']:<31}║")
     print(f"║    📊 Total Points: {metrics['total_points']:<31}║")
+    post_points = f"{metrics['total_post_points']:.1f}"
+    print(f"║    📌 Post Points:  {post_points:<31}║")
     est_md = f"{metrics['total_estimated_mandays']:.1f}"
     act_md = f"{metrics['total_actual_mandays']:.1f}"
     print(f"║    📅 Mandays:      Est {est_md} / Act {act_md:<20}║")
+    gap = f"{metrics['total_accuracy_gap']:+.1f}"
+    print(f"║    Δ Accuracy Gap: {gap:<31}║")
     print("║                                                    ║")
     print("╚" + "═" * 52 + "╝")
 
@@ -74,7 +81,6 @@ def action_view_dashboard(state: LumaState, project: dict):
 def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
     selected_project = project
-    from luma_core.issue_metrics import sync_github_metrics_for_project
 
     prefill_result = prefill_metrics_from_roadmap(
         selected_project["path"],
@@ -134,6 +140,25 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
                 print(f"   ⚠️  Encountered {gh_sync_result['errors']} errors during sync.")
             if gh_sync_result.get("paradoxes_fixed", 0) > 0:
                 print(f"   ⏱️  Fixed {gh_sync_result['paradoxes_fixed']} Time Paradox(es).")
+
+            completed_missing_post_points = [
+                record
+                for record in list_issue_metrics(selected_project["path"])
+                if record.post_story_point is None
+                and record.repository == selected_project.get("repo")
+                and any(
+                    marker in (record.issue_status or "").lower()
+                    for marker in ("done", "complete", "released", "closed")
+                )
+            ]
+            if completed_missing_post_points:
+                print(
+                    "\n   📌 Re-estimate Post Story Point for completed issues missing actual complexity..."
+                )
+                prompt_post_story_points_for_records(
+                    selected_project,
+                    completed_missing_post_points,
+                )
             continue
 
         print("❌ Invalid selection")

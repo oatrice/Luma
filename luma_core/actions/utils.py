@@ -26,7 +26,9 @@ from luma_core.issue_metrics import (
     parse_metric_datetime,
     prefill_metrics_from_roadmap,
     save_issue_metrics,
+    suggest_post_story_point,
     validate_effort_level,
+    validate_post_story_point,
 )
 from luma_core.state_manager import (
     IssueData,
@@ -429,10 +431,10 @@ def _display_tracked_issue_summary(project: dict):
 
     print(f"\n📋 Tracked Issues for {project['name']}")
     print(
-        f"{'Idx':<5} {'#':<6} {'Title':<26} {'Pts':<5} {'EstMD':<7} "
+        f"{'Idx':<5} {'#':<6} {'Title':<26} {'Pts':<5} {'Post':<5} {'EstMD':<7} "
         f"{'ActMD':<7} {'Start':<16} {'Due':<16} {'Effort':<7}"
     )
-    print("─" * 110)
+    print("─" * 116)
     for idx, record in enumerate(records, 1):
         title = (
             record.issue_title[:24] + ".."
@@ -442,13 +444,14 @@ def _display_tracked_issue_summary(project: dict):
         print(
             f"{idx:<5} #{record.issue_number:<5} {title:<26} "
             f"{(record.estimate_points if record.estimate_points is not None else '-'): <5} "
+            f"{(record.post_story_point if record.post_story_point is not None else '-'): <5} "
             f"{(record.estimated_mandays if record.estimated_mandays is not None else '-'): <7} "
             f"{(record.actual_mandays if record.actual_mandays is not None else '-'): <7} "
             f"{format_metric_datetime(record.start_datetime):<16} "
             f"{format_metric_datetime(record.due_date):<16} "
             f"{(record.effort_level or '-'): <7}"
         )
-    print("─" * 110)
+    print("─" * 116)
     print(f"Total tracked: {len(records)}")
     return records
 
@@ -489,6 +492,15 @@ def _parse_optional_int(value: str) -> int:
         raise ValueError("Estimate Points must be 0 or greater.")
     return parsed
 
+
+def _parse_optional_post_story_point(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValueError("Post Story Point must be a number.") from exc
+    validated = validate_post_story_point(parsed)
+    return 0.0 if validated is None else validated
+
 def _parse_optional_float(value: str, label: str) -> float:
     try:
         parsed = float(value)
@@ -513,6 +525,55 @@ def _prompt_metric_value(label: str, current_value, parser):
         except ValueError as e:
             print(f"❌ {e}")
 
+
+def _prompt_post_story_point_value(project: dict, record: IssueMetricsRecord):
+    current_value = record.post_story_point
+    suggested_value = suggest_post_story_point(project["path"], record)
+
+    if current_value is not None:
+        return _prompt_metric_value(
+            "Post Story Point",
+            current_value,
+            _parse_optional_post_story_point,
+        )
+
+    while True:
+        suggestion_text = suggested_value if suggested_value is not None else "-"
+        raw = ui.safe_input(
+            f"Post Story Point [suggested: {suggestion_text}] "
+            "(Enter accept, - clear): "
+        ).strip()
+        if raw == "":
+            return suggested_value
+        if raw == "-":
+            return None
+        try:
+            return _parse_optional_post_story_point(raw)
+        except ValueError as e:
+            print(f"❌ {e}")
+
+
+def prompt_post_story_points_for_records(project: dict, records: list) -> int:
+    updated = 0
+
+    for record in records:
+        if record.post_story_point is not None:
+            continue
+
+        print(f"\n📌 Post Story Point for #{record.issue_number} - {record.issue_title}")
+        next_value = _prompt_post_story_point_value(project, record)
+        if next_value is None:
+            continue
+        if record.post_story_point == next_value:
+            continue
+
+        record.post_story_point = next_value
+        save_issue_metrics(project["path"], record)
+        print("   ✅ Saved Post Story Point.")
+        updated += 1
+
+    return updated
+
 def _edit_issue_metrics_record(project: dict, record: IssueMetricsRecord, is_new: bool = False):
     print(f"\n📝 Issue Metrics for #{record.issue_number} - {record.issue_title}")
     print(f"   Project: {project['name']}")
@@ -523,8 +584,21 @@ def _edit_issue_metrics_record(project: dict, record: IssueMetricsRecord, is_new
     candidate = IssueMetricsRecord(**asdict(record))
     changed = False
 
+    estimate_points = _prompt_metric_value(
+        "Estimate Points",
+        candidate.estimate_points,
+        _parse_optional_int,
+    )
+    if estimate_points is not _KEEP_METRIC_VALUE and candidate.estimate_points != estimate_points:
+        candidate.estimate_points = estimate_points
+        changed = True
+
+    post_story_point = _prompt_post_story_point_value(project, candidate)
+    if candidate.post_story_point != post_story_point:
+        candidate.post_story_point = post_story_point
+        changed = True
+
     field_specs = [
-        ("estimate_points", "Estimate Points", _parse_optional_int),
         (
             "estimated_mandays",
             "Estimated Mandays",
