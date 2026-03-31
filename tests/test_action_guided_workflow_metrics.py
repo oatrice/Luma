@@ -62,6 +62,10 @@ def test_guided_workflow_asks_for_metrics_auto_fill(
     # Assert input was called for metrics
     input_prompts = [call.args[0] for call in mock_input.call_args_list if call.args]
     assert any("การประเมินชั่วโมงการทำงาน" in prompt for prompt in input_prompts)
+    assert (
+        "\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (Y/n): "
+        in input_prompts
+    )
     
     # Assert auto_fill function is called
     mock_auto_fill.assert_called_once()
@@ -128,4 +132,3 @@ def test_guided_workflow_existing_artifacts_os_error(
 
     captured = capsys.readouterr()
     assert "Found existing Planning Docs" in captured.out
-
