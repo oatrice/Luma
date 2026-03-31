@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.6.0] - 2026-03-30
+
+### Added
+- **LLM & Credential Rotation System:**
+    - Implemented a robust `CredentialManager` supporting Google Account and API Key rotation.
+    - Added **Global Cooldown Synchronization** and automatic failover (switching keys immediately upon 429 Rate Limits).
+    - Support for named singletons in credential management.
+    - Automatic masking of sensitive account info in logs for enhanced security.
+- **Workflow & Metrics:**
+    - Added a **Reviewing Phase** to menu actions and enabled Pull Request (PR) creation directly from this phase.
+    - Introduced branch-based filtering and sub-action timing to the metrics dashboard.
+- **Project Roadmap:**
+    - Added version and note preservation during status updates.
+
+### Fixed
+- **LLM Engine & API:**
+    - Fixed `TypeError: 'tuple' object has no attribute 'content'` in `GeminiAPIModel` by standardizing `invoke()` usage and `ChatResult` wrapping.
+    - Prevented duplicate `run_manager` instances in `kwargs`.
+    - Unified response handling across CLI and API models.
+- **Stability & CLI:**
+    - Hardened credential rotation logic and fixed interactive test failures.
+    - Resolved Gemini CLI OAuth profile isolation issues via `HOME` environment override.
+
+### Changed
+- **UI & Input Handling:**
+    - Standardized the use of `safe_input` for all user prompts.
+    - Implemented the Input Stabilization plan and documentation.
+- **Documentation:**
+    - Established project-wide conventions with the introduction of `AGENTS.md`.
+    - Synchronized AI brain artifacts and updated internal documentation.
+- **Refactors:**
+    - Standardized Gemini provider naming conventions.
+    - Improved GitHub metrics synchronization for reopened issues and paradoxes.
+
 ## [1.5.0] - 2026-03-25
 
 ### Added

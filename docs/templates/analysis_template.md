@@ -58,7 +58,7 @@ flowchart TD
 ### 2.2 Screen/Page Requirements
 
 > [!IMPORTANT]
-> **Policy**: Web Mock UI must be implemented and verified FIRST before any backend/Android logic.
+> **Policy**: Web Full Implementation must be implemented and verified FIRST before Android/iOS logic.
 
 | หน้าจอ | Actions | Components | UI Mock Status |
 |--------|---------|------------|----------------|

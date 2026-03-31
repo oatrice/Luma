@@ -51,6 +51,10 @@ def test_summarize_usage_stats_basic():
         assert result["success_count"] == 2
         assert result["error_count"] == 1
         assert result["total_duration_ms"] == 10000
+        assert "elapsed_ms" in result
+        assert result["elapsed_ms"] >= 120000  # 10:02:00 - 10:00:00 = 2 mins
+        assert "success_rate" in result
+        assert result["success_rate"] == 66.7
         assert len(result["unique_models"]) == 2
         assert "gemini-2.5-pro" in result["unique_models"]
     finally:
@@ -149,3 +153,37 @@ def test_format_summary_message():
     assert "1m 0s" in msg  # duration formatted
     assert isinstance(msg, str)
     assert len(msg) > 50  # non-trivial message
+def test_format_summary_message_expanded():
+    usage = {
+        "total_calls": 20,
+        "success_count": 15,
+        "error_count": 5,
+        "success_rate": 75.0,
+        "total_duration_ms": 120000,
+        "elapsed_ms": 300000,  # 5 mins
+        "unique_models": ["gemini-2.5-pro", "gemini-3-flash"],
+        "model_counts": {"gemini-2.5-pro": 12, "gemini-3-flash": 8},
+        "top_actions": {
+            "Action1": 5, "Action2": 4, "Action3": 3, "Action4": 2, "Action5": 1,
+            "Action6": 1, "Action7": 1, "Action8": 1, "Action9": 1, "Action10": 1
+        },
+    }
+    metrics = {
+        "total_issues": 5,
+        "done_count": 3,
+        "in_progress_count": 1,
+        "todo_count": 1,
+        "total_points": 21,
+        "total_estimated_mandays": 15.0,
+        "total_actual_mandays": 10.5,
+    }
+    msg = format_summary_message(usage, metrics)
+    
+    # Check for new sections/info
+    assert "Success Rate: 75.0%" in msg
+    assert "Workflow Duration: 5m 0s" in msg
+    assert "AI Processing Time: 2m 0s" in msg
+    assert "Model Breakdown" in msg
+    assert "gemini-2.5-pro (12)" in msg
+    assert "Action5 (1)" in msg
+    assert len(msg) > 100

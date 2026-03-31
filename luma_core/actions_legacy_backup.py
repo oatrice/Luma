@@ -5,6 +5,7 @@ from dataclasses import asdict
 from collections import deque
 
 import luma_core.usage_tracker as usage_tracker
+from luma_core.ui import safe_input as input
 from luma_core.agents.publisher import publisher_agent
 from luma_core.config import PROJECTS, get_status_workflow, normalize_project_entry
 from luma_core.context_summarizer import ContextSummarizer
@@ -1694,35 +1695,43 @@ def action_code_review(state: LumaState, project: dict):
     print("\n🧐 Local Code Reviewer")
 
     # Determine target repos (Multi-Repo Support)
-    potential_projects = [project]
-    if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-        try:
-            for sibling_key in project.get("sibling_repos", []):
-                if str(sibling_key) in PROJECTS:
-                    potential_projects.append(PROJECTS[str(sibling_key)])
-        except Exception:
-            pass
-
-    target_projects = []
-    if len(potential_projects) > 1:
-        print("\n   Select repositories to review (e.g., 1, 2 or 'all'):")
-        for i, proj in enumerate(potential_projects, 1):
-            print(f"   [{i}] {proj['name']} ({proj.get('type', 'unknown')})")
-
-        choice = input("\n   Select [all]: ").strip().lower()
-        if not choice or choice == "all":
-            target_projects = potential_projects
-        else:
-            try:
-                indices = [int(i.strip()) - 1 for i in choice.split(",") if i.strip()]
-                for idx in indices:
-                    if 0 <= idx < len(potential_projects):
-                        target_projects.append(potential_projects[idx])
-            except ValueError:
-                print("   ⚠️ Invalid input. Reviewing all repositories.")
-                target_projects = potential_projects
+    # ── ใช้ค่าจาก Step 2 ถ้ามี (ไม่ถามซ้ำ) ───────────────────────────────────
+    preselected_repos = state.context.get("target_planning_repos")
+    if preselected_repos:
+        target_projects = preselected_repos
+        repo_names = ", ".join(p["name"] for p in target_projects)
+        print(f"\n   ♻️  Using repositories selected in Step 2: {repo_names}")
     else:
-        target_projects = potential_projects
+        # ── Fallback: ถาม (กรณีเรียกแยกจาก Guided Workflow) ─────────────────
+        potential_projects = [project]
+        if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+            try:
+                for sibling_key in project.get("sibling_repos", []):
+                    if str(sibling_key) in PROJECTS:
+                        potential_projects.append(PROJECTS[str(sibling_key)])
+            except Exception:
+                pass
+
+        target_projects = []
+        if len(potential_projects) > 1:
+            print("\n   Select repositories to review (e.g., 1, 2 or 'all'):")
+            for i, proj in enumerate(potential_projects, 1):
+                print(f"   [{i}] {proj['name']} ({proj.get('type', 'unknown')})")
+
+            choice = input("\n   Select [all]: ").strip().lower()
+            if not choice or choice == "all":
+                target_projects = potential_projects
+            else:
+                try:
+                    indices = [int(i.strip()) - 1 for i in choice.split(",") if i.strip()]
+                    for idx in indices:
+                        if 0 <= idx < len(potential_projects):
+                            target_projects.append(potential_projects[idx])
+                except ValueError:
+                    print("   ⚠️ Invalid input. Reviewing all repositories.")
+                    target_projects = potential_projects
+        else:
+            target_projects = potential_projects
 
     if not target_projects:
         print("   ❌ No repositories selected.")
