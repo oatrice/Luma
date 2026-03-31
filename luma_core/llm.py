@@ -33,6 +33,7 @@ MODEL_TIMEOUTS = {
     "gemini-2.5-pro": 120,
     "gemini-3-pro-preview": 300,
 }
+CODEX_CLI_TIMEOUT = 300
 
 
 def _coerce_ai_message(response: Any) -> AIMessage:
@@ -43,6 +44,16 @@ def _coerce_ai_message(response: Any) -> AIMessage:
     if content is None:
         content = str(response)
     return AIMessage(content=str(content))
+
+
+def _flatten_messages_to_prompt(messages: List[BaseMessage]) -> str:
+    prompt = ""
+    for msg in messages:
+        if hasattr(msg, "content"):
+            prompt += f"{msg.content}\n"
+        elif isinstance(msg, dict) and "content" in msg:
+            prompt += f"{msg['content']}\n"
+    return prompt
 
 
 class GeminiCLIModel(BaseChatModel):
@@ -68,12 +79,7 @@ class GeminiCLIModel(BaseChatModel):
         clean_kwargs.pop("run_manager", None)
 
         # Convert messages to a single prompt string
-        prompt = ""
-        for msg in messages:
-            if hasattr(msg, "content"):
-                prompt += f"{msg.content}\n"
-            elif isinstance(msg, dict) and "content" in msg:
-                prompt += f"{msg['content']}\n"
+        prompt = _flatten_messages_to_prompt(messages)
 
         # Call gemini cli using STDIN to avoid OS ARG_MAX limits for large code payloads
         start_time = time.time()
@@ -197,6 +203,83 @@ class GeminiCLIModel(BaseChatModel):
         _session_gemini_cli_tokens += total_tokens
 
         message = AIMessage(content=output)
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
+
+
+def _format_codex_cli_error(stderr: str, returncode: int) -> str:
+    err_text = (stderr or "").strip()
+    lower_err = err_text.lower()
+
+    auth_markers = (
+        "login",
+        "logged out",
+        "not logged in",
+        "authentication",
+        "auth required",
+        "expired",
+    )
+    if any(marker in lower_err for marker in auth_markers):
+        return "Error: Codex CLI authentication failed or expired. Run `codex login` and try again."
+
+    if err_text:
+        return f"Error calling Codex CLI (Return Code {returncode}): {err_text}"
+
+    return f"Error calling Codex CLI (Return Code {returncode})."
+
+
+class CodexCLIModel(BaseChatModel):
+    """LangChain wrapper for Codex CLI using non-interactive exec mode."""
+
+    model: Optional[str] = Field(default=None)
+    temperature: float = Field(default=0.7)
+
+    @property
+    def _llm_type(self) -> str:
+        return f"codex-cli:{self.model}" if self.model else "codex-cli"
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        clean_kwargs = dict(kwargs)
+        clean_kwargs.pop("run_manager", None)
+
+        prompt = _flatten_messages_to_prompt(messages)
+        cmd = [config.CODEX_CLI_BIN, "exec"]
+        if self.model:
+            cmd.extend(["-m", self.model])
+        cmd.append("-")
+
+        process: Optional[subprocess.Popen] = None
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=dict(os.environ),
+            )
+            stdout, stderr = process.communicate(input=prompt, timeout=CODEX_CLI_TIMEOUT)
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "Error: codex-cli is not installed. Install the `codex` CLI or set CODEX_CLI_BIN."
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            if process is not None:
+                process.kill()
+            raise RuntimeError("Error: Codex CLI timed out.") from exc
+        except Exception as exc:
+            raise RuntimeError(f"Error: {str(exc)}") from exc
+
+        if process.returncode != 0:
+            raise RuntimeError(_format_codex_cli_error(stderr, process.returncode))
+
+        message = AIMessage(content=stdout.strip())
         generation = ChatGeneration(message=message)
         return ChatResult(generations=[generation])
 
@@ -358,6 +441,8 @@ def _create_model(
     temperature: float = 0.7,
     purpose: str = "general",
 ) -> BaseChatModel:
+    provider = config.normalize_llm_provider(provider)
+
     if provider == "openrouter":
         name = model_name or (config.OPENROUTER_CODE_MODEL if purpose == "code" else config.OPENROUTER_GENERAL_MODEL)
         model = ChatOpenAI(
@@ -374,10 +459,20 @@ def _create_model(
         model = GeminiAPIModel(model=name, temperature=temperature)
         _attach_usage_metadata(model, provider="gemini-api", model_name=name, purpose=purpose)
         return model
-    elif provider == "gemini_cli":
+    elif provider == "gemini-cli":
         name = model_name or config.GEMINI_CLI_MODEL
         model = GeminiCLIModel(model=name, temperature=temperature)
         _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        return model
+    elif provider == "codex-cli":
+        name = model_name if model_name is not None else config.CODEX_CLI_MODEL
+        model = CodexCLIModel(model=name, temperature=temperature)
+        _attach_usage_metadata(
+            model,
+            provider=provider,
+            model_name=name or "default",
+            purpose=purpose,
+        )
         return model
     elif provider == "openai":
         name = model_name or config.OPENAI_MODEL
@@ -394,13 +489,15 @@ def _create_model(
 
 
 def get_llm(temperature=0.7, purpose="general"):
-    primary_provider = config.LLM_PROVIDER
+    primary_provider = config.normalize_llm_provider(config.LLM_PROVIDER)
     model_sequence = [(primary_provider, None)]
 
-    if primary_provider == "gemini_cli":
+    if primary_provider == "gemini-cli":
         for cli_model in config.AVAILABLE_GEMINI_CLI_MODELS:
             if cli_model != config.GEMINI_CLI_MODEL:
-                model_sequence.append(("gemini_cli", cli_model))
+                model_sequence.append(("gemini-cli", cli_model))
+    elif primary_provider == "codex-cli":
+        model_sequence.extend(("gemini-cli", cli_model) for cli_model in config.AVAILABLE_GEMINI_CLI_MODELS)
 
     models = []
     for provider, model_name in model_sequence:
@@ -437,6 +534,8 @@ def _resolve_model_info(model):
             provider = "gemini-api"
         elif "gemini-cli" in model_type:
             provider = "gemini-cli"
+        elif "codex-cli" in model_type:
+            provider = "codex-cli"
         elif "openrouter" in model_type:
             provider = "openrouter"
         elif "openai" in model_type:

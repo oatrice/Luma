@@ -28,15 +28,15 @@ def _write_json(path, data):
 def test_summarize_usage_stats_basic():
     events = [
         {"ts": "2026-03-21T10:00:00", "event": "llm_call", "status": "success",
-         "model": "gemini-2.5-pro", "provider": "gemini_cli",
+         "model": "gemini-2.5-pro", "provider": "gemini-cli",
          "duration_ms": 5000, "action": "Auto Full Workflow",
          "project_name": "MyProject", "session_id": "abc123"},
         {"ts": "2026-03-21T10:01:00", "event": "llm_call", "status": "error",
-         "model": "gemini-2.5-pro", "provider": "gemini_cli",
+         "model": "gemini-2.5-pro", "provider": "gemini-cli",
          "duration_ms": 2000, "action": "Auto Full Workflow",
          "project_name": "MyProject", "session_id": "abc123"},
         {"ts": "2026-03-21T10:02:00", "event": "llm_call", "status": "success",
-         "model": "gemini-3-flash-preview", "provider": "gemini_cli",
+         "model": "gemini-3-flash-preview", "provider": "gemini-cli",
          "duration_ms": 3000, "action": "Refine Issue",
          "project_name": "MyProject", "session_id": "abc123"},
     ]

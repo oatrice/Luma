@@ -63,7 +63,7 @@ def test_save_gemini_cli_model(tmp_path):
     from luma_core import config
     
     config_file = tmp_path / ".luma_global.json"
-    config_file.write_text(json.dumps({"LLM_PROVIDER": "gemini_cli"}))
+    config_file.write_text(json.dumps({"LLM_PROVIDER": "gemini-cli"}))
     
     with patch.object(config, "GLOBAL_CONFIG_FILE", str(config_file)):
         config.save_gemini_cli_model("gemini-3-pro-preview")
