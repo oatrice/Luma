@@ -100,13 +100,15 @@ def test_gemini_cli_skips_retry_on_rate_limit(mock_sleep, mock_subprocess_popen)
     mock_process.returncode = 1
     mock_subprocess_popen.return_value = mock_process
     
-    model = GeminiCLIModel(model="gemini-2.5-flash", temperature=0.7)
     messages = [HumanMessage(content="Hello")]
-    
+
     import pytest
-    
-    with pytest.raises(RuntimeError) as exc_info:
-        model.invoke(messages)
+
+    with patch("luma_core.config.GOOGLE_API_KEYS", []):
+        with patch("luma_core.config.GEMINI_CLI_PROFILES", []):
+            model = GeminiCLIModel(model="gemini-2.5-flash", temperature=0.7)
+            with pytest.raises(RuntimeError) as exc_info:
+                model.invoke(messages)
         
     assert "HTTP Error 429: Too Many Requests" in str(exc_info.value)
     

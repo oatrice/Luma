@@ -156,11 +156,10 @@ class GeminiCLIModel(BaseChatModel):
                             cred_manager.mark_rate_limited(
                                 current_cred.value, retry_after=300
                             )
-                            if attempt < max_retries - 1:
-                                time.sleep(1)
-                                continue
-
                         output = f"Error calling Gemini CLI: {stderr}"
+                        if attempt < max_retries - 1:
+                            time.sleep(1)
+                            continue
                         break
 
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
