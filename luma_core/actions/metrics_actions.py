@@ -75,11 +75,10 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
     """Manage per-issue estimates and actuals in .luma_metrics.json files."""
     selected_project = project
     from luma_core.issue_metrics import sync_github_metrics_for_project
+
     prefill_result = prefill_metrics_from_roadmap(
         selected_project["path"],
-        selected_project.get("repo", "")
-    )
-
+        selected_project.get("name"),
         selected_project.get("repo"),
     )
     if prefill_result["created"] or prefill_result["updated"]:
@@ -96,7 +95,7 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
         print("  [4] Audit & Sync from GitHub")
         print("  [0] Back")
 
-        choice = safe_input("\nSelect [0-4]: ")
+        choice = input("\nSelect [0-4]: ").strip()
         if choice == "0":
             return
         if choice == "1":
@@ -139,6 +138,7 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
 
         print("❌ Invalid selection")
 
+
 def action_generate_project_report(state: LumaState, project: dict):
     """Generate Weekly/Monthly Project Report."""
     print(f"\n📊 Generate Project Report - {project['name']}")
@@ -146,7 +146,7 @@ def action_generate_project_report(state: LumaState, project: dict):
     print("  [2] Monthly Report (Based on today's month)")
     print("  [0] Back")
 
-    choice = safe_input("\nSelect [0-2]: ")
+    choice = input("\nSelect [0-2]: ").strip()
     if choice == "0":
         return
     
@@ -155,7 +155,7 @@ def action_generate_project_report(state: LumaState, project: dict):
         print("❌ Invalid selection")
         return
 
-    custom_date = safe_input("Enter reference date (YYYY-MM-DD) or press Enter for today: ")
+    custom_date = input("Enter reference date (YYYY-MM-DD) or press Enter for today: ").strip()
     
     print("\n🔄 Syncing metrics from ROADMAP...")
     from luma_core.issue_metrics import prefill_metrics_from_roadmap, sync_github_metrics_for_project

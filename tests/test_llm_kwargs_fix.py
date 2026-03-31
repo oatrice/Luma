@@ -1,4 +1,5 @@
 import unittest
+from typing import Any, ClassVar, Optional
 from unittest.mock import MagicMock
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.outputs import ChatResult, ChatGeneration
@@ -6,9 +7,17 @@ from langchain_core.messages import AIMessage, HumanMessage
 from luma_core.llm import TrackedModel
 
 class MockChatModel(BaseChatModel):
+    last_run_manager: ClassVar[Optional[Any]] = None
+    last_kwargs: ClassVar[Optional[dict]] = None
+
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        # Result of the fix: this should NOT fail when TrackedModel calls it.
+        type(self).last_run_manager = run_manager
+        type(self).last_kwargs = kwargs
+        # Result of the fix: forwarded kwargs stay intact without re-inserting
+        # run_manager into the child kwargs payload.
+        assert "run_manager" not in kwargs
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="mock"))])
+
     @property
     def _llm_type(self):
         return "mock"
@@ -21,18 +30,19 @@ class TestLLMKwargsFix(unittest.TestCase):
         messages = [HumanMessage(content="hello")]
         run_manager = MagicMock()
         
-        # This simulates when LangChain's generate() gives both explicit and keyword
-        # BUT we call the wrapper normally. The wrapper internal should be safe.
-        kwargs = {"run_manager": "some_extra_context"}
-        
-        # This call to TrackedModel._generate should succeed because it will 
-        # clean clean_kwargs before calling the underlying mock_model._generate
-        try:
-            result = tracked._generate(messages, stop=None, run_manager=run_manager, **kwargs)
-            self.assertEqual(result.generations[0].text, "mock")
-            print("Verified: TrackedModel safely handles 'run_manager' in kwargs.")
-        except TypeError as e:
-            self.fail(f"TrackedModel failed with TypeError: {e}")
+        # Python itself rejects duplicate keyword arguments before the function
+        # body runs, so the realistic regression test is that the wrapper
+        # forwards extra kwargs without adding a duplicate run_manager.
+        result = tracked._generate(
+            messages,
+            stop=None,
+            run_manager=run_manager,
+            trace_id="abc123",
+        )
+
+        self.assertEqual(result.generations[0].text, "mock")
+        self.assertIs(mock_model.last_run_manager, run_manager)
+        self.assertEqual(mock_model.last_kwargs, {"trace_id": "abc123"})
 
 if __name__ == "__main__":
     unittest.main()

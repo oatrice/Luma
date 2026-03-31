@@ -234,7 +234,8 @@ class IssueMetricsRecord:
                 self.actual_completion_date
             )
 
-        # Force re-calculate mandays if completed, or set to 0 if not
+        # Recalculate completed work from dates, but preserve manual progress
+        # entries for open issues.
         if _is_complete_status(self.issue_status):
             if self.start_datetime and self.actual_completion_date:
                 try:
@@ -258,8 +259,6 @@ class IssueMetricsRecord:
                 except Exception:
                     # If calculation fails, keep existing or fallback to estimate in apply_heuristic_defaults
                     pass
-        else:
-            self.actual_mandays = 0.0
 
         self.actual_mandays = validate_mandays(self.actual_mandays, "Actual Mandays")
         return self
@@ -1354,8 +1353,12 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             elif _is_complete_status(record.issue_status):
                 record.issue_status = None
                 changed = True
-            if _clear_close_fields_for_open_issue(record):
+            cleared_close_fields = _clear_close_fields_for_open_issue(record)
+            if cleared_close_fields:
                 changed = True
+                if record.actual_mandays != 0.0:
+                    record.actual_mandays = 0.0
+                    changed = True
 
             
         # Backfill

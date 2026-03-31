@@ -35,6 +35,16 @@ MODEL_TIMEOUTS = {
 }
 
 
+def _coerce_ai_message(response: Any) -> AIMessage:
+    if isinstance(response, BaseMessage):
+        return response if isinstance(response, AIMessage) else AIMessage(content=response.content)
+
+    content = getattr(response, "content", None)
+    if content is None:
+        content = str(response)
+    return AIMessage(content=str(content))
+
+
 class GeminiCLIModel(BaseChatModel):
     """LangChain wrapper for the gemini commands using subprocess"""
 
@@ -126,7 +136,7 @@ class GeminiCLIModel(BaseChatModel):
                     )
                 # ────────────────────────────────────────────────────────────
 
-                cmd = ["/opt/homebrew/bin/gemini", "-m", self.model]
+                cmd = [os.environ.get("GEMINI_CLI_BIN", "gemini"), "-m", self.model]
                 process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
@@ -322,10 +332,10 @@ class GeminiAPIModel(BaseChatModel):
                     temperature=self.temperature,
                     request_timeout=MODEL_TIMEOUTS.get(self.model, 120),
                 )
-                response = api_model.invoke(
-                    messages, stop=stop, **clean_kwargs
+                response = api_model.invoke(messages, stop=stop, **clean_kwargs)
+                return ChatResult(
+                    generations=[ChatGeneration(message=_coerce_ai_message(response))]
                 )
-                return ChatResult(generations=[ChatGeneration(message=response)])
 
             except Exception as e:
                 last_error = e
@@ -422,18 +432,23 @@ def _resolve_model_info(model):
     purpose = getattr(model, "_luma_purpose", None)
     if not model_name:
         model_name = getattr(model, "model", None) or getattr(model, "model_name", None)
-    
+
     if not provider and model_type:
-        if "gemini-api" in model_type: provider = "gemini-api"
-        elif "gemini-cli" in model_type: provider = "gemini-cli"
-        elif "openrouter" in model_type: provider = "openrouter"
-        elif "openai" in model_type: provider = "openai"
+        if "gemini-api" in model_type:
+            provider = "gemini-api"
+        elif "gemini-cli" in model_type:
+            provider = "gemini-cli"
+        elif "openrouter" in model_type:
+            provider = "openrouter"
+        elif "openai" in model_type:
+            provider = "openai"
 
     return provider, model_name, model_type, purpose
 
 
 def _mask_account(account):
-    if not account: return None
+    if not account:
+        return None
     if account.startswith("AIza") or account.startswith("sk-") or len(account) > 24:
         return f"****{account[-4:]}"
     return account
