@@ -27,6 +27,23 @@ AVAILABLE_GEMINI_CLI_MODELS = [
 ]
 GEMINI_CLI_MODEL = os.getenv("GEMINI_CLI_MODEL", "gemini-2.5-flash")
 
+# ── Hybrid Credential Rotation ──────────────────────────────────────────────
+# Reads both GOOGLE_API_KEYS (comma-separated) and the legacy GOOGLE_API_KEY.
+# Combines them into a deduplicated list so any existing single-key setup keeps
+# working without changes to .env.
+_raw_api_keys: str = os.getenv("GOOGLE_API_KEYS", "")
+_legacy_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+_parsed_keys = [k.strip() for k in _raw_api_keys.split(",") if k.strip()]
+if _legacy_api_key and _legacy_api_key not in _parsed_keys:
+    _parsed_keys.insert(0, _legacy_api_key)
+GOOGLE_API_KEYS: list = _parsed_keys  # deduplicated, order preserved
+
+# OAuth Profile folders (relative names resolved against ~/.config/gemini/).
+# Supports both GEMINI_CLI_PROFILES and GEMINI_OAUTH_PROFILES.
+_raw_profiles: str = os.getenv("GEMINI_OAUTH_PROFILES") or os.getenv("GEMINI_CLI_PROFILES", "")
+GEMINI_CLI_PROFILES: list = [p.strip() for p in _raw_profiles.split(",") if p.strip()]
+# ────────────────────────────────────────────────────────────────────────────
+
 # Load overrides from global config
 if os.path.exists(GLOBAL_CONFIG_FILE):
     try:

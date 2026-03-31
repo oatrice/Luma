@@ -1,0 +1,18 @@
+- [x] Restoring workflow_actions.py imports and globals
+    - [x] Update top-level imports
+    - [x] Add explicit imports for underscore helpers
+- [x] Verification
+    - [x] Run py_compile on modified file
+- [x] Fixing safe_input tests (TDD: Green Phase)
+    - [x] Move tty/termios imports to top-level in ui.py
+    - [x] Correct test_safe_input.py mocks (setcbreak)
+    - [x] Run pytest to confirm passes
+- [x] Global Input Stabilization (Final Sweep)
+    - [x] Refactor workflow_actions.py (20+ spots)
+    - [x] Refactor actions/utils.py & quality_actions.py
+    - [x] Refactor tools.py & agents/publisher.py
+    - [x] Apply Shadowing to actions_legacy_backup.py
+    - [x] Global grep to confirm zero remaining naked input()
+- [x] Final Walkthrough
+    - [x] Create Global Input Stabilization Walkthrough
+    - [x] Inform user to restart Luma CLI 🛡️✨

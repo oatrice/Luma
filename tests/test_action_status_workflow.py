@@ -16,8 +16,8 @@ def _luma_project():
 
 
 @patch("builtins.input", return_value="1")
-@patch("luma_core.actions._start_issues", return_value=True)
-@patch("luma_core.actions.fetch_kanban_cards")
+@patch("luma_core.actions.issue_actions._start_issues", return_value=True)
+@patch("luma_core.actions.issue_actions.fetch_kanban_cards")
 def test_action_select_issue_respects_luma_workflow(
     mock_fetch,
     mock_start_issues,
@@ -41,7 +41,7 @@ def test_action_select_issue_respects_luma_workflow(
     assert [card.issue_number for card in selected_cards] == [4]
 
 
-@patch("luma_core.actions.fetch_kanban_cards")
+@patch("luma_core.actions.issue_actions.fetch_kanban_cards")
 def test_action_list_active_issues_includes_in_review_for_luma(mock_fetch, capsys):
     mock_fetch.return_value = [
         KanbanCard(item_id="1", issue_number=1, title="Done Task", status="Done", repository="repo", url="url"),
@@ -60,7 +60,7 @@ def test_action_list_active_issues_includes_in_review_for_luma(mock_fetch, capsy
     assert output.index("Ready Task") < output.index("Review Task")
 
 
-@patch("luma_core.actions.fetch_kanban_cards")
+@patch("luma_core.actions.issue_actions.fetch_kanban_cards")
 def test_action_select_issue_shows_blocking_status_summary(mock_fetch, capsys):
     mock_fetch.return_value = [
         KanbanCard(item_id="1", issue_number=7, title="Upgrade Luma v2 from cli to Web UI", status="Backlog", repository="r", url="u"),

@@ -1,0 +1,6 @@
+- `[x]` Update `luma_core/llm.py` to use absolute path for `gemini` (`/opt/homebrew/bin/gemini`).
+- `[ ]` Verify `GeminiCLIModel` executes correctly.
+- `[ ]` Verify `metrics_summarizer.py` hour formatting (`_format_duration`).
+- `[ ]` Verify `metrics_summarizer.py` list truncation (Top 10 sub-actions, Top 5 actions).
+- `[ ]` Run regression tests (`tests/test_llm_run_manager.py`).
+- `[ ]` Create final walkthrough.

@@ -4,6 +4,8 @@ import json
 import re
 from typing import Optional
 from langchain_core.messages import HumanMessage
+import luma_core.ui as ui
+from luma_core.ui import safe_input
 from .llm import get_llm
 from .config import TARGET_DIR as DEFAULT_TARGET_DIR
 
@@ -336,12 +338,12 @@ def get_user_branch_choice(target_dir: str = DEFAULT_TARGET_DIR):
             print(f"   [{idx+1}] {s}")
         print("   [0] Custom Name")
         
-        sel = input("👉 Select [1-3] or Enter custom name: ").strip()
+        sel = ui.safe_input("👉 Select [1-3] or Enter custom name: ").strip()
         if sel in ["1", "2", "3"] and int(sel) <= len(suggestions):
             return suggestions[int(sel)-1]
         return sel
     else:
-        return input("👉 Enter new branch name: ").strip()
+        return ui.safe_input("👉 Enter new branch name: ").strip()
 
 
 def load_or_generate_pr_content(current_branch: str, repo: str, target_dir: str = DEFAULT_TARGET_DIR):
@@ -355,7 +357,7 @@ def load_or_generate_pr_content(current_branch: str, repo: str, target_dir: str 
     
     if os.path.exists(preview_file) or os.path.exists(draft_file):
         print("📄 Found existing PR Draft/Preview!")
-        if input("Reuse saved draft? (y/N): ").lower() == 'y':
+        if ui.safe_input("Reuse saved draft? (y/N): ").lower() == 'y':
             try:
                 # Prefer Markdown Preview if exists (as user likely edited it)
                 if os.path.exists(preview_file):
@@ -1402,7 +1404,7 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
         else:
             prompt_text = "\n   👉 Select [1-3] or type custom: "
 
-        user_input = input(prompt_text).strip()
+        user_input = ui.safe_input(prompt_text).strip()
         
         version_to_apply = ""
         
@@ -1512,7 +1514,7 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
             print("   [3] 📚 Both")
             print("   [0] ⏩ Skip")
             
-            doc_choice = input("   👉 Select: ").strip()
+            doc_choice = ui.safe_input("   👉 Select: ").strip()
             
             if doc_choice == "0":
                 result["error"] = "Skipped by user"
@@ -1600,7 +1602,7 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                         print(f"      code --diff {doc_path} {preview_path}")
                         subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
                         
-                        save_choice = input("\n   💾 Save CHANGELOG changes? (y/N): ").lower()
+                        save_choice = ui.safe_input("\n   💾 Save CHANGELOG changes? (y/N): ").lower()
                         if save_choice == 'y':
                             with open(doc_path, 'w', encoding='utf-8') as f:
                                 f.write(new_content)
@@ -1627,7 +1629,7 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                         print(f"      code --diff {doc_path} {preview_path}")
                         subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
                         
-                        save_choice = input("\n   💾 Save README changes? (y/N): ").lower()
+                        save_choice = ui.safe_input("\n   💾 Save README changes? (y/N): ").lower()
                         if save_choice == 'y':
                             with open(doc_path, 'w', encoding='utf-8') as f:
                                 f.write(new_content)
@@ -1757,7 +1759,7 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
             subprocess.run(["open", preview_file], capture_output=True)
             
             # Step 4: Submit or Cancel
-            submit_choice = input("   ✅ Submit this PR? (y/N): ").lower()
+            submit_choice = ui.safe_input("   ✅ Submit this PR? (y/N): ").lower()
             if submit_choice != 'y':
                 result["error"] = "Cancelled by user"
                 print(f"   ❌ Cancelled {config['name']}")

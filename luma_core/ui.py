@@ -1,7 +1,17 @@
+import os
+import sys
 import unicodedata
+
+# Unix-specific terminal imports
+try:
+    import tty
+    import termios
+except ImportError:
+    tty = None
+    termios = None
 from simple_term_menu import TerminalMenu
 from luma_core.doc_updates import get_pending_doc_updates, pending_doc_update_summary
-from luma_core.state_manager import LumaState, get_phase_display, get_next_step_recommendation# =============================================================================
+from luma_core.state_manager import LumaState, get_phase_display, get_next_step_recommendation
 # Constants
 # =============================================================================
 
@@ -9,6 +19,68 @@ BOX_WIDTH = 58
 
 # MENU_ACTIONS is now passed from main.py to avoid duplication.
 # See select_menu_option `actions` parameter.
+
+# =============================================================================
+# Input Handlers
+# =============================================================================
+
+def safe_input(prompt: str = "") -> str:
+    """
+    A robust input replacement that reads character by character using TTY/termios.
+    Handles messed up terminal states where standard input() hangs or shows ^M.
+    """
+    # Try low-level terminal read if on Unix
+    if tty is None or termios is None:
+        try:
+            return input(prompt).strip()
+        except EOFError:
+            return ""
+
+    try:
+        fd = sys.stdin.fileno()
+
+        # Fallback if NOT a real TTY (e.g. in some IDE consoles or pipes)
+        if not os.isatty(fd):
+            return input(prompt).strip()
+
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            # Put terminal in cbreak mode to read single chars
+            tty.setcbreak(fd)
+            chars = []
+            while True:
+                c = sys.stdin.read(1)
+                if not c:
+                    break
+                if c in ("\n", "\r"):  # Both represent "Enter"
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    break
+                # ord(c) == 127 is Backspace on macOS, 8 on some others
+                if ord(c) in (8, 127):
+                    if chars:
+                        chars.pop()
+                        sys.stdout.write("\b \b")
+                        sys.stdout.flush()
+                elif ord(c) == 3:  # Ctrl+C
+                    raise KeyboardInterrupt()
+                elif ord(c) == 4:  # Ctrl+D
+                    break
+                else:
+                    chars.append(c)
+                    sys.stdout.write(c)
+                    sys.stdout.flush()
+            return "".join(chars).strip()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    except (ImportError, Exception):
+        # Fallback to standard input if tty/termios not available or error occurs
+        try:
+            return input(prompt).strip()
+        except EOFError:
+            return ""
 
 # =============================================================================
 # Display Functions
@@ -72,15 +144,27 @@ def display_header(state: LumaState, project: dict):
     _print_boxed_line(format_row("📍", "Phase  ", f"{emoji} {phase_name}"), BOX_WIDTH)
     
     if state.active_issues:
+        issue = state.active_issues[0]
         if len(state.active_issues) == 1:
             max_title_len = 35 
-            title = state.active_issues[0].title
+            # Defensive check: ensure title is a string
+            title = getattr(issue, 'title', 'Unknown Task')
+            if callable(title): # Handle the str.title method case
+                title = str(issue)
+            
+            if not isinstance(title, str):
+                title = str(title)
+
             if len(title) > max_title_len:
                 title = title[:max_title_len] + "..."
-            task_info = f"#{state.active_issues[0].number} {title}"
+            task_info = f"#{getattr(issue, 'number', '?')} {title}"
         else:
-            nums = ", ".join(f"#{i.number}" for i in state.active_issues)
-            title = state.active_issues[0].title[:25] + "..."
+            nums = ", ".join(f"#{getattr(i, 'number', '?')}" for i in state.active_issues)
+            primary_title = getattr(issue, 'title', 'Tasks')
+            if callable(primary_title):
+                primary_title = str(issue)
+            
+            title = str(primary_title)[:25] + "..."
             task_info = f"[{nums}] {title}"
         _print_boxed_line(format_row("🎯", "Task   ", task_info), BOX_WIDTH)
     

@@ -115,9 +115,9 @@ MENU_ACTIONS = {
     "3": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "4": {"label": "📝 Generate Spec + SBE",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
-    "6": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING]},
-    "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING]},
-    "B": {"label": "🧠 Sync AI Agent Brain",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
+    "6": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING, WorkflowPhase.REVIEWING]},
+    "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING, WorkflowPhase.REVIEWING]},
+    "B": {"label": "🧠 Sync AI Agent Brain",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT, WorkflowPhase.REVIEWING]},
     "P": {"label": "🚀 Create/Sync PRs",           "valid_phases": "ALL"},
     "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
@@ -128,6 +128,7 @@ MENU_ACTIONS = {
     "T": {"label": "🧪 Test Telegram Notification", "valid_phases": "ALL"},
     "M": {"label": "📏 Track Issue Metrics",       "valid_phases": "ALL"},
     "G": {"label": "📊 Generate Project Report",    "valid_phases": "ALL"},
+    "Q": {"label": "🐙 Audit & Sync GitHub Metrics", "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
     "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
@@ -259,7 +260,7 @@ def main():
             # Fallback for environments where simple-term-menu might fail
             print(f"⚠️ Interactive menu unavailable: {e}")
             # ui.display_menu(state, MENU_ACTIONS) # StartLine 111 in ui.py was defined legacy
-            choice = input(f"\n{menu_title}\n👉 Select: ").strip()
+            choice = ui.safe_input(f"\n{menu_title}\n👉 Select: ")
         
         if choice == "0":
             # Save state before exit
@@ -333,6 +334,24 @@ def main():
 
         elif choice.upper() == "G":
             actions.action_generate_project_report(state, project)
+
+        elif choice.upper() == "Q":
+            from luma_core.issue_metrics import sync_github_metrics_for_project
+            print(f"\n🐙 Audit & Sync GitHub Metrics - {project['name']}")
+            result = sync_github_metrics_for_project(
+                project["path"],
+                project.get("name"),
+                project.get("repo"),
+            )
+            if result['updated'] > 0:
+                print(f"   ✅ Synced {result['updated']} issue records from GitHub.")
+            else:
+                print("   ✅ GitHub metrics are already up-to-date.")
+
+            if result.get("errors", 0) > 0:
+                print(f"   ⚠️  Encountered {result['errors']} errors during sync.")
+            if result.get("paradoxes_fixed", 0) > 0:
+                print(f"   ⏱️  Fixed {result['paradoxes_fixed']} Time Paradox(es).")
         
         elif choice.upper() == "R":
             state = load_state(project["path"])
@@ -427,7 +446,7 @@ def main():
         else:
             print("❌ Invalid option")
         
-        input("\nPress Enter to continue...")
+        ui.safe_input("\nPress Enter to continue...")
 
 
 if __name__ == "__main__":
