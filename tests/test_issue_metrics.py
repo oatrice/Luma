@@ -2,9 +2,11 @@ from dataclasses import asdict
 from typing import Dict, Any
 import os
 import subprocess
+from unittest.mock import patch
 
 from luma_core.issue_metrics import (
     IssueMetricsRecord,
+    _fetch_github_issue_activity_hint,
     apply_artifact_defaults,
     apply_heuristic_defaults,
     format_metric_datetime,
@@ -13,6 +15,7 @@ from luma_core.issue_metrics import (
     parse_metric_datetime,
     prefill_metrics_from_roadmap,
     save_issue_metrics,
+    suggest_post_story_point,
     sync_github_metrics_for_project,
 )
 
@@ -109,6 +112,42 @@ def test_issue_metrics_roundtrip_with_zero_values(tmp_path):
     assert loaded.actual_completion_date == "2026-03-20T08:15:00"
     assert loaded.effort_level == "Medium"
     assert format_metric_datetime(loaded.due_date) == "2026-03-19 14:30:00"
+
+
+def test_issue_metrics_post_story_point_roundtrip_with_half_step(tmp_path):
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#29",
+        issue_number=29,
+        issue_title="Track post story point",
+        issue_url="https://github.com/oatrice/Luma/issues/29",
+        repository="oatrice/Luma",
+        estimate_points=2,
+        post_story_point=0.5,
+    )
+
+    save_issue_metrics(str(tmp_path), record)
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 29)
+
+    assert loaded is not None
+    assert loaded.post_story_point == 0.5
+
+
+def test_issue_metrics_reject_invalid_post_story_point_value(tmp_path):
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#30",
+        issue_number=30,
+        issue_title="Bad post story point",
+        issue_url="https://github.com/oatrice/Luma/issues/30",
+        repository="oatrice/Luma",
+        post_story_point=4,
+    )
+
+    try:
+        save_issue_metrics(str(tmp_path), record)
+    except ValueError as exc:
+        assert "Post Story Point" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid post story point")
 
 
 def test_calculate_actual_mandays_from_dates(tmp_path):
@@ -312,6 +351,74 @@ def _init_git_repo_with_commit(tmp_path, subject, commit_date):
         text=True,
         env=env,
     )
+
+
+def _append_git_commit(tmp_path, subject, commit_date, filename="README.md"):
+    path = tmp_path / filename
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    path.write_text(existing + f"\n{subject}\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", filename],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    env = os.environ.copy()
+    env["GIT_AUTHOR_DATE"] = commit_date
+    env["GIT_COMMITTER_DATE"] = commit_date
+    subprocess.run(
+        ["git", "commit", "-m", subject],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def test_suggest_post_story_point_uses_git_history_for_issue_number(tmp_path):
+    _init_git_repo_with_commit(
+        tmp_path,
+        "chore: init repo",
+        "2026-03-10T08:00:00+07:00",
+    )
+    _append_git_commit(
+        tmp_path,
+        "feat: start issue #50 implementation",
+        "2026-03-11T08:00:00+07:00",
+    )
+    _append_git_commit(
+        tmp_path,
+        "refactor: improve issue #50 flow",
+        "2026-03-12T08:00:00+07:00",
+    )
+    _append_git_commit(
+        tmp_path,
+        "test: cover issue #50 edge cases",
+        "2026-03-13T08:00:00+07:00",
+    )
+
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#50",
+        issue_number=50,
+        issue_title="Post-story-point suggestion",
+        issue_url="https://github.com/oatrice/Luma/issues/50",
+        repository="oatrice/Luma",
+    )
+
+    assert suggest_post_story_point(str(tmp_path), record) == 3.0
+
+
+@patch("luma_core.issue_metrics.subprocess.run")
+def test_fetch_github_issue_activity_hint_sets_timeout(mock_run):
+    mock_run.return_value.stdout = '{"comments": []}'
+
+    hint = _fetch_github_issue_activity_hint("/tmp/project", "oatrice/Luma", 20)
+
+    assert hint == 0
+    mock_run.assert_called_once()
+    assert mock_run.call_args.kwargs["timeout"] == 5
 
 
 def test_prefill_metrics_from_roadmap_uses_git_history_and_changelog_dates(tmp_path):
@@ -568,6 +675,38 @@ def test_sync_github_metrics_clears_stale_closed_fields_for_open_issue(tmp_path)
     assert loaded.actual_completion_date is None
     assert loaded.gh_mandays is None
     assert loaded.actual_mandays == 0.0
+
+
+def test_sync_github_metrics_keeps_post_story_point_for_reopened_issue(tmp_path):
+    from unittest.mock import patch, MagicMock
+
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#126",
+        issue_number=126,
+        issue_title="Open issue keeps post point",
+        issue_url="https://github.com/oatrice/Luma/issues/126",
+        repository="oatrice/Luma",
+        issue_status="✅ Done",
+        estimate_points=3,
+        post_story_point=5,
+        actual_completion_date="2026-03-25T15:00:00",
+        gh_closed_at="2026-03-25T15:00:00Z",
+    )
+    save_issue_metrics(str(tmp_path), record)
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = (
+            '[{"number": 126, "createdAt": "2026-03-23T08:00:00Z", "closedAt": null, '
+            '"projectItems": [{"status": {"name": "Ready"}}], "stateReason": ""}]'
+        )
+        mock_run.return_value = mock_process
+
+        sync_github_metrics_for_project(str(tmp_path), "Luma", "oatrice/Luma")
+
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 126)
+    assert loaded is not None
+    assert loaded.post_story_point == 5
 
 
 def test_sync_github_metrics_maps_backlog_for_open_issue_with_stale_completion(tmp_path):

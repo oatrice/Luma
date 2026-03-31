@@ -97,6 +97,7 @@ def test_summarize_issue_metrics_basic():
                 "repository": "repo",
                 "issue_status": "✅ Done",
                 "estimate_points": 3, "estimated_mandays": 3.0,
+                "post_story_point": 5,
                 "actual_mandays": 2.5,
             },
             "repo#2": {
@@ -118,6 +119,8 @@ def test_summarize_issue_metrics_basic():
         assert result["total_issues"] == 2
         assert result["done_count"] == 1
         assert result["total_points"] == 8
+        assert result["total_post_points"] == 5.0
+        assert result["total_accuracy_gap"] == 2.0
         assert result["total_estimated_mandays"] == 8.0
         assert result["total_actual_mandays"] == 2.5
     finally:

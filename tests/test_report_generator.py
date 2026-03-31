@@ -9,6 +9,7 @@ def create_mock_issue(
     due_date: str = None,
     actual_completion_date: str = None,
     points: int = 2,
+    post_story_point: float = None,
     actual_mandays: float = 2.0,
     estimated_mandays: float = 2.0,
     created_at: str = "2026-03-01T10:00:00"
@@ -22,6 +23,7 @@ def create_mock_issue(
         project_name="MockProject",
         issue_status=status,
         estimate_points=points,
+        post_story_point=post_story_point,
         estimated_mandays=estimated_mandays,
         actual_mandays=actual_mandays,
         due_date=due_date,
@@ -47,6 +49,33 @@ def test_velocity_summary_counts_completed_in_period(mock_get_roadmap_path, mock
     assert "Velocity Summary" in report
     assert "**Issues completed in this period:** 2" in report
     assert "**Total points:** 8" in report
+
+
+@patch("luma_core.report_generator.list_issue_metrics")
+@patch("luma_core.report_generator.get_roadmap_path")
+def test_velocity_summary_includes_post_story_points_and_gap(mock_get_roadmap_path, mock_list_metrics):
+    mock_get_roadmap_path.return_value = None
+    mock_list_metrics.return_value = [
+        create_mock_issue(
+            1,
+            "✅ Complete",
+            actual_completion_date="2026-03-20T10:00:00",
+            points=3,
+            post_story_point=5,
+        ),
+        create_mock_issue(
+            2,
+            "✅ Complete",
+            actual_completion_date="2026-03-18T10:00:00",
+            points=2,
+            post_story_point=2,
+        ),
+    ]
+
+    report = generate_report("/mock/path", period="weekly", reference_date=date(2026, 3, 21))
+
+    assert "**Post-completion points:** 7.0" in report
+    assert "**Estimation gap:** +2.0 points" in report
 
 @patch("luma_core.report_generator.list_issue_metrics")
 @patch("luma_core.report_generator.get_roadmap_path")
