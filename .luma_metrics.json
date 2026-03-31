@@ -46,14 +46,36 @@
     "oatrice/Luma#20": {
       "issue_key": "oatrice/Luma#20",
       "issue_number": 20,
-      "issue_title": "Add post_story_point field to .luma_metrics.json and IssueMetricsRecord",
-      "issue_url": "",
+      "issue_title": "Add post story point field to luma metricsjson and issuemetricsrecord",
+      "issue_url": "https://github.com/oatrice/Luma/issues/20",
       "repository": "oatrice/Luma",
       "project_name": "Luma",
-      "issue_status": "🟡 In Progress",
+      "issue_status": "✅ Complete",
       "estimate_points": 2,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-03-31T06:16:37",
+      "actual_mandays": 0.5,
+      "due_date": "2026-04-05T23:59:59",
+      "actual_completion_date": "2026-03-31T08:56:37",
+      "effort_level": "Low",
+      "notes": null,
+      "gh_closed_at": "2026-03-31T08:56:37Z",
+      "gh_mandays": 0.5,
+      "created_at": "2026-03-31T02:24:24Z",
+      "updated_at": "2026-03-31T15:56:51.332005"
+    },
+    "oatrice/Luma#16": {
+      "issue_key": "oatrice/Luma#16",
+      "issue_number": 16,
+      "issue_title": "[Feature] เพิ่มการเชื่อมต่อกับ Provider codex-cli",
+      "issue_url": "",
+      "repository": "oatrice/Luma",
+      "project_name": "Luma",
+      "issue_status": null,
+      "estimate_points": 2,
+      "post_story_point": null,
+      "estimated_mandays": 1.0,
+      "start_datetime": null,
       "actual_mandays": 0.0,
       "due_date": null,
       "actual_completion_date": null,
@@ -61,8 +83,8 @@
       "notes": null,
       "gh_closed_at": null,
       "gh_mandays": null,
-      "created_at": "2026-03-31T02:24:24Z",
-      "updated_at": "2026-03-31T13:32:37.908779"
+      "created_at": "2026-03-31T16:12:38.076903",
+      "updated_at": "2026-03-31T16:12:38.083497"
     }
   }
 }

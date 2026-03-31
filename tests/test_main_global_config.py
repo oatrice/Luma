@@ -20,7 +20,7 @@ def test_save_global_config_merges_nested_dicts_without_losing_custom_projects(
                     }
                 },
                 "last_projects_by_path": {"/existing": "1"},
-                "LLM_PROVIDER": "gemini_cli",
+                "LLM_PROVIDER": "gemini-cli",
             }
         ),
         encoding="utf-8",

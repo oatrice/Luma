@@ -28,3 +28,17 @@ def test_action_settings_change_agent_cli(mock_print, mock_input):
             written_data = "".join(call.args[0] for call in mock_file().write.call_args_list)
             saved_config = json.loads(written_data)
             assert saved_config["AGENT_CLI"] == "gemini_cli"
+
+
+@patch("builtins.input", side_effect=["1", "4", "4"])  # 1: Change LLM, 4: Codex CLI, 4: Back
+@patch("builtins.print")
+def test_action_settings_change_llm_provider_to_codex_cli(mock_print, mock_input):
+    mock_file_content = "{}"
+    with patch("builtins.open", mock_open(read_data=mock_file_content)) as mock_file:
+        with patch("os.path.exists", return_value=True):
+            action_settings()
+
+            mock_file().write.assert_called()
+            written_data = "".join(call.args[0] for call in mock_file().write.call_args_list)
+            saved_config = json.loads(written_data)
+            assert saved_config["LLM_PROVIDER"] == "codex-cli"

@@ -5,6 +5,17 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from luma_core.llm import get_llm, GeminiCLIModel, FallbackModel, TrackedModel
 
 def test_get_llm_returns_gemini_cli_model():
+    with patch("luma_core.config.LLM_PROVIDER", "gemini-cli"):
+        llm = get_llm()
+        if isinstance(llm, FallbackModel):
+            assert any(isinstance(m, GeminiCLIModel) for m in llm.models)
+        elif isinstance(llm, TrackedModel):
+            assert isinstance(llm.model, GeminiCLIModel)
+        else:
+            assert isinstance(llm, GeminiCLIModel)
+
+
+def test_get_llm_supports_legacy_underscore_gemini_cli_provider():
     with patch("luma_core.config.LLM_PROVIDER", "gemini_cli"):
         llm = get_llm()
         if isinstance(llm, FallbackModel):

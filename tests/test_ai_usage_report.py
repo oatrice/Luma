@@ -14,7 +14,7 @@ def test_build_report_includes_percentiles_and_error_breakdown():
         {
             "event": "llm_call",
             "ts": "2026-03-19T00:00:00+00:00",
-            "provider": "gemini_cli",
+            "provider": "gemini-cli",
             "model": "gemini-2.5-flash",
             "status": "success",
             "duration_ms": 1000,
@@ -23,7 +23,7 @@ def test_build_report_includes_percentiles_and_error_breakdown():
         {
             "event": "llm_call",
             "ts": "2026-03-19T00:01:00+00:00",
-            "provider": "gemini_cli",
+            "provider": "gemini-cli",
             "model": "gemini-2.5-flash",
             "status": "success",
             "duration_ms": 3000,
@@ -32,7 +32,7 @@ def test_build_report_includes_percentiles_and_error_breakdown():
         {
             "event": "llm_call",
             "ts": "2026-03-19T00:02:00+00:00",
-            "provider": "gemini_cli",
+            "provider": "gemini-cli",
             "model": "gemini-2.5-flash",
             "status": "error",
             "duration_ms": 5000,

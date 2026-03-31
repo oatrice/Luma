@@ -225,6 +225,7 @@ def action_settings():
         GEMINI_CLI_MODEL,
         GLOBAL_CONFIG_FILE,
         LLM_PROVIDER,
+        normalize_llm_provider,
         save_gemini_cli_model,
     )
 
@@ -240,7 +241,7 @@ def action_settings():
         except Exception:
             pass
 
-    current_llm = current_config.get("LLM_PROVIDER", LLM_PROVIDER)
+    current_llm = normalize_llm_provider(current_config.get("LLM_PROVIDER", LLM_PROVIDER))
     current_cli = current_config.get("AGENT_CLI", AGENT_CLI)
     current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
 
@@ -257,15 +258,18 @@ def action_settings():
             print("\nSelect LLM Provider:")
             print("  [1] gemini (API)")
             print("  [2] openrouter")
-            print("  [3] gemini_cli (Local CLI)")
+            print("  [3] gemini-cli (Local CLI)")
+            print("  [4] codex-cli (Local CLI)")
 
-            p_choice = safe_input("Select [1-3]: ")
+            p_choice = safe_input("Select [1-4]: ")
             if p_choice == "1":
                 current_llm = "gemini"
             elif p_choice == "2":
                 current_llm = "openrouter"
             elif p_choice == "3":
-                current_llm = "gemini_cli"
+                current_llm = "gemini-cli"
+            elif p_choice == "4":
+                current_llm = "codex-cli"
 
         elif choice == "2":
             print("\nSelect Agent CLI:")
