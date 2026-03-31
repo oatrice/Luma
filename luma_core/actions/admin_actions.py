@@ -3,10 +3,10 @@ import shutil
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState
 from luma_core.config import PROJECTS
+from luma_core.issue_metrics import _humanize_feature_slug
 from .utils import (
     sync_kanban_on_action, 
-    _add_new_project, 
-    _humanize_feature_slug
+    _add_new_project
 )
 
 def action_test_telegram_notification(state: LumaState, project: dict):
@@ -371,8 +371,14 @@ def action_archive_artifacts(state: LumaState, project: dict):
 
     artifacts = ["analysis.md", "spec.md", "plan.md", "sbe.md", "code_review.md"]
     # Also support platform specific variations like plan_android.md
-
-    import shutil
+    artifacts = [
+        "analysis.md",
+        "spec.md",
+        "plan.md",
+        "sbe.md",
+        "plan_android.md",
+        "plan_ios.md",
+    ]
 
     moved_count = 0
 

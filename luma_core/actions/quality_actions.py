@@ -3,7 +3,6 @@ import os
 import json
 import subprocess
 import datetime
-import os
 import luma_core.ui as ui
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState
