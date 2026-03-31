@@ -12,11 +12,12 @@ from .utils import (
     _status_key,
     _confirm_pending_doc_updates_before_pr,
     get_feature_dir,
-    auto_fill_issue_metrics
+    auto_fill_issue_metrics,
+    check_planning_artifacts
 )
 from .admin_actions import action_archive_artifacts
 from .issue_actions import action_select_issue
-from .plan_actions import action_generate_plan, action_generate_spec, action_refine_issue, check_planning_artifacts
+from .plan_actions import action_generate_plan, action_generate_spec, action_refine_issue
 from .quality_actions import action_code_review, action_update_docs, action_update_roadmap, sync_roadmap_for_closed_issues
 import sys
 import os

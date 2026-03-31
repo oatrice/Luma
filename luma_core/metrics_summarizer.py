@@ -330,7 +330,7 @@ def format_summary_message(
         for action, count in list(top_actions.items())[:5]:
             lines.append(f"  - {action} ({count})")
         if len(top_actions) > 5:
-            lines.append(f"  - ...")
+            lines.append("  - ...")
 
     lines.append("")
 
