@@ -68,7 +68,7 @@ utils_path = os.path.join(dest_dir, "utils.py")
 with open(utils_path, "w") as f:
     f.write(import_text + "\n\n" + helpers_combined + "\n")
 
-print(f"Created utils.py")
+print("Created utils.py")
 
 # Function to write each module
 def write_module(filename, function_names):
@@ -96,8 +96,8 @@ with open(init_path, "w") as f:
     for filename in groups.keys():
         mod = filename.replace(".py", "")
         f.write(f"from .{mod} import *\n")
-    f.write(f"from .misc_actions import *\n")
-    f.write(f"from .utils import *\n")
+    f.write("from .misc_actions import *\n")
+    f.write("from .utils import *\n")
 
 print("Created __init__.py")
 

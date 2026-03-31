@@ -12,7 +12,8 @@ from .utils import (
     _build_issue_metrics_record,
     _select_tracked_issue_record,
     _load_recent_usage_events,
-    _format_event_line
+    _format_event_line,
+    prefill_metrics_from_roadmap
 )
 
 def action_view_dashboard(state: LumaState, project: dict):
