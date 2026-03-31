@@ -56,7 +56,6 @@ class GeminiCLIModel(BaseChatModel):
         # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
         clean_kwargs = dict(kwargs)
         clean_kwargs.pop("run_manager", None)
-        # ------------------------------------------------------------------
 
         # Convert messages to a single prompt string
         prompt = ""
@@ -98,6 +97,7 @@ class GeminiCLIModel(BaseChatModel):
         output: str = "Error: No attempts were made."
         for attempt in range(max_retries):
             try:
+                subprocess_env = dict(os.environ)
                 # ── Build env with active credential ────────────────────────
                 if cred_manager:
                     try:
@@ -107,7 +107,6 @@ class GeminiCLIModel(BaseChatModel):
                         output = "Error: All credentials exhausted due to rate limiting."
                         break
 
-                    subprocess_env = dict(os.environ)
                     if current_cred.type == CredentialType.API_KEY:
                         masked_account = f"{current_cred.value[:8]}..."
                         subprocess_env["GOOGLE_API_KEY"] = current_cred.value
@@ -122,7 +121,6 @@ class GeminiCLIModel(BaseChatModel):
                         f"🔌 [GeminiCLIModel] Using account: {masked_account} (Model: {self.model}, Attempt: {attempt + 1}/{max_retries})"
                     )
                 else:
-                    subprocess_env = dict(os.environ)
                     print(
                         f"🔌 [GeminiCLIModel] Using environment default account (Model: {self.model}, Attempt: {attempt + 1}/{max_retries})"
                     )
@@ -167,7 +165,7 @@ class GeminiCLIModel(BaseChatModel):
             except subprocess.TimeoutExpired:
                 if process is not None:
                     process.kill()
-                output = f"Error: Gemini CLI timed out."
+                output = "Error: Gemini CLI timed out."
                 if attempt < max_retries - 1:
                     time.sleep(2)
                     continue
@@ -181,7 +179,6 @@ class GeminiCLIModel(BaseChatModel):
         end_time = time.time()
         duration = end_time - start_time
 
-        # tokens approx
         tokens_in = len(prompt) // 4
         tokens_out = len(output) // 4
         total_tokens = tokens_in + tokens_out
@@ -214,7 +211,6 @@ class FallbackModel(BaseChatModel):
         # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
         clean_kwargs = dict(kwargs)
         clean_kwargs.pop("run_manager", None)
-        # ------------------------------------------------------------------
 
         errors = []
         chain_length = len(self.models)
@@ -293,7 +289,6 @@ class GeminiAPIModel(BaseChatModel):
         # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
         clean_kwargs = dict(kwargs)
         clean_kwargs.pop("run_manager", None)
-        # ------------------------------------------------------------------
 
         if config.GOOGLE_API_KEYS:
             try:
@@ -321,7 +316,6 @@ class GeminiAPIModel(BaseChatModel):
                     break
 
             try:
-                masked_account = f"{current_key[:8]}..." if current_key else "default"
                 api_model = ChatGoogleGenerativeAI(
                     model=self.model,
                     google_api_key=current_key,
@@ -428,6 +422,13 @@ def _resolve_model_info(model):
     purpose = getattr(model, "_luma_purpose", None)
     if not model_name:
         model_name = getattr(model, "model", None) or getattr(model, "model_name", None)
+    
+    if not provider and model_type:
+        if "gemini-api" in model_type: provider = "gemini-api"
+        elif "gemini-cli" in model_type: provider = "gemini-cli"
+        elif "openrouter" in model_type: provider = "openrouter"
+        elif "openai" in model_type: provider = "openai"
+
     return provider, model_name, model_type, purpose
 
 
@@ -458,7 +459,6 @@ class TrackedModel(BaseChatModel):
         # --- FIX: Prevent duplicate run_manager if it's already in kwargs ---
         clean_kwargs = dict(kwargs)
         clean_kwargs.pop("run_manager", None)
-        # ------------------------------------------------------------------
 
         call_id = uuid.uuid4().hex[:12]
         start_time = time.time()

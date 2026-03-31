@@ -45,6 +45,9 @@ from .utils import (
 )
 from luma_core.config import PROJECTS
 
+# Add aliases for internal functions often used in tests
+from luma_core.issue_metrics import sync_github_metrics_for_project
+
 __all__ = [
     "action_select_issue",
     "action_add_issue",
@@ -77,5 +80,6 @@ __all__ = [
     "sync_kanban_on_action",
     "_build_code_review_followup_prompt",
     "prefill_metrics_from_roadmap",
-    "PROJECTS"
+    "PROJECTS",
+    "sync_github_metrics_for_project"
 ]
