@@ -29,25 +29,22 @@ def safe_input(prompt: str = "") -> str:
     A robust input replacement that reads character by character using TTY/termios.
     Handles messed up terminal states where standard input() hangs or shows ^M.
     """
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-
     # Try low-level terminal read if on Unix
     if tty is None or termios is None:
         try:
-            line = sys.stdin.readline()
-            return line.replace("\r", "").replace("\n", "").strip()
+            return input(prompt).strip()
         except EOFError:
             return ""
 
     try:
         fd = sys.stdin.fileno()
-        
+
         # Fallback if NOT a real TTY (e.g. in some IDE consoles or pipes)
         if not os.isatty(fd):
-            line = sys.stdin.readline()
-            return line.replace("\r", "").replace("\n", "").strip()
+            return input(prompt).strip()
 
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
         old_settings = termios.tcgetattr(fd)
         try:
             # Put terminal in cbreak mode to read single chars
@@ -81,8 +78,7 @@ def safe_input(prompt: str = "") -> str:
     except (ImportError, Exception):
         # Fallback to standard input if tty/termios not available or error occurs
         try:
-            line = sys.stdin.readline()
-            return line.replace("\r", "").replace("\n", "").strip()
+            return input(prompt).strip()
         except EOFError:
             return ""
 

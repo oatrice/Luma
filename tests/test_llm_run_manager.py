@@ -28,18 +28,16 @@ def test_gemini_api_invoke_no_run_manager():
         assert args[0] == messages
 
 def test_gemini_api_invoke_cleans_other_kwargs():
-    """Verify that even if run_manager is in kwargs, it's cleaned up before invoke()."""
+    """Verify that extra kwargs survive while run_manager is not forwarded to invoke()."""
     with patch("luma_core.llm.ChatGoogleGenerativeAI") as MockChat:
         mock_instance = MockChat.return_value
         
         model = GeminiAPIModel(model="gemini-1.5-pro")
         messages = [HumanMessage(content="hello")]
-        
-        # This simulates when LangChain might pass run_manager in kwargs
-        def call_target(msgs, run_man=None, **k):
-            return model._generate(msgs, run_manager=run_man, **k)
-            
-        call_target(messages, run_man="pos_val", **{"run_manager": "kw_val", "other": "val"})
+
+        # Python rejects duplicate keyword arguments before _generate runs, so
+        # we validate the real forwarding contract instead.
+        model._generate(messages, run_manager="pos_val", other="val")
         
         # Assert invoke called once
         mock_instance.invoke.assert_called_once()

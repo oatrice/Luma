@@ -240,19 +240,41 @@ class CredentialManager:
         Return a named singleton instance of CredentialManager.
         """
         with cls._lock:
+            requested_api_keys = api_keys or []
+            requested_oauth_profiles = oauth_profiles or []
+            existing = cls._instances.get(name)
+            if existing is not None:
+                existing_api_keys = [
+                    cred.value
+                    for cred in existing.pool
+                    if cred.type == CredentialType.API_KEY
+                ]
+                existing_oauth_profiles = [
+                    cred.value
+                    for cred in existing.pool
+                    if cred.type == CredentialType.OAUTH_PROFILE
+                ]
+                if (
+                    existing_api_keys != requested_api_keys
+                    or existing_oauth_profiles != requested_oauth_profiles
+                ):
+                    del cls._instances[name]
+
             if name not in cls._instances:
                 cls._instances[name] = cls(
-                    api_keys=api_keys or [],
-                    oauth_profiles=oauth_profiles or [],
+                    api_keys=requested_api_keys,
+                    oauth_profiles=requested_oauth_profiles,
                     name=name
                 )
             return cls._instances[name]
 
     @classmethod
-    def reset_instance(cls, name: str = "default") -> None:
-        """Reset a specific named singleton."""
+    def reset_instance(cls, name: Optional[str] = None) -> None:
+        """Reset a specific named singleton, or all of them when name is omitted."""
         with cls._lock:
-            if name in cls._instances:
+            if name is None:
+                cls._instances.clear()
+            elif name in cls._instances:
                 del cls._instances[name]
 
     @classmethod
