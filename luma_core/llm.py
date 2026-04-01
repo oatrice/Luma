@@ -56,6 +56,48 @@ def _flatten_messages_to_prompt(messages: List[BaseMessage]) -> str:
     return prompt
 
 
+def _describe_gemini_credential(credential: Optional[Any]) -> str:
+    if credential is None:
+        return "environment default account"
+
+    cred_type = getattr(credential, "type", None)
+    cred_value = str(getattr(credential, "value", "unknown"))
+    if cred_type == CredentialType.API_KEY:
+        return f"{cred_value[:8]}..."
+    return cred_value
+
+
+def _get_gemini_retry_target(cred_manager: Optional[Any]) -> str:
+    if cred_manager is None:
+        return "environment default account"
+
+    peek_next = getattr(cred_manager, "peek_next_credential", None)
+    if callable(peek_next):
+        try:
+            next_credential = peek_next()
+            return f"next credential: {_describe_gemini_credential(next_credential)}"
+        except AllCredentialsExhaustedError:
+            return "next available credential"
+
+    return "next available credential"
+
+
+def _log_gemini_attempt_failure(
+    attempt: int,
+    max_retries: int,
+    error_type: str,
+    detail: str = "",
+) -> None:
+    print(
+        f"⚠️ [GeminiCLIModel] Attempt {attempt}/{max_retries} failed: "
+        f"{error_type}{detail}"
+    )
+
+
+def _log_gemini_retry(cred_manager: Optional[Any]) -> None:
+    print(f"🔁 [GeminiCLIModel] Retrying with {_get_gemini_retry_target(cred_manager)}")
+
+
 class GeminiCLIModel(BaseChatModel):
     """LangChain wrapper for the gemini commands using subprocess"""
 
@@ -112,6 +154,7 @@ class GeminiCLIModel(BaseChatModel):
         process: Optional[subprocess.Popen] = None
         output: str = "Error: No attempts were made."
         for attempt in range(max_retries):
+            model_timeout = MODEL_TIMEOUTS.get(self.model, 120)
             try:
                 subprocess_env = dict(os.environ)
                 # ── Build env with active credential ────────────────────────
@@ -120,15 +163,21 @@ class GeminiCLIModel(BaseChatModel):
                         current_cred = cred_manager.get_next_credential()
                         self.last_account_used = current_cred.value
                     except AllCredentialsExhaustedError:
+                        _log_gemini_attempt_failure(
+                            attempt + 1,
+                            max_retries,
+                            ErrorType.RATE_LIMIT.value,
+                            " (all credentials exhausted)",
+                        )
                         output = "Error: All credentials exhausted due to rate limiting."
                         break
 
                     if current_cred.type == CredentialType.API_KEY:
-                        masked_account = f"{current_cred.value[:8]}..."
+                        masked_account = _describe_gemini_credential(current_cred)
                         subprocess_env["GOOGLE_API_KEY"] = current_cred.value
                         subprocess_env.pop("GEMINI_CLI_PROFILE", None)
                     else:  # OAUTH_PROFILE
-                        masked_account = current_cred.value
+                        masked_account = _describe_gemini_credential(current_cred)
                         profile_home = os.path.join(OAUTH_PROFILES_BASE, current_cred.value)
                         subprocess_env["HOME"] = profile_home
                         subprocess_env.pop("GOOGLE_API_KEY", None)
@@ -152,11 +201,20 @@ class GeminiCLIModel(BaseChatModel):
                     env=subprocess_env,
                 )
 
-                model_timeout = MODEL_TIMEOUTS.get(self.model, 120)
                 stdout, stderr = process.communicate(input=prompt, timeout=model_timeout)
 
                 if process.returncode != 0:
                     error_type = classify_error(stderr)
+                    error_detail = f" (Return code {process.returncode})"
+                    if stderr.strip():
+                        error_detail += f": {stderr.strip()}"
+                    _log_gemini_attempt_failure(
+                        attempt + 1,
+                        max_retries,
+                        error_type.value,
+                        error_detail,
+                    )
+
                     if error_type in (ErrorType.RATE_LIMIT, ErrorType.QUOTA_EXCEEDED):
                         if cred_manager and current_cred is not None:
                             cred_manager.mark_rate_limited(
@@ -164,12 +222,14 @@ class GeminiCLIModel(BaseChatModel):
                             )
                         output = f"Error calling Gemini CLI: {stderr}"
                         if attempt < max_retries - 1:
+                            _log_gemini_retry(cred_manager)
                             time.sleep(1)
                             continue
                         break
 
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
                     if attempt < max_retries - 1:
+                        _log_gemini_retry(cred_manager)
                         time.sleep(2)
                         continue
                 else:
@@ -180,11 +240,24 @@ class GeminiCLIModel(BaseChatModel):
             except subprocess.TimeoutExpired:
                 if process is not None:
                     process.kill()
+                _log_gemini_attempt_failure(
+                    attempt + 1,
+                    max_retries,
+                    ErrorType.TIMEOUT.value,
+                    f" after {model_timeout}s",
+                )
                 output = "Error: Gemini CLI timed out."
                 if attempt < max_retries - 1:
+                    _log_gemini_retry(cred_manager)
                     time.sleep(2)
                     continue
             except Exception as e:
+                _log_gemini_attempt_failure(
+                    attempt + 1,
+                    max_retries,
+                    ErrorType.UNKNOWN.value,
+                    f": {str(e)}",
+                )
                 output = f"Error: {str(e)}"
                 break
 

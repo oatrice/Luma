@@ -1,8 +1,11 @@
 import pytest
+import subprocess
+from types import SimpleNamespace
 from unittest.mock import patch
 from langchain_core.messages import HumanMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from luma_core.llm import get_llm, GeminiCLIModel, FallbackModel, TrackedModel
+from luma_core.credential_manager import CredentialType
 
 def test_get_llm_returns_gemini_cli_model():
     with patch("luma_core.config.LLM_PROVIDER", "gemini-cli"):
@@ -129,6 +132,91 @@ def test_gemini_cli_skips_retry_on_rate_limit(mock_sleep, mock_subprocess_popen)
     assert mock_process.communicate.call_count >= 1
     # Should sleep between attempts
     assert mock_sleep.call_count >= 1
+
+
+@patch("subprocess.Popen")
+@patch("time.sleep")
+def test_gemini_cli_logs_attempt_failure_and_next_credential(mock_sleep, mock_subprocess_popen):
+    from unittest.mock import MagicMock
+
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = ("", "HTTP Error 429: Too Many Requests")
+    mock_process.returncode = 1
+    mock_subprocess_popen.return_value = mock_process
+
+    fake_creds = [
+        SimpleNamespace(type=CredentialType.OAUTH_PROFILE, value="personal"),
+        SimpleNamespace(type=CredentialType.OAUTH_PROFILE, value="work"),
+    ]
+    fake_manager = MagicMock()
+    fake_manager.pool = fake_creds
+    fake_manager.get_next_credential.side_effect = fake_creds
+    fake_manager.peek_next_credential.return_value = fake_creds[1]
+
+    messages = [HumanMessage(content="Hello")]
+
+    with patch("luma_core.config.GEMINI_CLI_PROFILES", ["personal", "work"]):
+        with patch("luma_core.config.GOOGLE_API_KEYS", []):
+            with patch("luma_core.llm.CredentialManager.get_instance", return_value=fake_manager):
+                with patch("builtins.print") as mock_print:
+                    model = GeminiCLIModel(model="gemini-2.5-flash", temperature=0.7)
+                    with pytest.raises(RuntimeError):
+                        model.invoke(messages)
+
+    printed = "\n".join(call.args[0] for call in mock_print.call_args_list)
+    assert "Attempt 1/2 failed: RATE_LIMIT" in printed
+    assert "Retrying with next credential: work" in printed
+    fake_manager.mark_rate_limited.assert_called()
+
+
+@patch("subprocess.Popen")
+@patch("time.sleep")
+def test_gemini_cli_logs_return_code_error_before_retry(mock_sleep, mock_subprocess_popen):
+    from unittest.mock import MagicMock
+
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = ("", "Internal server error")
+    mock_process.returncode = 1
+    mock_subprocess_popen.return_value = mock_process
+
+    messages = [HumanMessage(content="Hello")]
+
+    with patch("luma_core.config.GOOGLE_API_KEYS", []):
+        with patch("luma_core.config.GEMINI_CLI_PROFILES", []):
+            with patch("builtins.print") as mock_print:
+                model = GeminiCLIModel(model="gemini-2.5-flash", temperature=0.7)
+                with pytest.raises(RuntimeError):
+                    model.invoke(messages)
+
+    printed = "\n".join(call.args[0] for call in mock_print.call_args_list)
+    assert "Attempt 1/2 failed: UNKNOWN (Return code 1): Internal server error" in printed
+    assert "Retrying with environment default account" in printed
+
+
+@patch("subprocess.Popen")
+@patch("time.sleep")
+def test_gemini_cli_logs_timeout_before_retry(mock_sleep, mock_subprocess_popen):
+    from unittest.mock import MagicMock
+
+    mock_process = MagicMock()
+    mock_process.communicate.side_effect = subprocess.TimeoutExpired(
+        cmd=["gemini", "-m", "gemini-2.5-flash"],
+        timeout=60,
+    )
+    mock_subprocess_popen.return_value = mock_process
+
+    messages = [HumanMessage(content="Hello")]
+
+    with patch("luma_core.config.GOOGLE_API_KEYS", []):
+        with patch("luma_core.config.GEMINI_CLI_PROFILES", []):
+            with patch("builtins.print") as mock_print:
+                model = GeminiCLIModel(model="gemini-2.5-flash", temperature=0.7)
+                with pytest.raises(RuntimeError):
+                    model.invoke(messages)
+
+    printed = "\n".join(call.args[0] for call in mock_print.call_args_list)
+    assert "Attempt 1/2 failed: TIMEOUT after 60s" in printed
+    assert "Retrying with environment default account" in printed
 
 
 class FailingModel(BaseChatModel):
