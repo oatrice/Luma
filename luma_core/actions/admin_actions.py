@@ -226,6 +226,7 @@ def action_settings():
         GLOBAL_CONFIG_FILE,
         LLM_PROVIDER,
         normalize_llm_provider,
+        save_fallback_index,
         save_gemini_cli_model,
     )
 
@@ -242,6 +243,7 @@ def action_settings():
             pass
 
     current_llm = normalize_llm_provider(current_config.get("LLM_PROVIDER", LLM_PROVIDER))
+    original_llm = current_llm
     current_cli = current_config.get("AGENT_CLI", AGENT_CLI)
     current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
 
@@ -312,6 +314,9 @@ def action_settings():
     try:
         with open(GLOBAL_CONFIG_FILE, "w") as f:
             json.dump(current_config, f, indent=2)
+
+        if current_llm != original_llm:
+            save_fallback_index(0, os.getcwd())
 
         # Hot-reload config module so get_llm picks up the change immediately
         import importlib
