@@ -21,6 +21,10 @@ def set_action(action: Optional[str]) -> None:
     _current_action = action
 
 
+def get_current_action() -> Optional[str]:
+    return _current_action
+
+
 def set_sub_action(sub_action: Optional[str]) -> None:
     """
     Set a more fine-grained label for the current action.
@@ -47,6 +51,10 @@ def clear_sub_action() -> None:
 
 def get_current_sub_action() -> Optional[str]:
     return _current_sub_action
+
+
+def get_current_context() -> Optional[Dict[str, Any]]:
+    return _current_context
 
 
 def set_context(state: Optional[LumaState] = None, project: Optional[Dict[str, Any]] = None) -> None:
