@@ -42,7 +42,7 @@ flowchart TB
 - **CI Checker:** Runs CI checks (linting, testing) as a background process. 🆕
 - **Project Context:** Provides LLM agents with context from across multiple specified repositories. 🆕
 - **SBE Generator:** AI-powered Specification by Example for pre-coding phase.
-- **Smart Fallback:** Error Classification, Rate Limit circumvention, and specific per-model timeouts.
+- **Smart Fallback:** Error Classification, Rate Limit circumvention, specific per-model timeouts, and fallback index reset on provider change.
 - **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions/`, `config.py`).
 
 ---
@@ -106,7 +106,7 @@ Luma/
 
 - **Python 3.9+**
 - **GitHub CLI (`gh`)**: Must be authenticated.
-- **LLM Keys**: `.env` configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Also supports `OPENROUTER_API_KEY`.
+- **LLM Keys**: `.env` configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Supports `OPENROUTER_API_KEY` and `CODEX_CLI_API_KEY`.
 
 ---
 
@@ -134,5 +134,5 @@ python main.py
 - [x] **Background CI**: CI checks now run as a background process for a non-blocking workflow. 🆕
 - [x] **Automated Issue Metrics**: Automatically calculates and fills story points and effort. 🆕
 - [x] **LLM Key Rotation**: Supports multiple Google API keys with automatic failover and cooldown. 🆕
-- [x] **Standardized Logging**: Clear visibility of which account/model is being used per request. 🆕
+- [x] **Standardized Logging**: Clear visibility of which account/model is being used per request, with enhanced error handling and logging for Gemini CLI. 🆕
 - [x] **Reviewing Phase**: Dedicated state for AI code review with direct PR creation support. 🆕

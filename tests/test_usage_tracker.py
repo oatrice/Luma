@@ -13,7 +13,7 @@ def test_record_llm_event_includes_luma_version(tmp_path, monkeypatch):
     usage_tracker.clear_action()
     usage_tracker.clear_context()
     usage_tracker.record_llm_event(
-        provider="gemini_cli",
+        provider="gemini-cli",
         model="gemini-2.5-pro",
         status="success",
     )
@@ -24,7 +24,7 @@ def test_record_llm_event_includes_luma_version(tmp_path, monkeypatch):
     event = json.loads(lines[0])
     assert event["luma_version"] == "1.3.0-test"
     assert event["status"] == "success"
-    assert event["provider"] == "gemini_cli"
+    assert event["provider"] == "gemini-cli"
 
 
 def test_get_luma_version_returns_unknown_when_version_file_missing(monkeypatch):
@@ -43,7 +43,7 @@ def test_record_llm_event_includes_error_type(tmp_path, monkeypatch):
     usage_tracker.clear_action()
     usage_tracker.clear_context()
     usage_tracker.record_llm_event(
-        provider="gemini_cli",
+        provider="gemini-cli",
         model="gemini-2.5-pro",
         status="error",
         error="Some error message",

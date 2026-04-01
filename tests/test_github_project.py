@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from luma_core.github_project import (
     KanbanCard, get_project_config, fetch_kanban_cards,
     get_current_in_progress, get_ready_issues,
+    sync_kanban_on_action,
     display_kanban_cards
 )
 
@@ -160,6 +161,14 @@ class TestConvenienceFunctions:
         ready = get_ready_issues(7)
         assert len(ready) == 2
         mock_fetch.assert_called_with(7, "oatrice", status_filter="Ready")
+
+    @patch('luma_core.github_project.move_card_to_status')
+    def test_sync_kanban_skips_when_project_id_missing(self, mock_move, capsys):
+        result = sync_kanban_on_action("pr_merged", "", "PVTI_123")
+
+        assert result is False
+        mock_move.assert_not_called()
+        assert "Missing GitHub Project identifiers" in capsys.readouterr().out
 
 
 class TestDisplayFunctions:

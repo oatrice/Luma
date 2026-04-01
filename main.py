@@ -408,7 +408,7 @@ def main():
                     # Move Kanban to Done
                     if state.active_issues:
                         for ai_issue in state.active_issues:
-                            if ai_issue.project_item_id:
+                            if ai_issue.project_id and ai_issue.project_item_id:
                                 sync_kanban_on_action(
                                     "pr_merged",
                                     ai_issue.project_id,

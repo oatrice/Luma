@@ -424,6 +424,10 @@ def sync_kanban_on_action(
         "create_pr": "In Review",
         "pr_merged": "Done",
     }
+
+    if not project_id or not item_id:
+        print("⚠️ Missing GitHub Project identifiers; skipping Kanban sync")
+        return False
     
     new_status = status_map.get(action)
     
