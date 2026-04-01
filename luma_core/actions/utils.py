@@ -255,7 +255,31 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     try:
         from luma_core.agents.analyst import generate_branch_names
 
-        suggestions = generate_branch_names(primary_title, primary_body, primary_number)
+        previous_action = usage_tracker.get_current_action()
+        previous_context = usage_tracker.get_current_context()
+        previous_sub_action = usage_tracker.get_current_sub_action()
+
+        if previous_action is None:
+            usage_tracker.set_action("Select Issue")
+        if previous_context is None:
+            usage_tracker.set_context(state, project)
+        usage_tracker.set_sub_action("SelectIssue/BranchSuggestion")
+
+        try:
+            suggestions = generate_branch_names(
+                primary_title,
+                primary_body,
+                primary_number,
+            )
+        finally:
+            if previous_context is None:
+                usage_tracker.clear_context()
+            if previous_action is None:
+                usage_tracker.clear_action()
+            else:
+                usage_tracker.set_action(previous_action)
+            usage_tracker.set_sub_action(previous_sub_action)
+
         # Replace single issue number with multi-issue numbers in suggestions
         if len(cards) > 1:
             suggestions = [
