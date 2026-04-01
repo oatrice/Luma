@@ -33,6 +33,7 @@ MODEL_TIMEOUTS = {
     "gemini-2.5-pro": 120,
     "gemini-3-pro-preview": 300,
 }
+CODEX_CLI_TIMEOUT = 300
 
 
 def _coerce_ai_message(response: Any) -> AIMessage:
@@ -43,6 +44,58 @@ def _coerce_ai_message(response: Any) -> AIMessage:
     if content is None:
         content = str(response)
     return AIMessage(content=str(content))
+
+
+def _flatten_messages_to_prompt(messages: List[BaseMessage]) -> str:
+    prompt = ""
+    for msg in messages:
+        if hasattr(msg, "content"):
+            prompt += f"{msg.content}\n"
+        elif isinstance(msg, dict) and "content" in msg:
+            prompt += f"{msg['content']}\n"
+    return prompt
+
+
+def _describe_gemini_credential(credential: Optional[Any]) -> str:
+    if credential is None:
+        return "environment default account"
+
+    cred_type = getattr(credential, "type", None)
+    cred_value = str(getattr(credential, "value", "unknown"))
+    if cred_type == CredentialType.API_KEY:
+        return f"{cred_value[:8]}..."
+    return cred_value
+
+
+def _get_gemini_retry_target(cred_manager: Optional[Any]) -> str:
+    if cred_manager is None:
+        return "environment default account"
+
+    peek_next = getattr(cred_manager, "peek_next_credential", None)
+    if callable(peek_next):
+        try:
+            next_credential = peek_next()
+            return f"next credential: {_describe_gemini_credential(next_credential)}"
+        except AllCredentialsExhaustedError:
+            return "next available credential"
+
+    return "next available credential"
+
+
+def _log_gemini_attempt_failure(
+    attempt: int,
+    max_retries: int,
+    error_type: str,
+    detail: str = "",
+) -> None:
+    print(
+        f"⚠️ [GeminiCLIModel] Attempt {attempt}/{max_retries} failed: "
+        f"{error_type}{detail}"
+    )
+
+
+def _log_gemini_retry(cred_manager: Optional[Any]) -> None:
+    print(f"🔁 [GeminiCLIModel] Retrying with {_get_gemini_retry_target(cred_manager)}")
 
 
 class GeminiCLIModel(BaseChatModel):
@@ -68,12 +121,7 @@ class GeminiCLIModel(BaseChatModel):
         clean_kwargs.pop("run_manager", None)
 
         # Convert messages to a single prompt string
-        prompt = ""
-        for msg in messages:
-            if hasattr(msg, "content"):
-                prompt += f"{msg.content}\n"
-            elif isinstance(msg, dict) and "content" in msg:
-                prompt += f"{msg['content']}\n"
+        prompt = _flatten_messages_to_prompt(messages)
 
         # Call gemini cli using STDIN to avoid OS ARG_MAX limits for large code payloads
         start_time = time.time()
@@ -106,6 +154,7 @@ class GeminiCLIModel(BaseChatModel):
         process: Optional[subprocess.Popen] = None
         output: str = "Error: No attempts were made."
         for attempt in range(max_retries):
+            model_timeout = MODEL_TIMEOUTS.get(self.model, 120)
             try:
                 subprocess_env = dict(os.environ)
                 # ── Build env with active credential ────────────────────────
@@ -114,15 +163,21 @@ class GeminiCLIModel(BaseChatModel):
                         current_cred = cred_manager.get_next_credential()
                         self.last_account_used = current_cred.value
                     except AllCredentialsExhaustedError:
+                        _log_gemini_attempt_failure(
+                            attempt + 1,
+                            max_retries,
+                            ErrorType.RATE_LIMIT.value,
+                            " (all credentials exhausted)",
+                        )
                         output = "Error: All credentials exhausted due to rate limiting."
                         break
 
                     if current_cred.type == CredentialType.API_KEY:
-                        masked_account = f"{current_cred.value[:8]}..."
+                        masked_account = _describe_gemini_credential(current_cred)
                         subprocess_env["GOOGLE_API_KEY"] = current_cred.value
                         subprocess_env.pop("GEMINI_CLI_PROFILE", None)
                     else:  # OAUTH_PROFILE
-                        masked_account = current_cred.value
+                        masked_account = _describe_gemini_credential(current_cred)
                         profile_home = os.path.join(OAUTH_PROFILES_BASE, current_cred.value)
                         subprocess_env["HOME"] = profile_home
                         subprocess_env.pop("GOOGLE_API_KEY", None)
@@ -146,11 +201,20 @@ class GeminiCLIModel(BaseChatModel):
                     env=subprocess_env,
                 )
 
-                model_timeout = MODEL_TIMEOUTS.get(self.model, 120)
                 stdout, stderr = process.communicate(input=prompt, timeout=model_timeout)
 
                 if process.returncode != 0:
                     error_type = classify_error(stderr)
+                    error_detail = f" (Return code {process.returncode})"
+                    if stderr.strip():
+                        error_detail += f": {stderr.strip()}"
+                    _log_gemini_attempt_failure(
+                        attempt + 1,
+                        max_retries,
+                        error_type.value,
+                        error_detail,
+                    )
+
                     if error_type in (ErrorType.RATE_LIMIT, ErrorType.QUOTA_EXCEEDED):
                         if cred_manager and current_cred is not None:
                             cred_manager.mark_rate_limited(
@@ -158,12 +222,14 @@ class GeminiCLIModel(BaseChatModel):
                             )
                         output = f"Error calling Gemini CLI: {stderr}"
                         if attempt < max_retries - 1:
+                            _log_gemini_retry(cred_manager)
                             time.sleep(1)
                             continue
                         break
 
                     output = f"Error calling Gemini CLI (Return Code {process.returncode}): {stderr}"
                     if attempt < max_retries - 1:
+                        _log_gemini_retry(cred_manager)
                         time.sleep(2)
                         continue
                 else:
@@ -174,11 +240,24 @@ class GeminiCLIModel(BaseChatModel):
             except subprocess.TimeoutExpired:
                 if process is not None:
                     process.kill()
+                _log_gemini_attempt_failure(
+                    attempt + 1,
+                    max_retries,
+                    ErrorType.TIMEOUT.value,
+                    f" after {model_timeout}s",
+                )
                 output = "Error: Gemini CLI timed out."
                 if attempt < max_retries - 1:
+                    _log_gemini_retry(cred_manager)
                     time.sleep(2)
                     continue
             except Exception as e:
+                _log_gemini_attempt_failure(
+                    attempt + 1,
+                    max_retries,
+                    ErrorType.UNKNOWN.value,
+                    f": {str(e)}",
+                )
                 output = f"Error: {str(e)}"
                 break
 
@@ -197,6 +276,83 @@ class GeminiCLIModel(BaseChatModel):
         _session_gemini_cli_tokens += total_tokens
 
         message = AIMessage(content=output)
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
+
+
+def _format_codex_cli_error(stderr: str, returncode: int) -> str:
+    err_text = (stderr or "").strip()
+    lower_err = err_text.lower()
+
+    auth_markers = (
+        "login",
+        "logged out",
+        "not logged in",
+        "authentication",
+        "auth required",
+        "expired",
+    )
+    if any(marker in lower_err for marker in auth_markers):
+        return "Error: Codex CLI authentication failed or expired. Run `codex login` and try again."
+
+    if err_text:
+        return f"Error calling Codex CLI (Return Code {returncode}): {err_text}"
+
+    return f"Error calling Codex CLI (Return Code {returncode})."
+
+
+class CodexCLIModel(BaseChatModel):
+    """LangChain wrapper for Codex CLI using non-interactive exec mode."""
+
+    model: Optional[str] = Field(default=None)
+    temperature: float = Field(default=0.7)
+
+    @property
+    def _llm_type(self) -> str:
+        return f"codex-cli:{self.model}" if self.model else "codex-cli"
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        clean_kwargs = dict(kwargs)
+        clean_kwargs.pop("run_manager", None)
+
+        prompt = _flatten_messages_to_prompt(messages)
+        cmd = [config.CODEX_CLI_BIN, "exec"]
+        if self.model:
+            cmd.extend(["-m", self.model])
+        cmd.append("-")
+
+        process: Optional[subprocess.Popen] = None
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=dict(os.environ),
+            )
+            stdout, stderr = process.communicate(input=prompt, timeout=CODEX_CLI_TIMEOUT)
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "Error: codex-cli is not installed. Install the `codex` CLI or set CODEX_CLI_BIN."
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            if process is not None:
+                process.kill()
+            raise RuntimeError("Error: Codex CLI timed out.") from exc
+        except Exception as exc:
+            raise RuntimeError(f"Error: {str(exc)}") from exc
+
+        if process.returncode != 0:
+            raise RuntimeError(_format_codex_cli_error(stderr, process.returncode))
+
+        message = AIMessage(content=stdout.strip())
         generation = ChatGeneration(message=message)
         return ChatResult(generations=[generation])
 
@@ -358,6 +514,8 @@ def _create_model(
     temperature: float = 0.7,
     purpose: str = "general",
 ) -> BaseChatModel:
+    provider = config.normalize_llm_provider(provider)
+
     if provider == "openrouter":
         name = model_name or (config.OPENROUTER_CODE_MODEL if purpose == "code" else config.OPENROUTER_GENERAL_MODEL)
         model = ChatOpenAI(
@@ -374,10 +532,20 @@ def _create_model(
         model = GeminiAPIModel(model=name, temperature=temperature)
         _attach_usage_metadata(model, provider="gemini-api", model_name=name, purpose=purpose)
         return model
-    elif provider == "gemini_cli":
+    elif provider == "gemini-cli":
         name = model_name or config.GEMINI_CLI_MODEL
         model = GeminiCLIModel(model=name, temperature=temperature)
         _attach_usage_metadata(model, provider=provider, model_name=name, purpose=purpose)
+        return model
+    elif provider == "codex-cli":
+        name = model_name if model_name is not None else config.CODEX_CLI_MODEL
+        model = CodexCLIModel(model=name, temperature=temperature)
+        _attach_usage_metadata(
+            model,
+            provider=provider,
+            model_name=name or "default",
+            purpose=purpose,
+        )
         return model
     elif provider == "openai":
         name = model_name or config.OPENAI_MODEL
@@ -394,13 +562,15 @@ def _create_model(
 
 
 def get_llm(temperature=0.7, purpose="general"):
-    primary_provider = config.LLM_PROVIDER
+    primary_provider = config.normalize_llm_provider(config.LLM_PROVIDER)
     model_sequence = [(primary_provider, None)]
 
-    if primary_provider == "gemini_cli":
+    if primary_provider == "gemini-cli":
         for cli_model in config.AVAILABLE_GEMINI_CLI_MODELS:
             if cli_model != config.GEMINI_CLI_MODEL:
-                model_sequence.append(("gemini_cli", cli_model))
+                model_sequence.append(("gemini-cli", cli_model))
+    elif primary_provider == "codex-cli":
+        model_sequence.extend(("gemini-cli", cli_model) for cli_model in config.AVAILABLE_GEMINI_CLI_MODELS)
 
     models = []
     for provider, model_name in model_sequence:
@@ -437,6 +607,8 @@ def _resolve_model_info(model):
             provider = "gemini-api"
         elif "gemini-cli" in model_type:
             provider = "gemini-cli"
+        elif "codex-cli" in model_type:
+            provider = "codex-cli"
         elif "openrouter" in model_type:
             provider = "openrouter"
         elif "openai" in model_type:

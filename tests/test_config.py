@@ -35,10 +35,32 @@ def test_config_defaults():
         
     with patch("os.path.exists", side_effect=mock_exists):
         importlib.reload(config)
-        # Should default to gemini_cli LLM provider and gemini_cli AGENT_CLI
-        assert config.LLM_PROVIDER == "gemini_cli"
+        # Should default to gemini-cli LLM provider and gemini_cli AGENT_CLI
+        assert config.LLM_PROVIDER == "gemini-cli"
         assert config.AGENT_CLI == "gemini_cli"
         assert config.GEMINI_CLI_MODEL == "gemini-2.5-flash"
+
+
+def test_config_normalizes_legacy_llm_provider_name_from_global_json():
+    mock_data = json.dumps(
+        {
+            "LLM_PROVIDER": "gemini_cli",
+            "AGENT_CLI": "opencode",
+        }
+    )
+
+    original_exists = os.path.exists
+
+    def mock_exists(path):
+        if "luma_global.json" in path:
+            return True
+        return original_exists(path)
+
+    with patch("builtins.open", mock_open(read_data=mock_data)), patch(
+        "os.path.exists", side_effect=mock_exists
+    ):
+        importlib.reload(config)
+        assert config.LLM_PROVIDER == "gemini-cli"
 
 
 def test_config_normalizes_known_custom_project_kanban():

@@ -184,6 +184,28 @@ class CredentialManager:
                 "or wait for the cooldown to expire."
             )
 
+    def peek_next_credential(self) -> CredentialStatus:
+        """
+        Return the next available credential without advancing rotation state.
+
+        Raises:
+            AllCredentialsExhaustedError: when all credentials are rate-limited.
+        """
+        with self._pool_lock:
+            n = len(self.pool)
+            next_index = self._index
+            for _ in range(n):
+                cred = self.pool[next_index % n]
+                next_index = (next_index + 1) % n
+                if cred.is_available():
+                    return cred
+
+            raise AllCredentialsExhaustedError(
+                "All credentials are currently rate-limited across all Luma processes. "
+                "Please add a new API key (from a different Google Account) "
+                "or wait for the cooldown to expire."
+            )
+
     def mark_rate_limited(self, value: str, retry_after: int = 60) -> None:
         """
         Mark a credential as rate-limited and persist to global state.

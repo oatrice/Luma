@@ -11,8 +11,18 @@ GLOBAL_CONFIG_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json"
 )
 
+
+def normalize_llm_provider(provider: str) -> str:
+    """Normalize legacy provider aliases to the canonical dash-based names."""
+    aliases = {
+        "gemini_cli": "gemini-cli",
+        "codex_cli": "codex-cli",
+    }
+    return aliases.get(provider, provider)
+
+
 # Default values
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini_cli")
+LLM_PROVIDER = normalize_llm_provider(os.getenv("LLM_PROVIDER", "gemini-cli"))
 AGENT_CLI = os.getenv("AGENT_CLI", "gemini_cli")
 FALLBACK_ACTIVE_INDEX = 0
 FALLBACK_LAST_RESET = 0.0
@@ -26,6 +36,8 @@ AVAILABLE_GEMINI_CLI_MODELS = [
     "gemini-2.5-flash-lite",
 ]
 GEMINI_CLI_MODEL = os.getenv("GEMINI_CLI_MODEL", "gemini-2.5-flash")
+CODEX_CLI_BIN = os.getenv("CODEX_CLI_BIN", "codex")
+CODEX_CLI_MODEL = os.getenv("CODEX_CLI_MODEL")
 
 # ── Hybrid Credential Rotation ──────────────────────────────────────────────
 # Reads both GOOGLE_API_KEYS (comma-separated) and the legacy GOOGLE_API_KEY.
@@ -49,9 +61,12 @@ if os.path.exists(GLOBAL_CONFIG_FILE):
     try:
         with open(GLOBAL_CONFIG_FILE, "r") as f:
             _global_cfg = json.load(f)
-            LLM_PROVIDER = _global_cfg.get("LLM_PROVIDER", LLM_PROVIDER)
+            LLM_PROVIDER = normalize_llm_provider(
+                _global_cfg.get("LLM_PROVIDER", LLM_PROVIDER)
+            )
             AGENT_CLI = _global_cfg.get("AGENT_CLI", AGENT_CLI)
             GEMINI_CLI_MODEL = _global_cfg.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
+            CODEX_CLI_MODEL = _global_cfg.get("CODEX_CLI_MODEL", CODEX_CLI_MODEL)
             # Global fallbacks as ultimate backup
             FALLBACK_ACTIVE_INDEX = _global_cfg.get("FALLBACK_ACTIVE_INDEX", 0)
             FALLBACK_LAST_RESET = _global_cfg.get("FALLBACK_LAST_RESET", 0.0)

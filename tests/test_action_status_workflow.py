@@ -1,8 +1,11 @@
+import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from luma_core.actions import action_list_active_issues, action_select_issue
 from luma_core.github_project import KanbanCard
 from luma_core.state_manager import LumaState
+import luma_core.usage_tracker as usage_tracker
 
 
 def _luma_project():
@@ -78,3 +81,108 @@ def test_action_select_issue_shows_blocking_status_summary(mock_fetch, capsys):
     assert "- Backlog: 3" in output
     assert "#7: Upgrade Luma v2 from cli to Web UI" in output
     assert "Move a card to Ready or In Progress" in output
+
+
+def test_action_select_issue_logs_branch_generation_with_action_context(
+    monkeypatch,
+    tmp_path,
+):
+    log_path = tmp_path / ".luma_ai_usage.jsonl"
+    project = _luma_project()
+    project["path"] = str(tmp_path)
+
+    workflow = {
+        "selectable_statuses": ["Ready", "In Progress"],
+        "selection_order": ["In Progress", "Ready"],
+        "board_order": ["Backlog", "Ready", "In Progress", "Done"],
+        "done_statuses": ["Done", "Closed"],
+        "status_icons": {},
+        "action_status_map": {},
+    }
+
+    class DummySummarizer:
+        def __init__(self, _path):
+            pass
+
+        def summarize_rules(self):
+            return []
+
+    def fake_generate_branch_names(title, body, issue_number):
+        usage_tracker.record_llm_event(
+            provider="test-provider",
+            model="test-model",
+            status="success",
+            purpose="code",
+        )
+        return [f"feat/{issue_number}-smart-branch"]
+
+    monkeypatch.setattr(
+        usage_tracker,
+        "get_log_path",
+        lambda: str(log_path),
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.issue_actions.fetch_kanban_cards",
+        lambda _kanban_number: [
+            KanbanCard(
+                item_id="2",
+                issue_number=42,
+                title="Improve usage logging",
+                body="Ensure select issue branch suggestion logs action context.",
+                status="In Progress",
+                repository="oatrice/Luma",
+                url="https://github.com/oatrice/Luma/issues/42",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.issue_actions.get_status_workflow",
+        lambda _project: workflow,
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.utils.get_status_workflow",
+        lambda _project: workflow,
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.issue_actions.sync_roadmap_for_closed_issues",
+        lambda _project, _issue_numbers: 0,
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.issue_actions.sync_roadmap_for_new_issues",
+        lambda _project, _cards: 0,
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.issue_actions.safe_input",
+        lambda _prompt="": "1",
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.utils.ui.safe_input",
+        lambda _prompt="": "1",
+    )
+    monkeypatch.setattr(
+        "luma_core.actions.utils.ContextSummarizer",
+        DummySummarizer,
+    )
+    monkeypatch.setattr(
+        "luma_core.agents.analyst.generate_branch_names",
+        fake_generate_branch_names,
+    )
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stderr="", stdout=""),
+    )
+
+    usage_tracker.clear_action()
+    usage_tracker.clear_sub_action()
+    usage_tracker.clear_context()
+
+    result = action_select_issue(LumaState(), project)
+
+    lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert result is True
+    assert len(lines) == 1
+
+    event = json.loads(lines[0])
+    assert event["action"] == "Select Issue"
+    assert event["sub_action"] == "SelectIssue/BranchSuggestion"
+    assert event["purpose"] == "code"

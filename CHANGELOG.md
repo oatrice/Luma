@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0] - 2026-04-01
+
+### Added
+- **LLM Providers:**
+    - Expanded LLM provider support with the addition of Codex CLI.
+    - Enhanced Gemini CLI model error handling and logging.
+    - Improved LLM fallback by resetting the fallback index when the LLM provider changes.
+- **Usage Tracking:**
+    - Introduced tracking for branch suggestion action context.
+
+### Fixed
+- **Kanban Sync:**
+    - Prevented Kanban synchronization issues caused by missing IDs.
+
 ## [1.7.0] - 2026-03-31
 
 ### Added
