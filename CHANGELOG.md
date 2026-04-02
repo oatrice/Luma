@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.10.0] - 2026-04-02
+
+### Added
+- **CLI:** Introduced a headless metadata endpoint for programmatic interaction and ensured strict JSON output for external callers.
+
 ## [1.8.0] - 2026-04-02
 
 ### Added

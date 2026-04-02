@@ -165,6 +165,12 @@ Use headless action mode for external automation:
 python main.py --auto --action code_review --json --project 12
 ```
 
+`--headless` is supported as an alias for `--auto`:
+
+```bash
+python main.py --headless --action code_review --json --project 12
+```
+
 Contract guarantees:
 
 - In headless `--json` mode, `stdout` is reserved for machine-readable JSON only.

@@ -23,9 +23,10 @@
 
 ### Step 1: Add metadata mode
 - Added `--meta` parsing in `main.py`
+- Added `--headless` as an alias for `--auto`
 - Defined explicit metadata-mode validation:
   - `--meta` requires `--json`
-  - `--meta` cannot be combined with `--action` or `--auto`
+  - `--meta` cannot be combined with `--action`, `--auto`, or `--headless`
 
 ### Step 2: Build stable metadata payload
 - Added `CONTRACT_VERSION = "2.0"`
@@ -129,7 +130,21 @@ Verify:
 - stdout has no human-readable prefix/suffix
 - stderr may contain warnings without breaking stdout
 
-#### Scenario 4: Interactive regression
+#### Scenario 4: Headless alias parity
+
+Run:
+
+```bash
+python3 main.py --headless --action code_review --json --project 12
+```
+
+Verify:
+
+- behavior matches `--auto`
+- stdout remains machine-readable JSON only
+- diagnostics still go to stderr
+
+#### Scenario 5: Interactive regression
 
 Run:
 

@@ -25,6 +25,7 @@ As an **external system integrator (for example Zenith)**, I want to **query Lum
 
 ### Functional Requirements
 - [x] Implement a `--meta --json` mode for Luma.
+- [x] Support `--headless` as an alias for `--auto` in action execution mode.
 - [x] Return a stable JSON envelope on stdout for metadata mode.
 - [x] Include metadata fields: `version`, `git_commit`, `dirty`, `contract_version`, `supported_actions`, `python_version`.
 - [x] Keep metadata mode machine-readable and reject invalid flag combinations such as `--meta` with `--action`.
@@ -75,6 +76,11 @@ As an **external system integrator (for example Zenith)**, I want to **query Lum
 |---|---|---|
 | `python3 main.py --auto --action invalid_action --json --project 12` | `{"status":"error","action":"invalid_action","project":"12","error":"Action 'invalid_action' not found."}` | `1` |
 
+### Scenario: Headless alias matches auto behavior
+**Given** an external caller prefers a more explicit flag name.
+**When** the command `python3 main.py --headless --action code_review --json --project 12` is executed.
+**Then** Luma must treat `--headless` the same as `--auto` and preserve the same stdout/stderr contract.
+
 ### Scenario: Non-git fallback shape remains stable
 **Given** Luma runs in an environment where git metadata cannot be resolved.
 **When** metadata mode is executed.
@@ -93,6 +99,7 @@ As an **external system integrator (for example Zenith)**, I want to **query Lum
 
 - Constraint: `--meta` currently requires `--json`.
 - Constraint: `--meta` must not be combined with `--action` or `--auto`.
+- Constraint: `--headless` is an alias for `--auto`, not a separate execution mode.
 - Constraint: The current stable headless action list is limited to `["code_review"]`.
 - Risk: Future action expansion requires deliberate updates to `SUPPORTED_HEADLESS_ACTIONS` and docs.
 - Risk: Third-party warnings may still appear on stderr depending on the Python environment.

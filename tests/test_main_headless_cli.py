@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+import textwrap
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -21,6 +22,17 @@ def test_parse_cli_args_supports_headless_flags():
     assert args.project == "1"
 
 
+def test_parse_cli_args_supports_headless_alias():
+    args = main.parse_cli_args(
+        ["--headless", "--action", "code_review", "--json", "--project", "1"]
+    )
+
+    assert args.auto is True
+    assert args.action == "code_review"
+    assert args.json is True
+    assert args.project == "1"
+
+
 def test_parse_cli_args_supports_metadata_mode_without_action():
     args = main.parse_cli_args(["--meta", "--json"])
 
@@ -28,6 +40,16 @@ def test_parse_cli_args_supports_metadata_mode_without_action():
     assert args.json is True
     assert args.action is None
     assert args.auto is False
+
+
+def test_metadata_mode_requires_json_when_invoked_via_main(capsys):
+    exit_code = main.main(["--meta"])
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "--meta requires --json." in captured.err
 
 
 def test_ensure_importlib_metadata_compat_adds_packages_distributions():
@@ -173,7 +195,7 @@ def test_metadata_mode_rejects_action_arguments(capsys):
         "status": "error",
         "action": "code_review",
         "project": "1",
-        "error": "--meta cannot be combined with --action or --auto.",
+        "error": "--meta cannot be combined with --action, --auto, or --headless.",
     }
 
 
@@ -204,6 +226,116 @@ def test_real_subprocess_headless_json_stdout_remains_parseable():
     assert payload["action"] == "invalid_action"
     assert payload["project"] == "12"
     assert "invalid_action" in payload["error"]
+
+
+def test_real_subprocess_supported_action_keeps_stdout_json_only(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    inline_script = textwrap.dedent(
+        f"""
+        import main
+        from luma_core.state_manager import LumaState, WorkflowPhase
+
+        project = {{"name": "Subprocess Project", "path": {str(tmp_path)!r}, "repo": "example/repo"}}
+        state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
+
+        main.PROJECTS = {{"1": project}}
+        main.load_state = lambda path: state
+
+        def fake_action(current_state, current_project, headless=False):
+            print("subprocess diagnostic should stay off stdout")
+            return {{"summary": "ok", "headless": headless, "project_name": current_project["name"]}}
+
+        main.actions.action_code_review = fake_action
+
+        raise SystemExit(
+            main.main(["--auto", "--action", "code_review", "--json", "--project", "1"])
+        )
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", inline_script],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 0
+    assert payload == {
+        "status": "success",
+        "action": "code_review",
+        "project": "1",
+        "result": {
+            "summary": "ok",
+            "headless": True,
+            "project_name": "Subprocess Project",
+        },
+    }
+    assert "subprocess diagnostic should stay off stdout" not in result.stdout
+    assert "subprocess diagnostic should stay off stdout" in result.stderr
+
+
+def test_headless_alias_supported_action_keeps_stdout_json_only(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    inline_script = textwrap.dedent(
+        f"""
+        import main
+        from luma_core.state_manager import LumaState, WorkflowPhase
+
+        project = {{"name": "Alias Project", "path": {str(tmp_path)!r}, "repo": "example/repo"}}
+        state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
+
+        main.PROJECTS = {{"1": project}}
+        main.load_state = lambda path: state
+
+        def fake_action(current_state, current_project, headless=False):
+            print("alias diagnostic should stay off stdout")
+            return {{"summary": "alias-ok", "headless": headless}}
+
+        main.actions.action_code_review = fake_action
+
+        raise SystemExit(
+            main.main(["--headless", "--action", "code_review", "--json", "--project", "1"])
+        )
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", inline_script],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 0
+    assert payload == {
+        "status": "success",
+        "action": "code_review",
+        "project": "1",
+        "result": {
+            "summary": "alias-ok",
+            "headless": True,
+        },
+    }
+    assert "alias diagnostic should stay off stdout" not in result.stdout
+    assert "alias diagnostic should stay off stdout" in result.stderr
+
+
+def test_readme_documents_metadata_and_stdout_contract():
+    readme = Path(__file__).resolve().parents[1] / "README.md"
+    content = readme.read_text(encoding="utf-8")
+
+    assert "Headless CLI Contract" in content
+    assert "python main.py --meta --json" in content
+    assert "--headless" in content
+    assert "stdout" in content
+    assert "stderr" in content
 
 
 def test_interactive_mode_without_new_flags_still_uses_menu(monkeypatch, tmp_path):
