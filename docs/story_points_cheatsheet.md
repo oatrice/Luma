@@ -2,6 +2,8 @@
 
 เอกสารนี้เป็นเวอร์ชันใช้งานเร็วของการให้ Story Points เพื่อช่วยตัดสินใจใน 1-2 นาที
 
+ต้องการตัวอย่างงาน programming เพิ่มเติม: ดู [Programming Examples Appendix](/Users/oatrice/Software-projects/Luma/docs/story_points_programming_examples.md)
+
 ## สรุปสั้นที่สุด
 
 - `0.5` = เล็กจิ๋วมาก แต่โดยปกติ **ไม่ควรใช้** ใน scale นี้

@@ -110,6 +110,39 @@ Luma/
 
 ---
 
+## 📏 Quick Story Points Guide
+
+Luma uses Story Points to estimate complexity and uncertainty, not elapsed time.
+
+| Points | Meaning | Typical Shape |
+|-------|---------|---------------|
+| `1` | Very small | Clear, routine, almost no surprises |
+| `2` | Small | Slightly more detail, still straightforward |
+| `3` | Medium | Multiple steps or a few decisions |
+| `5` | Large | Needs planning, has real uncertainty |
+| `8` | Very large | Risky or broad enough that it should likely be split |
+
+Quick rule of thumb:
+
+- Use `1` when the work is obvious and tightly scoped.
+- Use `2` when it is still small, but not trivial.
+- Use `3` when there are multiple steps, moving parts, or decision points.
+- Use `5` when planning is required and uncertainty is meaningful.
+- Use `8` when the scope is broad, risky, or should be broken down first.
+
+Notes:
+
+- In this repo, work smaller than `1` should usually still be rounded up to `1`.
+- Story Points are not calendar time. A one-day task can still be `3` or `5` if uncertainty and coordination are high.
+
+Further reading:
+
+- [Story Points Convention](docs/story_points.md)
+- [Story Points Cheat Sheet](docs/story_points_cheatsheet.md)
+- [Programming Examples Appendix](docs/story_points_programming_examples.md)
+
+---
+
 ## 🚀 Usage
 
 ```bash
