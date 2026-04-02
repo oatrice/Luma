@@ -77,7 +77,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--auto",
+        "--headless",
         action="store_true",
+        dest="auto",
         help="Run without the interactive menu",
     )
     parser.add_argument(
@@ -125,7 +127,7 @@ def parse_cli_args(argv=None):
             )
         if args.action is not None or args.auto:
             raise CLIArgumentError(
-                "--meta cannot be combined with --action or --auto.",
+                "--meta cannot be combined with --action, --auto, or --headless.",
                 exit_code=2,
             )
     elif headless_requested and not args.action:

@@ -7,6 +7,10 @@
 1. เพิ่ม metadata endpoint แบบ machine-readable ผ่าน `--meta --json`
 2. ทำให้ headless `--json` mode ใช้ `stdout` เป็นช่อง machine-readable อย่างเดียว แม้ใน real subprocess startup
 
+เพิ่มเติมในรอบนี้:
+
+3. รองรับ `--headless` เป็น alias ของ `--auto`
+
 implementation จริงอยู่หลัก ๆ ใน `main.py` โดย reuse helper เดิมจาก `luma_core.tools` สำหรับ version และ git info
 
 ## Contract ที่ได้จริง
@@ -42,6 +46,12 @@ python3 main.py --meta --json
 
 ```bash
 python3 main.py --auto --action invalid_action --json --project 12
+```
+
+หรือใช้ alias:
+
+```bash
+python3 main.py --headless --action invalid_action --json --project 12
 ```
 
 ผลลัพธ์ที่คาดหวัง:
@@ -129,6 +139,20 @@ python3 main.py
 - เมนู interactive ยังขึ้นตามปกติ
 - เลือกออกจากโปรแกรมได้ตามปกติ
 - ไม่มีการบังคับเข้า headless mode โดยไม่ได้ใส่ flags
+
+### Scenario 5: `--headless` alias parity
+
+รัน:
+
+```bash
+python3 main.py --headless --action invalid_action --json --project 12
+```
+
+ตรวจว่า:
+
+- พฤติกรรมเหมือน `--auto`
+- `stdout` parse เป็น JSON ได้
+- diagnostics ยังไปที่ `stderr`
 
 ## Automated Verification ที่รันแล้ว
 
