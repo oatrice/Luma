@@ -13,15 +13,17 @@ class TestPRPhaseFix(unittest.TestCase):
         )
         project = {"path": "/fake/path", "name": "TestProject"}
         
-        # We need to mock transition_to and PreflightChecker to avoid side effects
+        # We need to mock transition_to, PreflightChecker, and sync_pre_pr_metrics_for_issues to avoid side effects
         with patch("luma_core.actions.workflow_actions.transition_to") as mock_transition:
             with patch("luma_core.actions.workflow_actions.PreflightChecker"):
-                # Mock transition result (success)
-                mock_transition.return_value = (True, "OK")
-                
-                # Capture print output
-                with patch("builtins.print") as mock_print:
-                    action_create_pr(state, project, auto_approve=True)
+                with patch("luma_core.actions.workflow_actions.sync_pre_pr_metrics_for_issues") as mock_sync:
+                    # Mock transition result (success)
+                    mock_transition.return_value = (True, "OK")
+                    mock_sync.return_value = 1
+                    
+                    # Capture print output
+                    with patch("builtins.print") as mock_print:
+                        action_create_pr(state, project, auto_approve=True)
                     
                     # Verify if it succeeded (transitioned to PREFLIGHT)
                     printed_messages = [str(call.args[0]) for call in mock_print.call_args_list]

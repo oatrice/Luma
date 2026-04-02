@@ -1,5 +1,9 @@
 # Story Points Convention
 
+> ต้องการเวอร์ชันอ่านเร็ว: ดู [Story Points Cheat Sheet](/Users/oatrice/Software-projects/Luma/docs/story_points_cheatsheet.md)
+>
+> ต้องการตัวอย่างงาน programming: ดู [Programming Examples Appendix](/Users/oatrice/Software-projects/Luma/docs/story_points_programming_examples.md)
+
 ## หลักการ: Story Points ≠ Man-days
 
 > **Story Points วัดความซับซ้อน (Complexity) ไม่ใช่เวลา (Time)**
