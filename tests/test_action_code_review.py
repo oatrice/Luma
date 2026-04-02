@@ -105,3 +105,25 @@ def test_action_code_review_fallback_asks_when_no_preselected(
     )
     assert asked_for_selection, "Should prompt for repo selection when no preselected_repos"
 
+
+@patch("luma_core.actions.quality_actions.get_git_changed_files", return_value=[".luma_metrics.json"])
+@patch("luma_core.agents.reviewer.reviewer_agent")
+def test_action_code_review_headless_skips_generated_metrics_file(
+    mock_reviewer_agent,
+    mock_changed_files,
+):
+    """
+    🟥 RED: Headless code review should ignore generated Luma metrics files so
+    machine callers can get a clean success path without invoking the reviewer.
+    """
+    from luma_core.actions import action_code_review
+
+    project = _make_project(name="RepoA", project_type="unknown")
+    state = _make_state()
+
+    result = action_code_review(state, project, headless=True)
+
+    assert result["summary"]["clean_count"] == 1
+    assert result["projects"][0]["status"] == "clean"
+    assert result["projects"][0]["changed_files"] == []
+    mock_reviewer_agent.assert_not_called()
