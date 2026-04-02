@@ -12,56 +12,12 @@ import time
 import argparse
 from contextlib import redirect_stdout
 
-try:
-    import importlib.metadata as importlib_metadata
-except ImportError:  # pragma: no cover
-    import importlib_metadata  # type: ignore[no-redef]
-
-
-def ensure_importlib_metadata_compat(metadata_module=None):
-    """Backfill Python 3.9's missing packages_distributions helper."""
-    metadata_module = metadata_module or importlib_metadata
-    if hasattr(metadata_module, "packages_distributions"):
-        return False
-
-    def packages_distributions():
-        module_to_distributions = {}
-        try:
-            for distribution in metadata_module.distributions():
-                try:
-                    distribution_name = distribution.metadata.get("Name")
-                except Exception:
-                    distribution_name = None
-
-                if not distribution_name:
-                    continue
-
-                for file_entry in getattr(distribution, "files", ()) or ():
-                    parts = getattr(file_entry, "parts", None)
-                    if not parts:
-                        continue
-                    module_to_distributions.setdefault(parts[0], []).append(
-                        distribution_name
-                    )
-        except Exception:
-            return {}
-
-        return module_to_distributions
-
-    metadata_module.packages_distributions = packages_distributions
-    return True
-
-
-ensure_importlib_metadata_compat()
-
-# Ensure luma_core is in path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 import luma_core.ui as ui
 import luma_core.actions as actions
 import luma_core.usage_tracker as usage_tracker
 from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow
 from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
+from luma_core.importlib_compat import ensure_importlib_metadata_compat
 from luma_core.notifier import notify_task_complete
 
 from luma_core.state_manager import (
@@ -76,6 +32,8 @@ from luma_core.tools import (
 # =============================================================================
 # Configuration & Constants
 # =============================================================================
+
+ensure_importlib_metadata_compat()
 
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
