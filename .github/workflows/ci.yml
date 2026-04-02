@@ -40,32 +40,66 @@ jobs:
       if: success() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
       continue-on-error: true
       run: |
-        MESSAGE=$(cat <<EOF
-        CI succeeded
-        Repository: ${{ github.repository }}
-        Workflow: ${{ github.workflow }}
-        Ref: ${{ github.ref_name }}
-        Actor: ${{ github.actor }}
-        Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        EOF
-        )
-        curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-          --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-          --data-urlencode "text=${MESSAGE}"
+        MESSAGE="✅ *Luma CI Succeeded (Test)*%0A"
+        MESSAGE+="📦 Repo: \`${{ github.repository }}\`%0A"
+        MESSAGE+="🌿 Branch: \`${{ github.ref_name }}\`%0A"
+        MESSAGE+="👤 Author: ${{ github.actor }}%0A"
+        MESSAGE+="📝 Commit: \`${{ github.event.head_commit.message || github.event.pull_request.title }}\`%0A"
+        MESSAGE+="🔗 [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -d chat_id="${TELEGRAM_CHAT_ID}" \
+          -d parse_mode="Markdown" \
+          -d text="${MESSAGE}"
 
     - name: Notify Telegram on failure
       if: failure() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
       continue-on-error: true
       run: |
-        MESSAGE=$(cat <<EOF
-        CI failed
-        Repository: ${{ github.repository }}
-        Workflow: ${{ github.workflow }}
-        Ref: ${{ github.ref_name }}
-        Actor: ${{ github.actor }}
-        Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        EOF
-        )
-        curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-          --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-          --data-urlencode "text=${MESSAGE}"
+        MESSAGE="❌ *Luma CI Failed (Test)*%0A"
+        MESSAGE+="📦 Repo: \`${{ github.repository }}\`%0A"
+        MESSAGE+="🌿 Branch: \`${{ github.ref_name }}\`%0A"
+        MESSAGE+="👤 Author: ${{ github.actor }}%0A"
+        MESSAGE+="📝 Commit: \`${{ github.event.head_commit.message || github.event.pull_request.title }}\`%0A"
+        MESSAGE+="🔗 [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -d chat_id="${TELEGRAM_CHAT_ID}" \
+          -d parse_mode="Markdown" \
+          -d text="${MESSAGE}"
+
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install lint dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff
+
+    - name: Run Ruff linter
+      run: |
+        ruff check . --ignore E501,F401
+
+    - name: Notify Telegram on failure
+      if: failure() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+      continue-on-error: true
+      run: |
+        MESSAGE="❌ *Luma CI Failed (Lint)*%0A"
+        MESSAGE+="📦 Repo: \`${{ github.repository }}\`%0A"
+        MESSAGE+="🌿 Branch: \`${{ github.ref_name }}\`%0A"
+        MESSAGE+="👤 Author: ${{ github.actor }}%0A"
+        MESSAGE+="📝 Commit: \`${{ github.event.head_commit.message || github.event.pull_request.title }}\`%0A"
+        MESSAGE+="🔗 [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -d chat_id="${TELEGRAM_CHAT_ID}" \
+          -d parse_mode="Markdown" \
+          -d text="${MESSAGE}"
