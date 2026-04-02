@@ -199,9 +199,17 @@ def save_global_config(config):
         print(f"Warning: Failed to save global config: {e}")
 
 
-def resolve_project_key(cli_project_key: str, stored_project: str, current_cwd: str) -> str:
+def resolve_project_key(
+    cli_project_key: str,
+    stored_project: str,
+    current_cwd: str,
+    cli_project_explicit: bool = False,
+) -> str:
     """Resolve project key from CLI arg, saved mapping, cwd inference, then fallback."""
-    if cli_project_key and cli_project_key in PROJECTS:
+    if cli_project_explicit and cli_project_key in PROJECTS:
+        return cli_project_key
+
+    if cli_project_key and cli_project_key != "1" and cli_project_key in PROJECTS:
         return cli_project_key
 
     if stored_project and stored_project in PROJECTS:
@@ -236,7 +244,12 @@ def run_headless(args) -> int:
     stored_project = project_map.get(current_cwd)
 
     try:
-        project_key = resolve_project_key(args.project, stored_project, current_cwd)
+        project_key = resolve_project_key(
+            args.project,
+            stored_project,
+            current_cwd,
+            cli_project_explicit=args.project is not None,
+        )
         requested_project = _get_requested_project_value(args, project_key)
         action_name = args.action
 
@@ -371,7 +384,12 @@ def run_interactive(args) -> int:
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
     
-    project_key = resolve_project_key(args.project, stored_project, current_cwd)
+    project_key = resolve_project_key(
+        args.project,
+        stored_project,
+        current_cwd,
+        cli_project_explicit=args.project is not None,
+    )
 
     project = PROJECTS[project_key]
     
