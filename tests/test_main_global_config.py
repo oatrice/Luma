@@ -71,3 +71,26 @@ def test_resolve_project_key_falls_back_to_cwd_detection(monkeypatch):
     )
 
     assert project_key == "12"
+
+
+def test_resolve_project_key_prefers_explicit_cli_project_even_for_default_key(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        main,
+        "PROJECTS",
+        {
+            "1": {"name": "JarWise"},
+            "12": {"name": "Luma"},
+        },
+    )
+    monkeypatch.setattr(main, "detect_project_key_for_path", lambda cwd: "12")
+
+    project_key = main.resolve_project_key(
+        "1",
+        None,
+        "/Users/oatrice/Software-projects/Luma",
+        cli_project_explicit=True,
+    )
+
+    assert project_key == "1"
