@@ -117,6 +117,60 @@ Luma/
 python main.py
 ```
 
+### Headless CLI Contract
+
+Luma also supports a machine-readable headless contract for external callers such as Zenith.
+
+#### Metadata Preflight
+
+Use metadata mode to verify the running Luma revision and contract before invoking actions:
+
+```bash
+python main.py --meta --json
+```
+
+Successful output is emitted on `stdout` as JSON:
+
+```json
+{
+  "status": "success",
+  "mode": "metadata",
+  "result": {
+    "version": "1.6.0",
+    "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
+    "dirty": true,
+    "contract_version": "2.0",
+    "supported_actions": ["code_review"],
+    "python_version": "3.9.6"
+  }
+}
+```
+
+Field contract:
+
+- `version`: Luma version resolved from the repository version sources.
+- `git_commit`: Current `HEAD` commit hash.
+- `dirty`: Whether the repository has local uncommitted changes.
+- `contract_version`: External CLI contract version for compatibility checks.
+- `supported_actions`: Stable list of headless actions supported by this Luma build.
+- `python_version`: Python runtime version for the current process.
+
+Metadata mode is intentionally machine-readable. Use `--meta --json` and do not combine `--meta` with `--auto` or `--action`.
+
+#### Headless Action Execution
+
+Use headless action mode for external automation:
+
+```bash
+python main.py --auto --action code_review --json --project 12
+```
+
+Contract guarantees:
+
+- In headless `--json` mode, `stdout` is reserved for machine-readable JSON only.
+- Diagnostics, warnings, and startup noise are routed to `stderr`.
+- Interactive mode remains unchanged when headless flags are not used.
+
 ---
 
 ## 📋 Features & Progress
