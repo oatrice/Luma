@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.0] - 2026-04-02
+
+### Added
+- **CLI:** Introduced a headless CLI contract for programmatic execution, allowing external callers to interact with Luma programmatically. Updated documentation to include analysis for this new feature.
+
 ## [1.8.0] - 2026-04-01
 
 ### Added

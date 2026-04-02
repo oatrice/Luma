@@ -46,13 +46,37 @@ def _extract_version_and_note(content: str):
 
     return version, note
 
-def action_code_review(state: LumaState, project: dict):
+_CODE_REVIEW_SKIP_FILES = {
+    ".luma_global.json",
+    ".luma_metrics.json",
+}
+_CODE_REVIEW_SKIP_SUFFIXES = (".png", ".jpg", ".ico", ".pdf", ".jar")
+
+
+def _is_reviewable_code_review_file(rel_path: str) -> bool:
+    return (
+        os.path.basename(rel_path) not in _CODE_REVIEW_SKIP_FILES
+        and not rel_path.endswith(_CODE_REVIEW_SKIP_SUFFIXES)
+    )
+
+
+def _build_code_review_summary(results: list) -> dict:
+    return {
+        "total_projects": len(results),
+        "reviewed_count": sum(r.get("status") == "reviewed" for r in results),
+        "clean_count": sum(r.get("status") == "clean" for r in results),
+        "error_count": sum(r.get("status") == "error" for r in results),
+    }
+
+
+def action_code_review(state: LumaState, project: dict, headless: bool = False):
     """Run local code review agent"""
-    print("\n🧐 Local Code Reviewer")
+    if not headless:
+        print("\n🧐 Local Code Reviewer")
 
     # Determine target repos (Multi-Repo Support)
     # ── ใช้ค่าจาก Step 2 ถ้ามี (ไม่ถามซ้ำ) ───────────────────────────────────
-    preselected_repos = state.context.get("target_planning_repos")
+    preselected_repos = (state.context or {}).get("target_planning_repos")
     if preselected_repos:
         target_projects = preselected_repos
         repo_names = ", ".join(p["name"] for p in target_projects)
@@ -69,7 +93,9 @@ def action_code_review(state: LumaState, project: dict):
                 pass
 
         target_projects = []
-        if len(potential_projects) > 1:
+        if len(potential_projects) > 1 and headless:
+            target_projects = [project]
+        elif len(potential_projects) > 1:
             print("\n   Select repositories to review (e.g., 1, 2 or 'all'):")
             for i, proj in enumerate(potential_projects, 1):
                 print(f"   [{i}] {proj['name']} ({proj.get('type', 'unknown')})")
@@ -90,12 +116,26 @@ def action_code_review(state: LumaState, project: dict):
             target_projects = potential_projects
 
     if not target_projects:
-        print("   ❌ No repositories selected.")
-        return
+        message = "No repositories selected."
+        print(f"   ❌ {message}")
+        if headless:
+            raise RuntimeError(message)
+        return {"projects": [], "summary": _build_code_review_summary([])}
+
+    review_results = []
+    errors = []
+    prompt_text = _build_code_review_followup_prompt(
+        multi_repo=len(target_projects) > 1
+    )
 
     for proj in target_projects:
         print(f"\n🚀 Reviewing {proj['name']}...")
         target_dir = proj["path"]
+        repo_result = {
+            "name": proj["name"],
+            "path": target_dir,
+            "changed_files": [],
+        }
 
         # 1. Get changed files
         try:
@@ -104,8 +144,11 @@ def action_code_review(state: LumaState, project: dict):
             from luma_core.agents.reviewer import reviewer_agent
 
             file_list = get_git_changed_files("all", target_dir=target_dir)
+            file_list = [path for path in file_list if _is_reviewable_code_review_file(path)]
             if not file_list:
-                print(f"   ✅ {proj['name']}: No changes found (Clean vs origin/main).")
+                print(f"   ✅ {proj['name']}: No reviewable changes found.")
+                repo_result["status"] = "clean"
+                review_results.append(repo_result)
                 continue
 
             print(f"   🔎 Found {len(file_list)} changed files in {proj['name']}.")
@@ -118,9 +161,6 @@ def action_code_review(state: LumaState, project: dict):
             for rel_path in file_list:
                 full_path = os.path.join(target_dir, rel_path)
                 if os.path.exists(full_path) and os.path.isfile(full_path):
-                    # Skip binary/large files heuristic
-                    if rel_path.endswith((".png", ".jpg", ".ico", ".pdf", ".jar")):
-                        continue
                     try:
                         # 1. Try to get diff against origin/main (includes local commits)
                         diff_cmd = ["git", "diff", "origin/main", "--", rel_path]
@@ -147,7 +187,9 @@ def action_code_review(state: LumaState, project: dict):
                         pass
 
             if not changes:
-                print("   ❌ No readable content to review.")
+                print(f"   ✅ {proj['name']}: No reviewable content to inspect.")
+                repo_result["status"] = "clean"
+                review_results.append(repo_result)
                 continue
 
             # 2. Run Reviewer
@@ -162,16 +204,20 @@ def action_code_review(state: LumaState, project: dict):
             }
 
             result = reviewer_agent(review_state)
+            repo_result["changed_files"] = list(changes.keys())
+            repo_result["status"] = "reviewed"
 
             if result.get("code_content"):
                 print("\n   📝 Reviewer Feedback:")
                 print("   --------------------------------------------------")
                 print(result["code_content"])
                 print("   --------------------------------------------------")
+                repo_result["review_summary"] = result["code_content"]
 
             if result.get("test_suggestions"):
                 print("\n   🧪 Test Suggestions:")
                 print(result["test_suggestions"])
+                repo_result["test_suggestions"] = result["test_suggestions"]
 
             # Save to file
             report_path = os.path.join(target_dir, "code_review.md")
@@ -210,14 +256,12 @@ def action_code_review(state: LumaState, project: dict):
                 print(f"\n   ⚠️ Failed to save report: {e}")
 
             print(f"\n   ✅ Review Complete for {proj['name']}.")
+            repo_result["report_path"] = report_path
 
             # Print the prompt for the user to copy and paste to the AI assistant
             print("\n" + "=" * 60)
             print("💡 COPY THIS PROMPT FOR THE AI ASSISTANT:")
             print("=" * 60)
-            prompt_text = _build_code_review_followup_prompt(
-                multi_repo=len(target_projects) > 1
-            )
             print(prompt_text)
             print("=" * 60)
 
@@ -226,13 +270,27 @@ def action_code_review(state: LumaState, project: dict):
                 with open(prompt_path, "w", encoding="utf-8") as f:
                     f.write(prompt_text)
                 print(f"\n   📝 Prompt saved to: {prompt_path}")
+                repo_result["prompt_path"] = prompt_path
             except Exception as e:
                 print(f"\n   ⚠️ Failed to save prompt: {e}")
 
             print("\n" + "🧪" * 10 + " ต้อง RE-MANUAL VERIFY อย่างไร " + "🧪" * 10)
+            review_results.append(repo_result)
 
         except Exception as e:
             print(f"   ❌ Error during code review for {proj['name']}: {e}")
+            repo_result["status"] = "error"
+            repo_result["error"] = str(e)
+            review_results.append(repo_result)
+            errors.append(f"{proj['name']}: {e}")
+
+    if headless and errors:
+        raise RuntimeError("; ".join(errors))
+
+    return {
+        "projects": review_results,
+        "summary": _build_code_review_summary(review_results),
+    }
 
 def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = False):
     """Update documentation (Changelog, Version, README)"""
