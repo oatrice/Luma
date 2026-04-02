@@ -3,6 +3,10 @@ from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState, WorkflowPhase, transition_to
 from luma_core.preflight_checker import PreflightChecker
 from luma_core.config import PROJECTS
+from luma_core.issue_metrics import (
+    sync_planning_metrics_for_issues,
+    sync_pre_pr_metrics_for_issues,
+)
 import luma_core.usage_tracker as usage_tracker
 from luma_core.agents.publisher import publisher_agent
 from .utils import (
@@ -12,7 +16,6 @@ from .utils import (
     _status_key,
     _confirm_pending_doc_updates_before_pr,
     get_feature_dir,
-    auto_fill_issue_metrics,
     check_planning_artifacts
 )
 from .admin_actions import action_archive_artifacts
@@ -39,6 +42,15 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
     if not state.active_issues or not state.active_branch:
         print("❌ No active issue/branch")
         return
+
+    pre_pr_synced = sync_pre_pr_metrics_for_issues(
+        project["path"],
+        project.get("name"),
+        project.get("repo"),
+        state.active_issues,
+    )
+    if pre_pr_synced:
+        print(f"📏 Synced pre-PR metrics for {pre_pr_synced} issue(s).")
 
     # 1. Transition to PREFLIGHT
     print("\n🔄 Transitioning to PREFLIGHT phase...")
@@ -370,22 +382,6 @@ def action_guided_workflow(state: LumaState, project: dict):
         combined_number = "-".join([str(i.number) for i in state.active_issues])
         print(f"\n🔹 Step 1: Issue #{combined_number} already selected.")
 
-    # 1.5. Metrics Check
-    from luma_core.issue_metrics import get_issue_metrics
-    issues_missing_metrics = []
-    
-    for issue in state.active_issues:
-        metrics = get_issue_metrics(project["path"], project.get("repo", ""), issue.number)
-        has_metrics = metrics is not None and metrics.estimate_points is not None
-        if not has_metrics:
-            issues_missing_metrics.append(issue)
-            
-    if issues_missing_metrics:
-        ans = ui.safe_input("\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (Y/n): ").strip().lower()
-        if ans == 'y':
-            auto_fill_issue_metrics(state, project, issues_missing_metrics)
-
-
     # 2. Planning (Refine -> Spec -> Plan)
     print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
 
@@ -436,6 +432,7 @@ def action_guided_workflow(state: LumaState, project: dict):
     skip_planning = (state.checklist.get("step_planning", False) or state.phase in [
         WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING
     ]) and has_any_artifact
+    planning_completed = skip_planning
     
     if skip_planning:
         print("\n🔹 Step 2: Planning Phase (Skipped - already completed)")
@@ -547,10 +544,21 @@ def action_guided_workflow(state: LumaState, project: dict):
                     state.context["last_feature_dir"] = feature_dir
                 usage_tracker.set_sub_action("Auto:Planning/Plan")
                 action_generate_plan(state, planning_proj)
+        planning_completed = has_any_artifact or run_planning
 
         state.checklist["step_planning"] = True
         from luma_core.state_manager import save_state
         save_state(state, project["path"])
+
+    if planning_completed:
+        planning_synced = sync_planning_metrics_for_issues(
+            planning_proj["path"],
+            planning_proj.get("name"),
+            planning_proj.get("repo"),
+            state.active_issues,
+        )
+        if planning_synced:
+            print(f"\n   📏 Synced planning metrics for {planning_synced} issue(s).")
 
     # 3. Coding (User)
     skip_coding = (state.checklist.get("step_coding", False) or state.phase in [

@@ -14,6 +14,7 @@ def project_mock(tmp_path):
 
 @patch("luma_core.actions.workflow_actions.action_select_issue")
 @patch("luma_core.actions.workflow_actions.get_feature_dir")
+@patch("luma_core.actions.workflow_actions.sync_planning_metrics_for_issues")
 @patch("luma_core.actions.workflow_actions.check_planning_artifacts")
 @patch("luma_core.actions.workflow_actions.action_generate_plan")
 @patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
@@ -34,7 +35,8 @@ def project_mock(tmp_path):
 def test_guided_workflow_resume_from_review(
     mock_input, mock_format, mock_sum_metrics, mock_sum_usage, mock_notify,
     mock_prefill, mock_sync_gh, mock_check_merged, mock_pr, mock_archive, mock_roadmap,
-    mock_docs, mock_review, mock_swarm, mock_plan, mock_check_plan, mock_get_feature_dir, mock_select,
+    mock_docs, mock_review, mock_swarm, mock_plan, mock_check_plan,
+    mock_sync_planning, mock_get_feature_dir, mock_select,
     project_mock
 ):
     from luma_core.actions import action_guided_workflow
@@ -49,18 +51,11 @@ def test_guided_workflow_resume_from_review(
     state.checklist["step_planning"] = True
     state.checklist["step_coding"] = True
 
-    # User answers "y" to all remaining prompts
-    # 1. Check AI estimation? -> n
-    # 2. Run Code Review? -> y
-    # 3. Update Docs? -> y
-    # 4. Sync AI Brain? -> y
-    # 5. Update Roadmap? -> y
-    # 6. Archive? -> y
-    # 7. Create PRs? -> y
-    # 8. Check CI? -> n
-    # 9. Press enter after merged -> ""
-    mock_input.side_effect = ["n", "y", "y", "y", "y", "y", "y", "n", ""]
+    # Resume at REVIEWING should continue with the remaining quality/archive/PR prompts.
+    # The PR action is mocked, so the workflow will not enter the CI polling block.
+    mock_input.side_effect = ["y", "y", "y", "y", "y"]
 
+    mock_sync_planning.return_value = 1
     mock_check_plan.return_value = {"analysis": True, "spec": True, "plan": True}
     mock_get_feature_dir.return_value = "/mock/feature/dir"
     mock_check_merged.return_value = {"merged": True}
@@ -78,4 +73,5 @@ def test_guided_workflow_resume_from_review(
     mock_docs.assert_called_once()
     mock_roadmap.assert_called_once()
     mock_archive.assert_called_once()
+    mock_pr.assert_called_once()
     mock_notify.assert_called_once()
