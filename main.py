@@ -583,6 +583,7 @@ def run_interactive(args) -> int:
 
         elif choice.upper() == "Q":
             from luma_core.issue_metrics import sync_github_metrics_for_project
+            from luma_core.actions.utils import prompt_missing_post_story_points
             print(f"\n🐙 Audit & Sync GitHub Metrics - {project['name']}")
             result = sync_github_metrics_for_project(
                 project["path"],
@@ -598,6 +599,9 @@ def run_interactive(args) -> int:
                 print(f"   ⚠️  Encountered {result['errors']} errors during sync.")
             if result.get("paradoxes_fixed", 0) > 0:
                 print(f"   ⏱️  Fixed {result['paradoxes_fixed']} Time Paradox(es).")
+            
+            # Suggest and prompt for post story points for newly completed issues
+            prompt_missing_post_story_points(project)
         
         elif choice.upper() == "R":
             print("🔄 Refreshing state...")
