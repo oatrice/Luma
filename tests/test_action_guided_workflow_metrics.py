@@ -1,26 +1,24 @@
 from unittest.mock import MagicMock, patch
 from luma_core.state_manager import LumaState, WorkflowPhase
-from luma_core.issue_metrics import IssueMetricsRecord
 
 @patch("luma_core.actions.workflow_actions.transition_to", return_value=(True, ""))
 @patch("luma_core.actions.workflow_actions.action_generate_plan")
 @patch("luma_core.actions.workflow_actions.action_generate_spec")
 @patch("luma_core.actions.workflow_actions.action_refine_issue")
 @patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
+@patch("luma_core.actions.workflow_actions.sync_planning_metrics_for_issues")
 @patch("luma_core.actions.workflow_actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
 @patch("luma_core.actions.workflow_actions.get_feature_dir", return_value="/mock/feature/dir")
-@patch("luma_core.issue_metrics.get_issue_metrics")
-@patch("luma_core.actions.workflow_actions.auto_fill_issue_metrics")
 @patch("builtins.input")
-def test_guided_workflow_asks_for_metrics_auto_fill(
-    mock_input, mock_auto_fill, mock_get_metrics, mock_get_feature_dir, mock_check_artifacts,
-    mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys
+def test_guided_workflow_syncs_planning_metrics_after_planning(
+    mock_input, mock_get_feature_dir, mock_check_artifacts, mock_sync_planning_metrics,
+    mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys, tmp_path
 ):
     from luma_core.actions import action_guided_workflow
 
-    # 1. 'y' to run planning phase
-    # 2. 'y' to auto-fill missing metrics
-    inputs = iter(["y", "y", "0"]) # 0 to skip coding
+    # 1. Run planning phase
+    # 2. Pause at coding phase after planning is complete
+    inputs = iter(["y", "n"])
     
     def mock_input_func(prompt):
         try:
@@ -30,45 +28,32 @@ def test_guided_workflow_asks_for_metrics_auto_fill(
             
     mock_input.side_effect = mock_input_func
 
-    # Mock metrics so estimate_points is None
-    mock_get_metrics.return_value = IssueMetricsRecord(
-        issue_key="org/single#1",
-        issue_number=1,
-        repository="org/single",
-        project_name="SingleRepo",
-        issue_title="Test Issue",
-        issue_url="https://github.com/org/single/issues/1"
-    )
-
     # Setup State
     state = LumaState()
     state.phase = WorkflowPhase.IDLE
     mock_issue = MagicMock()
     mock_issue.number = 1
     mock_issue.title = "Test Issue"
+    mock_issue.html_url = "https://github.com/org/single/issues/1"
     state.active_issues = [mock_issue]
 
     # Setup Projects (Single Repo)
     single_project = {
         "name": "SingleRepo",
-        "path": "/mock/single",
+        "path": str(tmp_path),
         "repo": "org/single",
     }
 
     action_guided_workflow(state, single_project)
 
     capsys.readouterr()
-    
-    # Assert input was called for metrics
-    input_prompts = [call.args[0] for call in mock_input.call_args_list if call.args]
-    assert any("การประเมินชั่วโมงการทำงาน" in prompt for prompt in input_prompts)
-    assert (
-        "\nการประเมินชั่วโมงการทำงาน (Estimate Points) ยังไม่สมบูรณ์ ต้องการให้ AI ช่วยประเมินและเติมให้ไหม? (Y/n): "
-        in input_prompts
+
+    mock_sync_planning_metrics.assert_called_once_with(
+        str(tmp_path),
+        "SingleRepo",
+        "org/single",
+        state.active_issues,
     )
-    
-    # Assert auto_fill function is called
-    mock_auto_fill.assert_called_once()
 
 @patch("luma_core.actions.workflow_actions.transition_to", return_value=(True, ""))
 @patch("luma_core.actions.workflow_actions.action_generate_plan")
@@ -76,13 +61,12 @@ def test_guided_workflow_asks_for_metrics_auto_fill(
 @patch("luma_core.actions.workflow_actions.action_refine_issue")
 @patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
 @patch("luma_core.actions.workflow_actions.check_planning_artifacts", return_value={"analysis": True, "spec": True, "plan": True})
+@patch("luma_core.actions.workflow_actions.sync_planning_metrics_for_issues")
 @patch("luma_core.actions.workflow_actions.get_feature_dir", return_value="/mock/feature/dir")
-@patch("luma_core.issue_metrics.get_issue_metrics")
-@patch("luma_core.actions.workflow_actions.auto_fill_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_existing_artifacts_os_error(
-    mock_input, mock_auto_fill, mock_get_metrics, mock_get_feature_dir, mock_check_artifacts,
-    mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys
+    mock_input, mock_get_feature_dir, mock_sync_planning_metrics, mock_check_artifacts,
+    mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys, tmp_path
 ):
     from luma_core.actions import action_guided_workflow
 
@@ -98,32 +82,19 @@ def test_guided_workflow_existing_artifacts_os_error(
             
     mock_input.side_effect = mock_input_func
 
-    # Mock metrics so estimate_points is None to bypass that prompt if needed,
-    # or just let it return some metrics to avoid the prompt.
-    mock_get_metrics.return_value = IssueMetricsRecord(
-        issue_key="org/single#1",
-        issue_number=1,
-        repository="org/single",
-        project_name="SingleRepo",
-        issue_title="Test Issue",
-        issue_url="https://github.com/org/single/issues/1",
-        estimate_points=5,
-        estimated_mandays=2,
-        effort_level="Low"
-    )
-
     # Setup State
     state = LumaState()
     state.phase = WorkflowPhase.IDLE
     mock_issue = MagicMock()
     mock_issue.number = 1
     mock_issue.title = "Test Issue"
+    mock_issue.html_url = "https://github.com/org/single/issues/1"
     state.active_issues = [mock_issue]
 
     # Setup Projects (Single Repo)
     single_project = {
         "name": "SingleRepo",
-        "path": "/mock/single",
+        "path": str(tmp_path),
         "repo": "org/single",
     }
 
@@ -132,3 +103,4 @@ def test_guided_workflow_existing_artifacts_os_error(
 
     captured = capsys.readouterr()
     assert "Found existing Planning Docs" in captured.out
+    mock_sync_planning_metrics.assert_called_once()

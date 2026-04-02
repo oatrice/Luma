@@ -952,6 +952,203 @@ def apply_heuristic_defaults(record: IssueMetricsRecord) -> IssueMetricsRecord:
     return record
 
 
+def _calculate_mandays_between(
+    start_datetime: Optional[str], end_datetime: Optional[str]
+) -> Optional[float]:
+    start_norm = _normalize_metric_datetime_or_none(start_datetime)
+    end_norm = _normalize_metric_datetime_or_none(end_datetime)
+    if not start_norm or not end_norm:
+        return None
+
+    try:
+        start_dt = datetime.fromisoformat(start_norm.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end_norm.replace("Z", "+00:00"))
+
+        if start_dt.tzinfo is None and end_dt.tzinfo is not None:
+            start_dt = start_dt.replace(tzinfo=end_dt.tzinfo)
+        elif end_dt.tzinfo is None and start_dt.tzinfo is not None:
+            end_dt = end_dt.replace(tzinfo=start_dt.tzinfo)
+
+        diff_days = (end_dt - start_dt).total_seconds() / 86400.0
+        return max(0.5, round(diff_days * 2) / 2.0)
+    except Exception:
+        return None
+
+
+def apply_planning_defaults(
+    record: IssueMetricsRecord, started_at: Optional[str] = None
+) -> bool:
+    changed = False
+    defaults = _infer_story_profile(record.issue_title)
+
+    if record.estimate_points is None:
+        record.estimate_points = int(defaults["estimate_points"])
+        changed = True
+    if record.estimated_mandays is None:
+        record.estimated_mandays = float(defaults["estimated_mandays"])
+        changed = True
+    if record.effort_level is None:
+        record.effort_level = str(defaults["effort_level"])
+        changed = True
+
+    planning_start = _normalize_metric_datetime_or_none(started_at or _now_iso())
+    if record.start_datetime in (None, "") and planning_start:
+        record.start_datetime = planning_start
+        changed = True
+
+    return changed
+
+
+def apply_pre_pr_defaults(
+    record: IssueMetricsRecord, completed_at: Optional[str] = None
+) -> bool:
+    changed = False
+
+    completion_anchor = _normalize_metric_datetime_or_none(completed_at or _now_iso())
+    if record.actual_completion_date in (None, "") and completion_anchor:
+        record.actual_completion_date = completion_anchor
+        changed = True
+
+    if record.actual_mandays is None:
+        derived = _calculate_mandays_between(
+            record.start_datetime,
+            record.actual_completion_date,
+        )
+        if derived is not None:
+            record.actual_mandays = derived
+        else:
+            record.actual_mandays = float(record.estimated_mandays or 0.0)
+        changed = True
+
+    return changed
+
+
+def _sync_issue_metadata_from_workflow(
+    record: IssueMetricsRecord,
+    issue: object,
+    project_name: Optional[str],
+    repository: Optional[str],
+) -> bool:
+    changed = False
+    issue_number = int(getattr(issue, "number"))
+    issue_title = str(getattr(issue, "title", record.issue_title) or record.issue_title)
+    issue_url = _normalize_issue_url(
+        getattr(issue, "html_url", None) or getattr(issue, "url", None) or record.issue_url,
+        repository or record.repository,
+        issue_number,
+    )
+    issue_status = getattr(issue, "status", None) or getattr(issue, "issue_status", None)
+
+    if record.issue_number != issue_number:
+        record.issue_number = issue_number
+        changed = True
+    if issue_title and record.issue_title != issue_title:
+        record.issue_title = issue_title
+        changed = True
+    if issue_url and record.issue_url != issue_url:
+        record.issue_url = issue_url
+        changed = True
+    if project_name and record.project_name != project_name:
+        record.project_name = project_name
+        changed = True
+    if repository and record.repository != repository:
+        record.repository = repository
+        changed = True
+    if issue_status and record.issue_status != issue_status:
+        record.issue_status = issue_status
+        changed = True
+
+    return changed
+
+
+def _build_workflow_issue_record(
+    project_path: str,
+    project_name: Optional[str],
+    repository: Optional[str],
+    issue: object,
+) -> tuple[IssueMetricsRecord, bool]:
+    issue_number = int(getattr(issue, "number"))
+    repository_name = repository or getattr(issue, "repository", "") or ""
+    existing = get_issue_metrics(project_path, repository_name, issue_number)
+
+    if existing is None:
+        record = IssueMetricsRecord(
+            issue_key=issue_key_for(repository_name, issue_number),
+            issue_number=issue_number,
+            issue_title=str(getattr(issue, "title", f"Issue {issue_number}") or f"Issue {issue_number}"),
+            issue_url=_normalize_issue_url(
+                getattr(issue, "html_url", None) or getattr(issue, "url", None) or "",
+                repository_name,
+                issue_number,
+            ),
+            repository=repository_name,
+            project_name=project_name,
+            issue_status=getattr(issue, "status", None) or getattr(issue, "issue_status", None),
+        )
+        return record, True
+
+    changed = _sync_issue_metadata_from_workflow(existing, issue, project_name, repository_name)
+    return existing, changed
+
+
+def sync_planning_metrics_for_issues(
+    project_path: str,
+    project_name: Optional[str],
+    repository: Optional[str],
+    issues: List[object],
+    started_at: Optional[str] = None,
+) -> int:
+    if not issues:
+        return 0
+
+    planning_anchor = started_at or _now_iso()
+    updated = 0
+
+    for issue in issues:
+        record, changed = _build_workflow_issue_record(
+            project_path,
+            project_name,
+            repository,
+            issue,
+        )
+        if apply_planning_defaults(record, started_at=planning_anchor):
+            changed = True
+        if changed:
+            save_issue_metrics(project_path, record)
+            updated += 1
+
+    return updated
+
+
+def sync_pre_pr_metrics_for_issues(
+    project_path: str,
+    project_name: Optional[str],
+    repository: Optional[str],
+    issues: List[object],
+    completed_at: Optional[str] = None,
+) -> int:
+    if not issues:
+        return 0
+
+    completion_anchor = completed_at or _now_iso()
+    updated = 0
+
+    for issue in issues:
+        record, changed = _build_workflow_issue_record(
+            project_path,
+            project_name,
+            repository,
+            issue,
+        )
+        if apply_pre_pr_defaults(record, completed_at=completion_anchor):
+            changed = True
+        if changed:
+            save_issue_metrics(project_path, record)
+            updated += 1
+
+    return updated
+
+
 def apply_artifact_defaults(
     record: IssueMetricsRecord, evidence: Dict[str, object]
 ) -> IssueMetricsRecord:
@@ -1480,6 +1677,7 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
                 record.issue_status = "✅ Complete"
                 changed = True
         else:
+            should_clear_local_completion = _is_complete_status(record.issue_status)
             if gh_status_name:
                 if record.issue_status != gh_status_name:
                     record.issue_status = gh_status_name
@@ -1487,12 +1685,13 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             elif _is_complete_status(record.issue_status):
                 record.issue_status = None
                 changed = True
-            cleared_close_fields = _clear_close_fields_for_open_issue(record)
-            if cleared_close_fields:
-                changed = True
-                if record.actual_mandays != 0.0:
-                    record.actual_mandays = 0.0
+            if should_clear_local_completion:
+                cleared_close_fields = _clear_close_fields_for_open_issue(record)
+                if cleared_close_fields:
                     changed = True
+                    if record.actual_mandays != 0.0:
+                        record.actual_mandays = 0.0
+                        changed = True
 
             
         # Backfill

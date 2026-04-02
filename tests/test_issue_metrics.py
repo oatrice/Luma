@@ -9,6 +9,8 @@ from luma_core.issue_metrics import (
     _fetch_github_issue_activity_hint,
     apply_artifact_defaults,
     apply_heuristic_defaults,
+    apply_planning_defaults,
+    apply_pre_pr_defaults,
     format_metric_datetime,
     get_issue_metrics,
     list_issue_metrics,
@@ -81,6 +83,49 @@ def test_issue_metrics_start_datetime_parsed_from_roadmap_body(tmp_path):
 
     assert loaded is not None
     assert loaded.start_datetime == "2026-03-25T08:30:00"
+
+
+def test_apply_planning_defaults_sets_estimates_and_start_without_actuals():
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#23",
+        issue_number=23,
+        issue_title="Feature planning sync",
+        issue_url="https://github.com/oatrice/Luma/issues/23",
+        repository="oatrice/Luma",
+        issue_status="🟡 In Progress",
+    )
+
+    changed = apply_planning_defaults(record, started_at="2026-04-02T10:30:00")
+
+    assert changed is True
+    assert record.estimate_points is not None
+    assert record.estimated_mandays is not None
+    assert record.effort_level in ("Low", "Medium", "High")
+    assert record.start_datetime == "2026-04-02T10:30:00"
+    assert record.actual_completion_date is None
+    assert record.actual_mandays is None
+
+
+def test_apply_pre_pr_defaults_sets_actuals_before_issue_is_closed():
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#24",
+        issue_number=24,
+        issue_title="Feature ready for PR",
+        issue_url="https://github.com/oatrice/Luma/issues/24",
+        repository="oatrice/Luma",
+        issue_status="🟢 Ready",
+        estimate_points=3,
+        estimated_mandays=1.5,
+        effort_level="Medium",
+        start_datetime="2026-04-01T09:00:00",
+    )
+
+    changed = apply_pre_pr_defaults(record, completed_at="2026-04-02T21:00:00")
+
+    assert changed is True
+    assert record.actual_completion_date == "2026-04-02T21:00:00"
+    assert record.actual_mandays == 1.5
+    assert record.issue_status == "🟢 Ready"
 
 
 def test_issue_metrics_roundtrip_with_zero_values(tmp_path):
@@ -707,6 +752,42 @@ def test_sync_github_metrics_keeps_post_story_point_for_reopened_issue(tmp_path)
     loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 126)
     assert loaded is not None
     assert loaded.post_story_point == 5
+
+
+def test_sync_github_metrics_keeps_local_pre_pr_completion_for_open_issue(tmp_path):
+    from unittest.mock import patch, MagicMock
+
+    record = IssueMetricsRecord(
+        issue_key="oatrice/Luma#127",
+        issue_number=127,
+        issue_title="Open issue with local pre-PR metrics",
+        issue_url="https://github.com/oatrice/Luma/issues/127",
+        repository="oatrice/Luma",
+        issue_status="🟢 Ready",
+        start_datetime="2026-03-24T10:00:00",
+        actual_mandays=2.0,
+        actual_completion_date="2026-03-25T15:00:00",
+        estimated_mandays=1.5,
+    )
+    save_issue_metrics(str(tmp_path), record)
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = (
+            '[{"number": 127, "createdAt": "2026-03-23T08:00:00Z", "closedAt": null, '
+            '"projectItems": [{"status": {"name": "Ready"}}], "stateReason": ""}]'
+        )
+        mock_run.return_value = mock_process
+
+        result = sync_github_metrics_for_project(str(tmp_path), "Luma", "oatrice/Luma")
+
+    assert result["updated"] == 1
+    loaded = get_issue_metrics(str(tmp_path), "oatrice/Luma", 127)
+    assert loaded is not None
+    assert loaded.created_at == "2026-03-23T08:00:00Z"
+    assert loaded.issue_status == "🟢 Ready"
+    assert loaded.actual_completion_date == "2026-03-25T15:00:00"
+    assert loaded.actual_mandays == 2.0
 
 
 def test_sync_github_metrics_maps_backlog_for_open_issue_with_stale_completion(tmp_path):

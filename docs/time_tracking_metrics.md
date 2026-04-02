@@ -2,6 +2,12 @@
 
 This document explains the time tracking fields stored in `.luma_metrics.json` to help project managers and data auditors accurately evaluate project performance and identify bottlenecks.
 
+## Population Timing
+
+- `estimate_points`, `estimated_mandays`, `effort_level`, and `start_datetime` should be populated after the planning flow is complete (`analysis.md`, `spec.md`, `plan.md`).
+- `actual_completion_date` and `actual_mandays` should be populated during the pre-PR workflow, right before opening the pull request.
+- `post_story_point` remains a completion-oriented metric and can still be confirmed when closing the issue or reconciling metrics later.
+
 ## Core Time Fields
 
 ### 1. `created_at`
@@ -12,13 +18,14 @@ This document explains the time tracking fields stored in `.luma_metrics.json` t
 ### 2. `start_datetime`
 - **Definition:** The timestamp denoting when actual work began on the issue.
 - **Source:** 
-  1. Ideally, derived from AI Usage Tracking logs (`.luma_ai_usage.jsonl`) which records the very first time an LLM was consulted for the issue.
-  2. Fallback: The timestamp of the oldest Git commit referencing the issue number.
-  3. Fallback for Local Time Paradoxes: Synthesized by subtracting `estimated_mandays` from the completion date.
+  1. Primarily set when the planning flow is completed.
+  2. Fallback: derived from AI Usage Tracking logs (`.luma_ai_usage.jsonl`) which records the very first time an LLM was consulted for the issue.
+  3. Fallback: the timestamp of the oldest Git commit referencing the issue number.
+  4. Fallback for Local Time Paradoxes: Synthesized by subtracting `estimated_mandays` from the completion date.
 
 ### 3. `actual_completion_date`
-- **Definition:** The timestamp recorded by the Luma CLI on the developer's local machine at the exact moment the issue was marked as `✅ Complete` in the local tracked state.
-- **Characteristic:** Prone to "tracking delays" if the developer finishes the code but forgets to run Luma's completion workflow on their local machine.
+- **Definition:** The timestamp recorded by the Luma CLI on the developer's local machine when the work is declared ready for PR in the pre-flight / pre-PR workflow.
+- **Characteristic:** Captures local completion before GitHub closure, making it possible to measure implementation effort separately from review or merge delays.
 
 ### 4. `gh_closed_at`
 - **Definition:** The absolute truth timestamp of when the issue was officially closed or the Pull Request was merged on GitHub.
