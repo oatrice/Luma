@@ -10,14 +10,19 @@ import sys
 import json
 import time
 import argparse
+import platform
+import subprocess
 from contextlib import redirect_stdout
+
+from luma_core.importlib_compat import ensure_importlib_metadata_compat
+
+ensure_importlib_metadata_compat()
 
 import luma_core.ui as ui
 import luma_core.actions as actions
 import luma_core.usage_tracker as usage_tracker
 from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow
 from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
-from luma_core.importlib_compat import ensure_importlib_metadata_compat
 from luma_core.notifier import notify_task_complete
 
 from luma_core.state_manager import (
@@ -25,7 +30,8 @@ from luma_core.state_manager import (
     load_state, save_state, transition_to
 )
 from luma_core.tools import (
-    get_project_git_info
+    get_current_version,
+    get_project_git_info,
 )
 
 
@@ -37,6 +43,8 @@ ensure_importlib_metadata_compat()
 
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
+CONTRACT_VERSION = "2.0"
+SUPPORTED_HEADLESS_ACTIONS = ("code_review",)
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
 
@@ -84,6 +92,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="json",
         help="Emit machine-readable JSON to stdout",
     )
+    parser.add_argument(
+        "--meta",
+        action="store_true",
+        help="Emit machine-readable metadata for external consumers",
+    )
     return parser
 
 
@@ -103,8 +116,19 @@ def parse_cli_args(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    headless_requested = args.auto or args.action is not None or args.json
-    if headless_requested and not args.action:
+    headless_requested = args.auto or args.action is not None or args.json or args.meta
+    if args.meta:
+        if not args.json:
+            raise CLIArgumentError(
+                "--meta requires --json.",
+                exit_code=2,
+            )
+        if args.action is not None or args.auto:
+            raise CLIArgumentError(
+                "--meta cannot be combined with --action or --auto.",
+                exit_code=2,
+            )
+    elif headless_requested and not args.action:
         raise CLIArgumentError(
             "--action is required when using headless mode.",
             exit_code=2,
@@ -120,7 +144,7 @@ def parse_cli_args(argv=None):
 
 
 def is_headless_mode(args) -> bool:
-    return bool(args.auto or args.action or args.json)
+    return bool(args.auto or args.action or args.json or args.meta)
 
 
 def emit_json(payload: dict) -> None:
@@ -142,6 +166,47 @@ def build_error_payload(action_name: str, requested_project: str, error_message:
         "action": action_name,
         "project": requested_project,
         "error": error_message,
+    }
+
+
+def is_git_dirty(repo_path: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return False
+
+    return bool(result.stdout.strip())
+
+
+def build_metadata_result() -> dict:
+    git_info = get_project_git_info(LUMA_ROOT)
+    version = (
+        get_current_version(LUMA_ROOT, "VERSION")
+        or get_current_version(LUMA_ROOT)
+        or "unknown"
+    )
+
+    return {
+        "version": version,
+        "git_commit": git_info.get("hash") or "unknown",
+        "dirty": is_git_dirty(LUMA_ROOT),
+        "contract_version": CONTRACT_VERSION,
+        "supported_actions": list(SUPPORTED_HEADLESS_ACTIONS),
+        "python_version": platform.python_version(),
+    }
+
+
+def build_metadata_payload() -> dict:
+    return {
+        "status": "success",
+        "mode": "metadata",
+        "result": build_metadata_result(),
     }
 
 def check_luma_outdated():
@@ -238,6 +303,10 @@ def _resolve_headless_action(action_name: str):
 
 
 def run_headless(args) -> int:
+    if args.meta:
+        emit_json(build_metadata_payload())
+        return 0
+
     current_cwd = os.getcwd()
     global_config = load_global_config()
     project_map = global_config.get("last_projects_by_path", {})
