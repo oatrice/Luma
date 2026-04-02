@@ -14,9 +14,9 @@ import platform
 import subprocess
 from contextlib import redirect_stdout
 
+# Import first so Python 3.9 importlib metadata compatibility is installed
+# before other project modules import third-party dependencies.
 from luma_core.importlib_compat import ensure_importlib_metadata_compat
-
-ensure_importlib_metadata_compat()
 
 import luma_core.ui as ui
 import luma_core.actions as actions
@@ -38,8 +38,6 @@ from luma_core.tools import (
 # =============================================================================
 # Configuration & Constants
 # =============================================================================
-
-ensure_importlib_metadata_compat()
 
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))

@@ -15,12 +15,13 @@ except ImportError:
 @patch("luma_core.actions.workflow_actions.transition_to", return_value=(True, ""))
 @patch("luma_core.actions.workflow_actions.PreflightChecker")
 @patch("luma_core.actions.workflow_actions._confirm_pending_doc_updates_before_pr", return_value=True)
+@patch("luma_core.actions.workflow_actions.sync_pre_pr_metrics_for_issues")
 @patch("subprocess.run")
 @patch("luma_core.github_client.get_open_pr", return_value=None)
 @patch("luma_core.actions.workflow_actions.publisher_agent")
 def test_action_create_pr_summary_printed(
-    mock_publisher, mock_get_open_pr, mock_subprocess, mock_confirm_docs,
-    mock_preflight, mock_transition, capsys
+    mock_publisher, mock_get_open_pr, mock_subprocess, mock_sync_pre_pr_metrics,
+    mock_confirm_docs, mock_preflight, mock_transition, capsys
 ):
     from luma_core.actions import action_create_pr
     import luma_core.actions as actions_module
@@ -89,6 +90,13 @@ def test_action_create_pr_summary_printed(
         action_create_pr(state, root_project, auto_approve=True)
 
     captured = capsys.readouterr()
+
+    mock_sync_pre_pr_metrics.assert_called_once_with(
+        "/mock/root",
+        "RootRepo",
+        "org/root",
+        state.active_issues,
+    )
     
     # Assert PR Summary is printed
     assert "📋 PR Summary:" in captured.out
