@@ -68,7 +68,7 @@ def reviewer_agent(state: AgentState):
     advice = ""
     try:
         print("🧪 Reviewer: Analyzing for missing tests...")
-        advice_prompt = """
+        advice_prompt = f"""
         Analyze the code changes below and write a "Manual Verification Guide" for the developer to perform local testing.
         Think about how to physically test these changes step-by-step (e.g., clicking UI, sending text in chat, running curl).
         
