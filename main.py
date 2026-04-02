@@ -10,6 +10,49 @@ import sys
 import json
 import time
 import argparse
+from contextlib import redirect_stdout
+
+try:
+    import importlib.metadata as importlib_metadata
+except ImportError:  # pragma: no cover
+    import importlib_metadata  # type: ignore[no-redef]
+
+
+def ensure_importlib_metadata_compat(metadata_module=None):
+    """Backfill Python 3.9's missing packages_distributions helper."""
+    metadata_module = metadata_module or importlib_metadata
+    if hasattr(metadata_module, "packages_distributions"):
+        return False
+
+    def packages_distributions():
+        module_to_distributions = {}
+        try:
+            for distribution in metadata_module.distributions():
+                try:
+                    distribution_name = distribution.metadata.get("Name")
+                except Exception:
+                    distribution_name = None
+
+                if not distribution_name:
+                    continue
+
+                for file_entry in getattr(distribution, "files", ()) or ():
+                    parts = getattr(file_entry, "parts", None)
+                    if not parts:
+                        continue
+                    module_to_distributions.setdefault(parts[0], []).append(
+                        distribution_name
+                    )
+        except Exception:
+            return {}
+
+        return module_to_distributions
+
+    metadata_module.packages_distributions = packages_distributions
+    return True
+
+
+ensure_importlib_metadata_compat()
 
 # Ensure luma_core is in path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -37,6 +80,111 @@ from luma_core.tools import (
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
+
+
+class CLIError(Exception):
+    """Base error for CLI contract handling."""
+
+    def __init__(self, message: str, exit_code: int = 1):
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+class CLIArgumentError(CLIError):
+    """Raised when CLI argument validation fails."""
+
+
+class LumaArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that raises instead of exiting for custom JSON errors."""
+
+    def error(self, message):
+        raise CLIArgumentError(message, exit_code=2)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = LumaArgumentParser(description="Luma AI Architect V2")
+    parser.add_argument(
+        "--project",
+        type=str,
+        default=None,
+        help="Project key (for example 1=JarWise-Root, 12=Luma)",
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Run without the interactive menu",
+    )
+    parser.add_argument(
+        "--action",
+        type=str,
+        default=None,
+        help="Headless action name to execute",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json",
+        help="Emit machine-readable JSON to stdout",
+    )
+    return parser
+
+
+def _extract_flag_value(argv, flag_name: str):
+    try:
+        index = argv.index(flag_name)
+    except ValueError:
+        return None
+
+    if index + 1 >= len(argv):
+        return None
+    return argv[index + 1]
+
+
+def parse_cli_args(argv=None):
+    argv = list(argv or [])
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    headless_requested = args.auto or args.action is not None or args.json
+    if headless_requested and not args.action:
+        raise CLIArgumentError(
+            "--action is required when using headless mode.",
+            exit_code=2,
+        )
+
+    if args.project is not None and args.project not in PROJECTS:
+        raise CLIArgumentError(
+            f"Unknown project key '{args.project}'.",
+            exit_code=2,
+        )
+
+    return args
+
+
+def is_headless_mode(args) -> bool:
+    return bool(args.auto or args.action or args.json)
+
+
+def emit_json(payload: dict) -> None:
+    print(json.dumps(payload, ensure_ascii=False))
+
+
+def build_success_payload(action_name: str, requested_project: str, result: dict) -> dict:
+    return {
+        "status": "success",
+        "action": action_name,
+        "project": requested_project,
+        "result": result,
+    }
+
+
+def build_error_payload(action_name: str, requested_project: str, error_message: str) -> dict:
+    return {
+        "status": "error",
+        "action": action_name,
+        "project": requested_project,
+        "error": error_message,
+    }
 
 def check_luma_outdated():
     """Check if the current running Luma is outdated compared to the code on disk."""
@@ -95,7 +243,7 @@ def save_global_config(config):
 
 def resolve_project_key(cli_project_key: str, stored_project: str, current_cwd: str) -> str:
     """Resolve project key from CLI arg, saved mapping, cwd inference, then fallback."""
-    if cli_project_key != "1" and cli_project_key in PROJECTS:
+    if cli_project_key and cli_project_key in PROJECTS:
         return cli_project_key
 
     if stored_project and stored_project in PROJECTS:
@@ -106,6 +254,66 @@ def resolve_project_key(cli_project_key: str, stored_project: str, current_cwd: 
         return inferred_project
 
     return "1"
+
+
+def _get_requested_project_value(args, resolved_project_key: str) -> str:
+    return args.project or resolved_project_key
+
+
+def _resolve_headless_action(action_name: str):
+    if action_name == "code_review":
+        return lambda state, project: actions.action_code_review(
+            state,
+            project,
+            headless=True,
+        )
+
+    raise CLIError(f"Action '{action_name}' not found.", exit_code=1)
+
+
+def run_headless(args) -> int:
+    current_cwd = os.getcwd()
+    global_config = load_global_config()
+    project_map = global_config.get("last_projects_by_path", {})
+    stored_project = project_map.get(current_cwd)
+
+    try:
+        project_key = resolve_project_key(args.project, stored_project, current_cwd)
+        requested_project = _get_requested_project_value(args, project_key)
+        action_name = args.action
+
+        with redirect_stdout(sys.stderr):
+            project = PROJECTS[project_key]
+            state = load_state(project["path"])
+            state.project_key = project_key
+            action_runner = _resolve_headless_action(action_name)
+            result = action_runner(state, project)
+
+        if args.json:
+            emit_json(build_success_payload(action_name, requested_project, result))
+        else:
+            print(f"✅ {action_name} completed for project {requested_project}")
+        return 0
+    except CLIError as exc:
+        requested_project = _get_requested_project_value(
+            args,
+            args.project or "1",
+        )
+        if args.json:
+            emit_json(build_error_payload(args.action, requested_project, str(exc)))
+        else:
+            print(str(exc), file=sys.stderr)
+        return exc.exit_code
+    except Exception as exc:
+        requested_project = _get_requested_project_value(
+            args,
+            args.project or "1",
+        )
+        if args.json:
+            emit_json(build_error_payload(args.action, requested_project, str(exc)))
+        else:
+            print(str(exc), file=sys.stderr)
+        return 2
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
@@ -192,17 +400,10 @@ def run_with_notify(action_label: str, project_name: str, func, *args, **kwargs)
 # Main Loop
 # =============================================================================
 
-def main():
-    parser = argparse.ArgumentParser(description="Luma AI Architect V2")
-    parser.add_argument("--project", type=str, default="1", help="Project key (1=JarWise, 2=Tetris)")
-    args = parser.parse_args()
-    
+def run_interactive(args) -> int:
     # Load global config for last project
     global_config = load_global_config()
-    stored_project = global_config.get("last_project", "1")
-    
-    # Initialize - use stored project if no CLI arg provided
-    
+
     current_cwd = os.getcwd()
     # Migration: Support old format
     if "last_project" in global_config and "last_projects_by_path" not in global_config:
@@ -266,7 +467,7 @@ def main():
             # Save state before exit
             save_state(state, project["path"])
             print("\n👋 State saved. Goodbye!")
-            break
+            return 0
         
         elif choice == "1":
             actions.action_list_active_issues(project)
@@ -456,5 +657,31 @@ def main():
         ui.safe_input("\nPress Enter to continue...")
 
 
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+
+    try:
+        args = parse_cli_args(argv)
+    except CLIArgumentError as exc:
+        if "--json" in argv:
+            emit_json(
+                build_error_payload(
+                    _extract_flag_value(argv, "--action"),
+                    _extract_flag_value(argv, "--project") or "1",
+                    str(exc),
+                )
+            )
+        else:
+            parser = build_parser()
+            parser.print_usage(sys.stderr)
+            print(str(exc), file=sys.stderr)
+        return exc.exit_code
+
+    if is_headless_mode(args):
+        return run_headless(args)
+
+    return run_interactive(args)
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
