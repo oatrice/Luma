@@ -1,89 +1,144 @@
 # Implementation Plan: CLI Contract: Metadata Endpoint and Headless JSON Output Guarantees
 
 > **Refers to**: ./spec.md
-> **Status**: Draft
+> **Status**: Completed
 
 ## 1. Architecture & Design
-*High-level technical approach.*
 
 ### Component View
 - **Modified Components**:
-    - `main.py`: To parse new `--meta --json` CLI flags and manage output streams to stdout/stderr.
-    - `luma_core/config.py`: To define `CONTRACT_VERSION` and `SUPPORTED_ACTIONS`.
-    - `luma_core/tools.py`: To house utility functions for retrieving version, git info, Python version, and orchestrating metadata assembly.
-    - `luma_core/ui.py` / `main.py`: Logic to ensure strict stdout/stderr separation for metadata output.
-- **New Components**:
-    - A new function `get_metadata()` in `luma_core/tools.py` to collect all metadata.
-    - CLI argument parsing and output handling logic within `main.py`.
+  - `main.py`: added metadata mode, contract validation, metadata builders, and startup-safe compatibility initialization
+  - `tests/test_main_headless_cli.py`: added coverage for metadata mode and real subprocess stdout contract
+  - `README.md`: documented the external CLI contract
+- **Reused Components**:
+  - `luma_core.tools.get_current_version()`
+  - `luma_core.tools.get_project_git_info()`
 - **Dependencies**:
-    - Standard Python libraries: `sys`, `subprocess`, `json`.
-    - Project internal modules/files: `luma_core/config.py`, `VERSION` file.
+  - Python standard libraries: `json`, `platform`, `subprocess`, `sys`
+  - repository version source: `VERSION`
 
 ---
 
-## 2. Step-by-Step Implementation
+## 2. Implementation Steps
 
-### Step 1: Define Contract Version and Supported Actions
-- **Docs**: N/A (Internal configuration).
-- **Code**: Add `CONTRACT_VERSION = "v1"` and `SUPPORTED_ACTIONS = ["analyze", "plan", "code", "review"]` as constants to `luma_core/config.py`.
-- **Tests**: N/A.
+### Step 1: Add metadata mode
+- Added `--meta` parsing in `main.py`
+- Defined explicit metadata-mode validation:
+  - `--meta` requires `--json`
+  - `--meta` cannot be combined with `--action` or `--auto`
 
-### Step 2: Implement Metadata Retrieval Utilities
-- **Docs**: Add comprehensive docstrings to new functions within `luma_core/tools.py` explaining their purpose, arguments, and return values.
-- **Code**:
-    - Create `luma_core/tools.py` if it does not exist.
-    - Implement `get_luma_version()`: Reads and returns the content of the `VERSION` file.
-    - Implement `get_git_info()`: Utilizes `subprocess` to execute `git rev-parse HEAD` and `git status --porcelain`. This function will return a tuple `(commit_hash, is_dirty)`. It must gracefully handle cases where Luma is not installed in a Git repository by returning `(None, None)`.
-    - Implement `get_python_version()`: Returns the current Python version string using `sys.version_info` (e.g., "3.9.18").
-    - Implement `get_metadata()`: This function will orchestrate calls to the above utility functions and retrieve `CONTRACT_VERSION` and `SUPPORTED_ACTIONS` from `luma_core.config`. It will return a dictionary containing `version`, `git_commit`, `dirty`, `contract_version`, `supported_actions`, and `python_version`.
-- **Tests**: Write unit tests in a new or existing test file (e.g., `tests/test_tools.py`) for `get_luma_version`, `get_git_info` (mocking `subprocess` for various scenarios including non-Git repos), and `get_python_version`.
+### Step 2: Build stable metadata payload
+- Added `CONTRACT_VERSION = "2.0"`
+- Added `SUPPORTED_HEADLESS_ACTIONS = ("code_review",)`
+- Reused existing helpers for version and git info
+- Added `is_git_dirty()` and metadata payload builders in `main.py`
+- Ensured metadata prefers `VERSION` as the canonical version source
 
-### Step 3: Integrate Metadata Endpoint into CLI
-- **Docs**: Update CLI help messages in `main.py`'s argument parser to reflect the new `--meta --json` options.
-- **Code**:
-    - In `main.py`, modify the argument parsing logic to accept and recognize `--meta` and `--json` flags.
-    - Implement conditional logic: If both `--meta` and `--json` flags are present, call the `get_metadata()` function.
-    - Serialize the returned metadata dictionary into a JSON string using `json.dumps()`.
-    - Ensure this JSON string is printed *exclusively* to `sys.stdout`.
-    - Implement mechanisms to redirect all other diagnostic `print` statements or logging output to `sys.stderr` when the `--meta --json` flags are active, guaranteeing a clean stdout.
-    - The program should exit cleanly after printing the metadata.
-- **Tests**: Add unit tests in `tests/test_main.py` to verify:
-    - The correct JSON payload is emitted to `stdout` when `python main.py --meta --json` is called.
-    - `stdout` remains clean and contains only the JSON output.
-    - Diagnostic messages (simulated warnings/info) are correctly directed to `stderr`.
-    - The `git_commit` and `dirty` fields in the output are correctly set to `None` when the environment is not a Git repository.
+### Step 3: Protect JSON-only stdout
+- Moved `ensure_importlib_metadata_compat()` before heavier imports in `main.py`
+- Preserved `redirect_stdout(sys.stderr)` for headless action execution
+- Verified startup-time warnings no longer corrupt JSON stdout
 
-### Step 4: Update Documentation
-- **Docs**: Add a new section to the project's `README.md` (or a dedicated CLI documentation file, if applicable) that details the new `--meta --json` command. This documentation should describe:
-    - The command's purpose.
-    - Its arguments.
-    - The structure of the JSON payload, including a description of each field (`version`, `git_commit`, `dirty`, `contract_version`, `supported_actions`, `python_version`).
-    - The behavior regarding stdout/stderr stream separation.
-- **Code**: N/A.
-- **Tests**: N/A.
-
-### Step 5: Comprehensive Unit Testing
-- **Docs**: N/A.
-- **Code**: Implement all necessary unit tests as detailed in Steps 2 and 3. Ensure that test coverage is comprehensive, including:
-    - Happy path scenarios with valid inputs.
-    - Edge cases such as an empty `VERSION` file, missing `git` executable, or an invalid Git repository structure.
-    - Verification of the non-Git repository scenario handling.
-- **Tests**: N/A.
+### Step 4: Document the contract
+- Updated `README.md` with:
+  - metadata endpoint usage
+  - payload shape
+  - stdout/stderr separation guarantees
+- Updated this feature folder to match shipped behavior
 
 ---
 
 ## 3. Verification Plan
-*How will we verify success?*
 
 ### Automated Tests
-- **Unit Tests**:
-    - Tests for `luma_core/tools.py` covering `get_luma_version`, `get_git_info` (with mocked `subprocess` for Git and non-Git scenarios), `get_python_version`, and the combined `get_metadata` function.
-    - Tests for `main.py` to validate CLI argument parsing, the correct invocation of metadata generation, and the accuracy and stream separation of the command's output.
-- **Integration Tests**: (Optional, but recommended) If applicable, tests that simulate running `main.py` as a subprocess and capturing its stdout/stderr.
+
+Run:
+
+```bash
+python3 -m pytest tests/test_main_headless_cli.py tests/test_main_global_config.py tests/test_main_refresh_state.py tests/test_action_code_review.py -q
+```
+
+Expected:
+
+- all tests pass
+- metadata mode remains machine-readable
+- subprocess-based stdout contract remains parseable
 
 ### Manual Verification
-- **Checklist**:
-    - Execute `python main.py --meta --json` in a clean, active Git repository. Verify that `stdout` contains a correctly formatted JSON object with accurate `version`, `git_commit`, `dirty: false`, `contract_version`, `supported_actions`, and `python_version`.
-    - Execute `python main.py --meta --json` in a directory that is *not* a Git repository. Verify that `git_commit` and `dirty` fields are `null`, and a warning message is present on `stderr`.
-    - Introduce temporary diagnostic `print` statements (that would normally go to stdout) in other parts of the codebase. Run `python main.py --meta --json` and confirm these messages appear on `stderr` and not `stdout`.
-    - Verify that the `supported_actions` and `contract_version` in the JSON output precisely match the values defined in `luma_core/config.py`.
+
+#### Scenario 1: Metadata success path
+
+Run:
+
+```bash
+python3 main.py --meta --json
+```
+
+Verify:
+
+- stdout is valid JSON
+- payload contains `version`, `git_commit`, `dirty`, `contract_version`, `supported_actions`, `python_version`
+- `version` matches `VERSION`
+
+#### Scenario 2: Invalid metadata flags
+
+Run:
+
+```bash
+python3 main.py --meta --json --action code_review
+```
+
+Verify:
+
+- exit code is `2`
+- stdout is JSON error payload
+- error message is `--meta cannot be combined with --action or --auto.`
+
+#### Scenario 3: Real subprocess stdout contract
+
+Run:
+
+```bash
+python3 - <<'PY'
+import json
+import subprocess
+import sys
+
+cmd = [
+    sys.executable,
+    "main.py",
+    "--auto",
+    "--action",
+    "invalid_action",
+    "--json",
+    "--project",
+    "12",
+]
+res = subprocess.run(cmd, capture_output=True, text=True)
+print(res.returncode)
+print(res.stdout)
+print(res.stderr)
+json.loads(res.stdout)
+print("JSON OK")
+PY
+```
+
+Verify:
+
+- `json.loads(res.stdout)` succeeds
+- stdout has no human-readable prefix/suffix
+- stderr may contain warnings without breaking stdout
+
+#### Scenario 4: Interactive regression
+
+Run:
+
+```bash
+python3 main.py
+```
+
+Verify:
+
+- interactive menu still appears
+- normal exit still works
+- no forced headless behavior appears without flags
