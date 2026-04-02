@@ -8,11 +8,12 @@ from luma_core.state_manager import LumaState, WorkflowPhase
 @patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
 @patch("luma_core.actions.workflow_actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
 @patch("luma_core.actions.workflow_actions.get_feature_dir", return_value="/mock/feature/dir")
-@patch("luma_core.actions.workflow_actions.auto_fill_issue_metrics")
+@patch("luma_core.actions.workflow_actions.sync_planning_metrics_for_issues")
+@patch("luma_core.state_manager.save_state")
 @patch("luma_core.issue_metrics.get_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_planning_multi_repo_picker(
-    mock_input, mock_get_metrics, mock_auto_fill, mock_get_feature_dir, mock_check_artifacts,
+    mock_input, mock_get_metrics, mock_save_state, mock_sync_planning, mock_get_feature_dir, mock_check_artifacts,
     mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys
 ):
     from luma_core.actions import action_guided_workflow
@@ -89,11 +90,12 @@ def test_guided_workflow_planning_multi_repo_picker(
 @patch("luma_core.actions.workflow_actions.action_run_multi_agent_coding")
 @patch("luma_core.actions.workflow_actions.check_planning_artifacts", return_value={"analysis": False, "spec": False, "plan": False})
 @patch("luma_core.actions.workflow_actions.get_feature_dir", return_value="/mock/feature/dir")
-@patch("luma_core.actions.workflow_actions.auto_fill_issue_metrics")
+@patch("luma_core.actions.workflow_actions.sync_planning_metrics_for_issues")
+@patch("luma_core.state_manager.save_state")
 @patch("luma_core.issue_metrics.get_issue_metrics")
 @patch("builtins.input")
 def test_guided_workflow_planning_single_repo(
-    mock_input, mock_get_metrics, mock_auto_fill, mock_get_feature_dir, mock_check_artifacts,
+    mock_input, mock_get_metrics, mock_save_state, mock_sync_planning, mock_get_feature_dir, mock_check_artifacts,
     mock_multi_agent, mock_refine, mock_spec, mock_plan, mock_transition, capsys
 ):
     from luma_core.actions import action_guided_workflow
