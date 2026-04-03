@@ -83,6 +83,28 @@ def test_summarize_usage_stats_project_filter():
         os.unlink(path)
 
 
+def test_summarize_usage_stats_ignores_action_run_events():
+    events = [
+        {"ts": "2026-03-21T10:00:00", "event": "action_run", "status": "success",
+         "duration_ms": 1500, "action": "code_review", "project_name": "Alpha"},
+        {"ts": "2026-03-21T10:01:00", "event": "llm_call", "status": "success",
+         "model": "m1", "duration_ms": 1000, "project_name": "Alpha"},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+        for e in events:
+            f.write(json.dumps(e) + "\n")
+        path = f.name
+
+    try:
+        result = summarize_usage_stats(path, project={"name": "Alpha"})
+        assert result["total_calls"] == 1
+        assert result["success_count"] == 1
+        assert result["error_count"] == 0
+        assert result["total_duration_ms"] == 1000
+    finally:
+        os.unlink(path)
+
+
 # ──────────────────────────────────────────────
 # 2. summarize_issue_metrics
 # ──────────────────────────────────────────────
