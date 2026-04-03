@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.11.0] - 2026-04-03
+## [1.12.0] - 2026-04-03
 
 ### Added
 - **Guided Planning:** Enhanced multi-issue planning with compact naming, safe directory generation, and improved circular LLM fallback.
@@ -22,7 +22,7 @@
 ### Added
 - **CLI:** Introduced a headless metadata endpoint for programmatic interaction and ensured strict JSON output for external callers.
 
-## [1.8.0] - 2026-04-02
+## [1.9.0] - 2026-04-02
 
 ### Added
 - **CLI:** Introduced a headless CLI contract for programmatic execution, allowing external callers to interact with Luma programmatically. Updated documentation to include analysis for this new feature.
