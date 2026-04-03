@@ -1,68 +1,72 @@
-# SBE (Specification by Example) Template
+# SBE: Guided Planning Reliability for Multi-Issue Runs
 
-> 📅 Created: 2026-04-03
+> 📅 Updated: 2026-04-03
 > 🔗 Issue: https://github.com/oatrice/Luma/issues/35
 
 ---
 
-## Feature: Guided Planning สำหรับ multi-issue run ที่สร้าง feature directory ได้อย่างปลอดภัยและหมุน fallback model ครบทั้ง chain
+## Feature
 
-Guided Planning ต้องรองรับการวางแผนหลาย issues ในรอบเดียวโดยไม่ล้มในเฟส Planning แม้ชื่อรวมของ issues จะยาวมาก และแม้ `FALLBACK_ACTIVE_INDEX` จะชี้ไปยังโมเดลท้ายรายการที่ล้มชั่วคราว ระบบต้องสร้าง `docs/features/...` ด้วย basename ที่ปลอดภัยต่อ filesystem ผ่าน helper กลางเดียวกันใน `Analyst` และ `Spec` และต้องลอง fallback model แบบวนรอบจนกว่าจะสำเร็จหรือทดลองครบทุกโมเดลหนึ่งครั้ง
+Guided Planning ต้องสร้าง feature directory ได้อย่างปลอดภัยและกระชับสำหรับ multi-issue run โดยคง prefix ที่ trace กลับไป issue number ได้, แปลง title ภาษาไทยให้เป็น ASCII ก่อนทำ slug, และต้องให้ `Analyst`, `Spec`, กับ `SBE` ใช้ helper naming เดียวกันทั้งหมด นอกจากนี้ fallback ของ LLM ต้องเริ่มจาก saved index แล้วหมุนครบทั้ง chain แบบ circular หาก model แรกที่ลองล้มเหลว
 
-### Scenario: การวางแผนหลาย issues สำเร็จต่อเนื่องแม้ basename ยาวและโมเดลเริ่มต้นล้มชั่วคราว - Happy Path
+### Scenario: long multi-issue title yields a compact deterministic directory
 
-**Given** Zenith เริ่ม Guided Feature Workflow ด้วยหลาย issues และ `Analyst` กับ `Spec` ใช้ helper เดียวกันในการสร้าง `docs/features/...` พร้อมมี fallback models ที่กำหนดลำดับไว้  
-**When** Planning Phase รันโดย `FALLBACK_ACTIVE_INDEX` ชี้ไปยังโมเดลที่ล้มชั่วคราวระหว่าง `Spec` หรือ `SBE`  
-**Then** ระบบต้องสร้าง feature directory ที่ปลอดภัย, ใช้ path เดียวกันตลอด `Analyst -> Spec -> SBE -> Architect`, และ retry โมเดลตามลำดับแบบวนรอบจนมีโมเดลหนึ่งสำเร็จโดยไม่ต้องกู้มือ
-
-#### Examples
-
-| Issue set | Candidate basename bytes | Saved index | Transient failure | Expected result |
-|-----------|--------------------------|-------------|-------------------|-----------------|
-| `#13-14-15-8` | `272` | `2` | `gemini-2.5-pro timeout` | สร้าง safe directory สำเร็จ, retry เป็น `gemini-2.5-pro -> gpt-4.1-mini`, และ handoff ถึง `Architect` |
-| `#13-14` | `79` | `1` | `claude-3-5-sonnet abort` | ใช้ basename เดิมโดยไม่ truncate, retry เป็น `claude-3-5-sonnet -> gpt-4.1`, และ handoff ถึง `Architect` |
-| `#13-15-8` | `108` | `2` | `gemini-2.5-pro 502` | สร้าง directory ได้ทันที, retry เป็น `gemini-2.5-pro -> o3-mini`, และ `SBE` ได้รับ path เดียวกับ `Spec` |
-| `#13-14-15-8-35` | `225` | `1` | `gpt-4.1 429` | ใช้ basename เดิม, retry เป็น `gpt-4.1 -> claude-3-5-sonnet`, และ Planning Phase จบครบ handoff |
-
----
-
-### Scenario: helper กลางต้องคุมขนาด basename ตาม byte limit และไม่โยน File name too long - Edge Case / Error Handling
-
-**Given** ชื่อรวมของหลาย issues ถูกแปลงเป็น candidate basename สำหรับ `docs/features/...` โดย helper กลางที่ `Analyst` และ `Spec` เรียกใช้ร่วมกัน  
-**When** helper ตรวจสอบความยาว basename ตามจำนวน bytes ก่อนสร้าง directory  
-**Then** basename ที่ยาวไม่เกิน `255` bytes ต้องถูกใช้ต่อได้ตรงๆ, basename ที่ยาวเกิน `255` bytes ต้องถูก truncate และต่อ deterministic short hash suffix, และต้องไม่เกิด `OSError: [Errno 63] File name too long`
+**Given** มี multi-issue title ที่ยาวมาก  
+**When** phase ใด phase หนึ่งใน Planning สร้าง feature directory  
+**Then** ระบบต้องได้ dirname ที่ยัง trace issue number ได้, ไม่เกิน filesystem basename limit, และมี descriptive slug แบบ compact พร้อม hash suffix เมื่อมีการย่อชื่อ
 
 #### Examples
 
-| Candidate basename bytes | Agent | Expected basename behavior |
-|--------------------------|-------|----------------------------|
-| `79` | `Analyst` | ใช้ basename เดิม, ไม่เติม hash suffix, สร้าง directory ได้ |
-| `225` | `Spec` | ใช้ basename เดิม, ไม่เติม hash suffix, สร้าง directory ได้ |
-| `255` | `Analyst` | ใช้ basename เดิมพอดี limit, ไม่เติม hash suffix, สร้าง directory ได้ |
-| `256` | `Spec` | truncate basename, เติม deterministic short hash suffix, และสร้าง directory ได้ |
-| `272` | `Analyst` | truncate basename, เติม deterministic short hash suffix, และสร้าง directory ได้ |
+| Issue number | Title shape | Expected result |
+|--------------|-------------|-----------------|
+| `13-14-15-8` | ยาวมากหลายประโยค | ได้ dirname รูปแบบ `9_issue-13-14-15-8_<compact-slug>-<8hex>` |
+| `13-14` | สั้นพอประมาณ | ได้ dirname ที่ยังอ่านง่าย และอาจไม่ต้องย่อมาก |
+| `35` | single issue title สั้น | ได้ dirname ที่ trace `issue-35` ได้โดยไม่ต้องยืดยาวเกินจำเป็น |
 
----
+### Scenario: Thai title becomes ASCII slug before compaction
 
-### Scenario: fallback ต้องวนครบหนึ่งรอบและจบด้วย error เดียวเมื่อทุกโมเดลล้ม - Boundary Conditions (Optional)
-
-**Given** `Spec` หรือ `SBE` มี fallback model chain ที่บันทึก `FALLBACK_ACTIVE_INDEX` ไว้จากรอบก่อน  
-**When** โมเดลทุกตัวใน chain ล้มเหลวต่อเนื่องใน request ปัจจุบัน  
-**Then** ระบบต้องลองแต่ละโมเดลไม่เกินหนึ่งครั้งตามลำดับแบบวนรอบจาก saved index, ต้องไม่ข้ามโมเดลต้นรายการ, ต้องไม่วนไม่รู้จบ, และต้องรายงาน failure ที่รวมลำดับการลองทั้งหมดไว้สำหรับ manual recovery
+**Given** title มีภาษาไทยปนอยู่  
+**When** ระบบ normalize title ไปเป็น slug  
+**Then** slug ต้องเป็น ASCII-only และ deterministic
 
 #### Examples
 
-| Configured models | Saved index | Failure sequence | Expected outcome |
-|-------------------|-------------|------------------|------------------|
-| `[gpt-4.1-mini, claude-3-5-sonnet, gemini-2.5-pro]` | `2` | `gemini timeout; gpt-4.1-mini 429; claude abort` | ล้มเหลวหลัง `3` ครั้งตามลำดับ `2 -> 0 -> 1` โดยไม่มีการลองซ้ำ |
-| `[gpt-4.1, claude-3-5-sonnet]` | `1` | `claude timeout; gpt-4.1 500` | ล้มเหลวหลัง `2` ครั้งตามลำดับ `1 -> 0` และไม่ข้าม `gpt-4.1` |
-| `[o3-mini]` | `0` | `o3-mini 503` | ล้มเหลวหลัง `1` ครั้งเท่านั้นและไม่ wrap ซ้ำ |
-| `[gpt-4.1-mini, gpt-4.1, claude-3-5-sonnet, gemini-2.5-pro]` | `3` | `gemini 502; gpt-4.1-mini timeout; gpt-4.1 429; claude abort` | ล้มเหลวหลัง `4` ครั้งตามลำดับ `3 -> 0 -> 1 -> 2` พร้อมหลักฐานลำดับการลองครบทั้ง chain |
+| Input title | Expected slug |
+|-------------|---------------|
+| `ปรับปรุงการสร้างโฟลเดอร์สำหรับหลาย issue` | `prabprungkarsrangofledorsamhrabhlay-issue` |
+| `แก้ fallback model สำหรับ planning` | slug ASCII-only ที่ยังมีคำสำคัญจาก title |
+
+### Scenario: Analyst, Spec, and SBE resolve the same directory
+
+**Given** issue number เดียวกันและยังไม่มี planning artifact directory มาก่อน  
+**When** `Analyst` สร้าง `analysis.md`, ต่อด้วย `Spec` และ `SBE`  
+**Then** ทั้งสาม phase ต้องใช้ feature directory เดียวกัน
+
+#### Examples
+
+| Phase order | Expected behavior |
+|-------------|-------------------|
+| `Analyst -> Spec` | `spec.md` ถูกเขียนลง directory เดียวกับ `analysis.md` |
+| `Analyst -> Spec -> SBE` | `sbe.md` ถูกเขียนลง directory เดียวกัน ไม่สร้าง sibling directory ใหม่ |
+
+### Scenario: fallback wraps around from the saved index
+
+**Given** saved fallback index ชี้ไปยังท้ายลิสต์ของ configured models  
+**When** model ที่เริ่มต้นล้มเหลวแบบ transient  
+**Then** ระบบต้อง wrap กลับไป model ต้นลิสต์และลองต่อให้ครบหนึ่งรอบก่อนสรุปว่า fail
+
+#### Examples
+
+| Model count | Saved index | Outcome | Expected traversal |
+|-------------|-------------|---------|--------------------|
+| `3` | `2` | model `0` succeeds | `2 -> 0` |
+| `4` | `3` | model `1` succeeds | `3 -> 0 -> 1` |
+| `1` | `0` | no success | `0` แล้ว fail ทันทีหลังลองครบหนึ่งรอบ |
 
 ---
 
 ## Notes
 
-- จำกัด basename ที่ `255` bytes เพื่อให้สอดคล้องกับ filesystem ทั่วไปที่ใช้ใน workflow นี้
-- `Analyst` และ `Spec` ต้องได้ basename เดียวกันจาก input issue set เดียวกัน
-- การ wrap fallback ใช้ได้ทั้งใน `Spec` และ `SBE` และต้องเคารพค่า `FALLBACK_ACTIVE_INDEX` ล่าสุด
+- helper จริงที่ใช้คือ `build_feature_dirname(...)`
+- fallback state จริงถูกอ่าน/เขียนผ่าน config, ไม่ได้เก็บใน `LumaState`
+- hash suffix มีไว้เพื่อลดโอกาสชื่อชนกันหลังจาก compact/truncate slug
