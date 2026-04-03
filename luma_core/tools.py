@@ -1006,6 +1006,53 @@ def extract_version_from_changelog_entry(changelog_entry: str) -> str:
     return ""
 
 
+_SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+][A-Za-z0-9._-]+)?$")
+
+
+def _parse_semver(version: str):
+    match = _SEMVER_PATTERN.match((version or "").strip())
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def _format_semver(version_parts) -> str:
+    major, minor, patch = version_parts
+    return f"{major}.{minor}.{patch}"
+
+
+def extract_changelog_versions(changelog_content: str) -> list:
+    return re.findall(r"^## \[([^\]]+)\]\s*-\s*\d{4}-\d{2}-\d{2}", changelog_content, re.MULTILINE)
+
+
+def suggest_next_available_changelog_version(candidate_version: str, existing_versions: list) -> str:
+    parsed_candidate = _parse_semver(candidate_version)
+    if not parsed_candidate:
+        return candidate_version
+
+    parsed_existing = []
+    for version in existing_versions:
+        parsed_version = _parse_semver(version)
+        if parsed_version:
+            parsed_existing.append(parsed_version)
+
+    if not parsed_existing:
+        return candidate_version
+
+    existing_set = set(parsed_existing)
+    highest_existing = max(parsed_existing)
+    next_version = parsed_candidate
+
+    while next_version in existing_set or next_version <= highest_existing:
+        major, minor, patch = next_version
+        if patch == 0:
+            next_version = (major, minor + 1, 0)
+        else:
+            next_version = (major, minor, patch + 1)
+
+    return _format_semver(next_version)
+
+
 def _suggest_bumped_version(current_version: str, bump_type: str = "patch") -> str:
     """Suggest a bumped version based on semantic versioning."""
     if not current_version:
@@ -1233,6 +1280,10 @@ def ai_generate_changelog_entry(git_data: dict, repo_name: str, existing_content
     current_version = suggested_version
     if not current_version and repo_path:
         current_version = get_current_version(repo_path)
+
+    existing_versions = extract_changelog_versions(existing_content)
+    if current_version:
+        current_version = suggest_next_available_changelog_version(current_version, existing_versions)
     
     version_hint = f"Version: {current_version}" if current_version else "Version: (suggest a semantic version based on changes)"
     
@@ -1376,10 +1427,20 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
     try:
         version_file = config.get("version_file")
         current_version = get_current_version(config["path"], version_file)
+        existing_versions = []
+        if changelog_path and os.path.exists(changelog_path):
+            with open(changelog_path, 'r', encoding='utf-8') as f:
+                existing_versions = extract_changelog_versions(f.read())
+        normalized_suggested_version = suggest_next_available_changelog_version(
+            suggested_version,
+            existing_versions,
+        ) if suggested_version else ""
         
         # Always show version info and ask for confirmation
         print(f"\n   📦 Version detected in CHANGELOG: {suggested_version or 'Not detected'}")
         print(f"   📦 Current version in source: {current_version or 'Not found'}")
+        if normalized_suggested_version and normalized_suggested_version != suggested_version:
+            print(f"   📈 Next available release version: {normalized_suggested_version}")
         if version_file:
             print(f"   📄 Version file: {version_file}")
         
@@ -1393,14 +1454,14 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
         print(f"      [2] MINOR : {minor_ver}")
         print(f"      [3] MAJOR : {major_ver}")
         
-        if suggested_version and suggested_version != current:
-            print(f"      [4] AI Suggested: {suggested_version} (Default)")
+        if normalized_suggested_version and normalized_suggested_version != current:
+            print(f"      [4] AI Suggested: {normalized_suggested_version} (Default)")
         
         print("      [0] Skip")
 
         # Determine prompt
-        if suggested_version and suggested_version != current:
-            prompt_text = f"\n   👉 Select [1-4] (Default={suggested_version}) or type custom: "
+        if normalized_suggested_version and normalized_suggested_version != current:
+            prompt_text = f"\n   👉 Select [1-4] (Default={normalized_suggested_version}) or type custom: "
         else:
             prompt_text = "\n   👉 Select [1-3] or type custom: "
 
@@ -1414,13 +1475,13 @@ def _interactive_version_bump(config: dict, suggested_version: str = "", update_
             version_to_apply = minor_ver
         elif user_input == '3':
             version_to_apply = major_ver
-        elif user_input == '4' and suggested_version:
-            version_to_apply = suggested_version
+        elif user_input == '4' and normalized_suggested_version:
+            version_to_apply = normalized_suggested_version
         elif user_input == '0':
             print("   ⏩ Version update skipped")
             return None
-        elif user_input == "" and suggested_version and suggested_version != current:
-            version_to_apply = suggested_version
+        elif user_input == "" and normalized_suggested_version and normalized_suggested_version != current:
+            version_to_apply = normalized_suggested_version
         else:
             version_to_apply = user_input # Custom string or empty
 

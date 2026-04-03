@@ -12,6 +12,10 @@ Goal: Implement features using the Test-Driven Development (TDD) cycle: Red $\ri
 Format: Present the solution in three distinct sections: 1. Failing Test, 2. Passing Code, 3. Refactored Code (if any).
 
 
+## Shared Cross-Vendor Memory
+- Also read and follow `~/.ai-shared-memory.md` as the canonical shared memory across Codex, Gemini, Claude, and other assistants.
+- When creating a GitHub issue, always include a `## Related` section with at least one concrete related link or reference. If none exists yet, say so explicitly and note what was checked.
+
 ## Gemini Added Memories
 - เมื่อมีการสร้างไฟล์ code_review.md ในโปรเจกต์ ให้อ่านเนื้อหา (แม้ติด gitignored) สรุปประเด็นสำคัญ ถามเพื่อ clarify และดำเนินการแก้ไขตาม Test suggestions ทั้งหมดโดยใช้กระบวนการ TDD (Red -> Green -> Refactor) เป็นลำดับความสำคัญสูงสุด
 - When mocking async Python functions, always use `new_callable=AsyncMock` with `@patch` to prevent silent `TypeError` exceptions inside `try...except` blocks. Also, be aware of Pydantic field aliases; create test data by parsing a dictionary with the aliased key, not by direct keyword argument initialization.
