@@ -8,14 +8,14 @@ import os
 import re
 import datetime
 from langchain_core.messages import SystemMessage, HumanMessage
+from luma_core.feature_dirs import build_feature_dirname, sanitize_slug
 from luma_core.llm import get_llm
 from luma_core.state import AgentState
 
 
 def sanitize_filename(name: str) -> str:
     """Sanitize string for use in filename."""
-    name = re.sub(r'[^\w\s-]', '', name).strip().lower()
-    return re.sub(r'[-\s]+', '-', name)
+    return sanitize_slug(name)
 
 
 def sbe_agent(state: AgentState) -> dict:
@@ -147,7 +147,6 @@ def _save_sbe_file(content: str, issue_data: dict, target_dir: str) -> str:
     if not feature_dir:
         # Create new feature directory
         title = issue_data.get('title', 'unknown')
-        slug = sanitize_filename(title)[:30]
         next_index = 1
         
         if os.path.exists(features_root):
@@ -160,7 +159,10 @@ def _save_sbe_file(content: str, issue_data: dict, target_dir: str) -> str:
             if indices:
                 next_index = max(indices) + 1
         
-        feature_dir = os.path.join(features_root, f"{next_index}_issue-{issue_number}_{slug}")
+        feature_dir = os.path.join(
+            features_root,
+            build_feature_dirname(next_index, issue_number, title),
+        )
     
     # Create feature directory if needed
     os.makedirs(feature_dir, exist_ok=True)
