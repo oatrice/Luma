@@ -18,6 +18,8 @@ Format: Present the solution in three distinct sections: 1. Failing Test, 2. Pas
 - To resolve mocking errors with singleton instances in Python that have the same name as their module, either rename the instance to avoid the naming collision, or patch the method directly on the class definition (e.g., `@patch.object(MyService, 'my_method')`).
 - เมื่อผู้ใช้ขอให้ช่วย resolve conflict ของ branch/worktree ให้เริ่มจากทำ rebase หรือดูสถานะ rebase ของจริงก่อน แล้ว resolve จาก conflict markers/hunks ที่ Git สร้างขึ้นจริง ไม่ใช่เดาไฟล์ล่วงหน้า
 - สำหรับ `CHANGELOG.md` หรือ release notes ระหว่าง rebase ให้พิจารณา merge เนื้อหาจากทั้งสองฝั่งตาม context ของแต่ละ branch แทนการ overwrite ฝั่งใดฝั่งหนึ่งอัตโนมัติ
+- หมายเลข release ใน `CHANGELOG.md` ต้อง unique ภายใน repo และวิ่งไปข้างหน้าเสมอ; ถ้า rebase/merge แล้วชนกับเลขที่มีอยู่บน `main` ให้ renumber เป็น version ถัดไปและ sync ไปยัง version source ของ repo
+- สำหรับ feature branch ที่ยังไม่ merged ให้ prefer `Unreleased` มากกว่าการใส่ release number จริงล่วงหน้า
 
 ---
 
