@@ -16,6 +16,7 @@ from .utils import (
     _format_event_line,
     list_issue_metrics,
     prefill_metrics_from_roadmap,
+    prompt_missing_post_story_points,
     prompt_post_story_points_for_records,
 )
 
@@ -141,24 +142,8 @@ def action_manage_issue_metrics(state: LumaState, project: dict):
             if gh_sync_result.get("paradoxes_fixed", 0) > 0:
                 print(f"   ⏱️  Fixed {gh_sync_result['paradoxes_fixed']} Time Paradox(es).")
 
-            completed_missing_post_points = [
-                record
-                for record in list_issue_metrics(selected_project["path"])
-                if record.post_story_point is None
-                and record.repository == selected_project.get("repo")
-                and any(
-                    marker in (record.issue_status or "").lower()
-                    for marker in ("done", "complete", "released", "closed")
-                )
-            ]
-            if completed_missing_post_points:
-                print(
-                    "\n   📌 Re-estimate Post Story Point for completed issues missing actual complexity..."
-                )
-                prompt_post_story_points_for_records(
-                    selected_project,
-                    completed_missing_post_points,
-                )
+            # Suggest and prompt for post story points for newly completed issues
+            prompt_missing_post_story_points(selected_project)
             continue
 
         print("❌ Invalid selection")

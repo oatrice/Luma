@@ -750,6 +750,10 @@ def action_guided_workflow(state: LumaState, project: dict):
         if gh_sync_result["updated"] > 0:
             print(f"   📊 Synced {gh_sync_result['updated']} records from GH.")
 
+        # Suggest and prompt for post story points for newly completed issues
+        from luma_core.actions.utils import prompt_missing_post_story_points
+        prompt_missing_post_story_points(project)
+
         usage_summary = summarize_usage_stats(
             usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID,
             branch=state.active_branch
