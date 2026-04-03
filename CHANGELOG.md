@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.13.0] - 2026-04-03
+
+### Added
+- **Dotfiles Bootstrap:** Implemented a portable dotfiles bootstrap template, including AI dotfiles, to facilitate the management of shared AI memory configurations.
+- **Release Versioning:** Enforced unique and sequential release versions for improved release management.
+
+### Changed
+- Updated core tools and package configurations.
+- Refined metrics tracking and agent configurations.
+
 ## [1.12.0] - 2026-04-03
 
 ### Added
