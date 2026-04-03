@@ -1,8 +1,10 @@
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
 from luma_core.agents import analyst as analyst_module
 from luma_core.agents import spec_agent as spec_module
+from luma_core.feature_dirs import build_feature_dirname, sanitize_slug
 
 
 LONG_MULTI_ISSUE_TITLE = (
@@ -76,3 +78,21 @@ def test_spec_agent_truncates_long_multi_issue_feature_directory(tmp_path, monke
     assert output_dir.exists()
     assert output_dir.name.startswith(f"1_issue-{ISSUE_NUMBER}_")
     assert len(output_dir.name.encode("utf-8")) <= 255
+
+
+def test_build_feature_dirname_is_compact_for_long_multi_issue_title():
+    dirname = build_feature_dirname(9, ISSUE_NUMBER, LONG_MULTI_ISSUE_TITLE)
+
+    assert dirname.startswith(f"9_issue-{ISSUE_NUMBER}_")
+    assert len(dirname.encode("utf-8")) <= 96
+    assert re.fullmatch(r"[a-z0-9_-]+", dirname)
+    assert re.search(r"-[0-9a-f]{8}$", dirname)
+
+
+def test_sanitize_slug_transliterates_thai_text_to_ascii():
+    slug = sanitize_slug("ปรับปรุงการสร้างโฟลเดอร์สำหรับหลาย issue")
+
+    assert slug != "feature"
+    assert "issue" in slug
+    assert re.fullmatch(r"[a-z0-9-]+", slug)
+    assert all(ord(char) < 128 for char in slug)
