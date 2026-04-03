@@ -1,73 +1,119 @@
-# Specification: Create portable dotfiles bootstrap for shared AI memory and global agents
+# Specification: Portable Dotfiles Bootstrap for Shared AI Memory and Global Agents
 
-> **Status**: Draft
-> **Owner**:
-> **Dates**: Created: April 3, 2026 | Last Updated: April 3, 2026
+> Status: Implemented
+> Issue: [#39](https://github.com/oatrice/Luma/issues/39)
+> Last Updated: 2026-04-03
 
-## 1. Context & Goal
-*Why are we building this? What is the problem statement?*
+## 1. Goal
 
-### Problem
-Our shared AI memory and global agent instructions currently live as machine-local files such as `~/.ai-shared-memory.md`, `~/.codex/AGENTS.md`, and `~/.gemini/GEMINI.md`. That makes them easy to lose when moving to a new machine, and it also makes cross-vendor rule drift more likely over time.
+สร้าง template repo สำหรับจัดเก็บ shared AI memory และ global vendor-specific agent files แบบ portable เพื่อให้:
 
-### Goal
-To establish a portable dotfiles bootstrap repository structure that can be cloned on a new machine and installed into the home directory with a small script. This will ensure consistency, prevent data loss, and simplify management of cross-vendor rules.
+- ย้ายเครื่องได้ง่าย
+- ลด rule drift ระหว่าง Codex / Gemini
+- review และ version files เหล่านี้ได้ผ่าน Git
 
----
+## 2. Delivered Scope
 
-## 2. User Journey & Requirements
-*What should the user experience?*
+feature นี้ส่งมอบ “template repo scaffold” ภายใต้ [docs/templates/dotfiles-repo](/Users/oatrice/Software-projects/Luma/docs/templates/dotfiles-repo) ไม่ใช่การ provision external repository อัตโนมัติ
 
-### User Story
-As a **developer or AI agent user**, I want to **set up my AI configuration files on a new machine using a bootstrap process and synchronize local changes back to a repository**, so that **my AI environment is consistently configured across machines, my critical configuration data is safe from loss, and managing vendor-specific rules is simplified.**
+ไฟล์ที่อยู่ใน scope:
 
-### Functional Requirements
-- [ ] A portable dotfiles repository template is created for `~/.ai-shared-memory.md`, `~/.codex/AGENTS.md`, and `~/.gemini/GEMINI.md`.
-- [ ] An installation script is provided to set up these files in the user's home directory using portable paths (`~` or `$HOME`).
-- [ ] Vendor-specific agent files correctly reference the shared memory via portable home-directory paths.
-- [ ] A capture script is provided to sync machine-local changes back into the tracked dotfiles repository.
-- [ ] The setup process (bootstrap and capture) is clearly documented for reuse.
-- [ ] Cross-vendor rules for rebase conflict handling and release versioning are preserved.
+- `README.md`
+- `AGENTS.md`
+- `.gitignore`
+- `manifest.json`
+- `scripts/_shared.py`
+- `scripts/install.py`
+- `scripts/capture.py`
+- `home/.ai-shared-memory.md`
+- `home/.codex/AGENTS.md`
+- `home/.gemini/GEMINI.md`
 
-### Non-Functional Requirements
-- [ ] **Ease of Use**: The bootstrap and capture scripts are intuitive and require minimal user intervention.
-- [ ] **Portability**: Configurations and scripts function correctly across different user home directories and common development environments.
-- [ ] **Maintainability**: The dotfiles structure and scripts are easy to update and manage.
-- [ ] **Security**: Sensitive information (like API keys) is not hardcoded and handled via `.env` or similar secure mechanisms as per project convention.
+## 3. Functional Requirements
 
----
+- ต้องมี template สำหรับ `~/.ai-shared-memory.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`
+- `scripts/install.py` ต้องติดตั้งไฟล์จาก template repo ลง home directory ได้
+- default install mode ต้องเป็น symlink
+- `scripts/install.py --copy` ต้อง copy เป็นไฟล์ปกติแทน symlink ได้
+- ถ้ามีไฟล์เดิมอยู่และไม่ใช่ managed link เดิม ต้อง backup ก่อน overwrite
+- `scripts/capture.py` ต้องดึงไฟล์จากเครื่องกลับเข้า template repo ได้
+- vendor-specific files ต้องอ้าง shared memory ผ่าน `~/.ai-shared-memory.md`
 
-## 3. Specification by Example (SBE)
+## 4. Non-Functional Requirements
 
-### Scenario: Initial Setup on a New Machine
-**Given** a new machine with Git and Python 3.9+ installed, and no existing Luma AI configuration files in the home directory.
-**When** the user clones the `dotfiles-repo` and executes the bootstrap script.
-**Then** the `~/.ai-shared-memory.md`, `~/.codex/AGENTS.md`, and `~/.gemini/GEMINI.md` files are created or updated with content from the `dotfiles-repo`, using portable home directory references.
+- Portable: ห้ามพึ่ง absolute path แบบผูกกับ user เดียว
+- Additive-only: feature นี้ต้องไม่กระทบ runtime workflow เดิมของ Luma
+- Maintainable: mapping source/target ต้องไม่กระจาย hardcode หลายจุด
 
-#### Examples
-| Precondition | Action | Resulting Files & Content | Notes |
-|---|---|---|---|
-| `~/` is clean of AI config files. | `git clone <dotfiles-repo-url> ~/my-dotfiles` <br> `cd ~/my-dotfiles` <br> `python bootstrap.py` | `~/.ai-shared-memory.md` created/updated. <br> `~/.codex/AGENTS.md` created/updated. <br> `~/.gemini/GEMINI.md` created/updated. <br> All files use `~` for paths. | Bootstrap script handles symbolic linking or copying and ensures correct permissions. |
-| `~/.codex/AGENTS.md` (via `bootstrap.py`) contains reference to `~/.ai-shared-memory.md`. | `python bootstrap.py` on existing setup. | Existing AI config files are updated with any new content or rules from the `dotfiles-repo`. | Handles updates gracefully, preserves user additions if possible or clearly indicates overwrite. |
+## 5. Specification by Example
 
-### Scenario: Capturing Local Changes
-**Given** a new machine has been set up with the dotfiles, and the user has made local modifications to `~/.ai-shared-memory.md` (e.g., added custom notes or updated rules).
-**When** the user runs the capture script from their cloned `dotfiles-repo` directory.
-**Then** the local changes from `~/.ai-shared-memory.md` are written back to the corresponding file within the `dotfiles-repo`.
+### Scenario A: Install แบบ symlink
 
-#### Examples
-| Precondition | Action | Resulting Files & Content | Notes |
-|---|---|---|---|
-| User has manually added new content to `~/.ai-shared-memory.md`. | `cd ~/my-dotfiles` <br> `python capture.py` | `~/my-dotfiles/.ai-shared-memory.md` is updated with the latest content from `~/.ai-shared-memory.md`. | Capture script ensures the source of truth in the repo is updated with local modifications. |
-| User has modified `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md` locally. | `cd ~/my-dotfiles` <br> `python capture.py` | Corresponding files in `~/my-dotfiles/` are updated to reflect local changes. | All tracked AI config files are synchronized. |
+Given มี template repo อยู่แล้วภายใต้ `docs/templates/dotfiles-repo`  
+When รัน:
 
----
+```bash
+python3 scripts/install.py --repo-root "$PWD"
+```
 
-## 4. Constraints & Risks
-*What should we watch out for?*
-- **Constraint**: Scripts must be compatible with standard shell environments and Python 3.9+.
-- **Constraint**: Paths must be universally portable using `~` or `$HOME`.
-- **Risk**: Drift between vendor-specific agent instructions and shared memory if the capture mechanism is not used or fails.
-- **Risk**: Accidental overwriting of critical user-specific local changes if the capture script is not used carefully.
-- **Risk**: Maintaining compatibility of the `dotfiles-repo` template as Luma AI evolves or new vendors are added.
-- **Risk**: Ensuring the bootstrap process handles existing files gracefully without data loss.
+Then
+
+- `~/.ai-shared-memory.md` ถูกสร้างเป็น symlink ไปยัง `home/.ai-shared-memory.md`
+- `~/.codex/AGENTS.md` ถูกสร้างเป็น symlink ไปยัง `home/.codex/AGENTS.md`
+- `~/.gemini/GEMINI.md` ถูกสร้างเป็น symlink ไปยัง `home/.gemini/GEMINI.md`
+
+### Scenario B: Install แบบ copy พร้อม backup
+
+Given มีไฟล์เดิมอยู่ใน home directory  
+When รัน:
+
+```bash
+python3 scripts/install.py --copy --repo-root "$PWD"
+```
+
+Then
+
+- ไฟล์เดิมถูกย้ายเป็น `.bak` หรือ `.bak.N`
+- ไฟล์ใหม่ถูก copy จาก source
+- target file ไม่เป็น symlink
+
+### Scenario C: Capture กลับเข้า repo
+
+Given ผู้ใช้แก้ `~/.ai-shared-memory.md` หรือ global agent files บนเครื่อง  
+When รัน:
+
+```bash
+python3 scripts/capture.py --repo-root "$PWD"
+```
+
+Then
+
+- การเปลี่ยนแปลงถูก copy กลับมาที่ `home/...` ใน template repo
+
+### Scenario D: Portable shared-memory reference
+
+Given เปิดดู `home/.codex/AGENTS.md` หรือ `home/.gemini/GEMINI.md`  
+Then
+
+- ต้องพบ `~/.ai-shared-memory.md`
+- ต้องไม่พบ `/Users/oatrice/.ai-shared-memory.md`
+
+## 6. Out of Scope
+
+- สร้าง GitHub repo ใหม่อัตโนมัติ
+- sync เข้า dotfiles repo จริงผ่าน Git command อัตโนมัติ
+- เปลี่ยน Luma runtime ให้ใช้ global files แทน repo-local files
+- เพิ่ม headless actions สำหรับ workflow อื่น
+
+## 7. Verification Contract
+
+Automated:
+
+- [tests/test_dotfiles_repo_template.py](/Users/oatrice/Software-projects/Luma/tests/test_dotfiles_repo_template.py)
+
+Manual:
+
+- symlink install
+- copy install พร้อม backup
+- capture กลับเข้า repo
+- ตรวจ portable references ใน vendor files
