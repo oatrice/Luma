@@ -7,8 +7,19 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import main
+import luma_core.usage_tracker as usage_tracker
 
 from luma_core.state_manager import LumaState, WorkflowPhase
+
+
+def _read_usage_events(log_path: Path):
+    if not log_path.exists():
+        return []
+    return [
+        json.loads(line)
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def test_parse_cli_args_supports_headless_flags():
@@ -31,6 +42,23 @@ def test_parse_cli_args_supports_headless_alias():
     assert args.action == "code_review"
     assert args.json is True
     assert args.project == "1"
+
+
+def test_parse_cli_args_supports_optional_caller_identifier():
+    args = main.parse_cli_args(
+        [
+            "--auto",
+            "--action",
+            "code_review",
+            "--json",
+            "--project",
+            "1",
+            "--caller",
+            "zenith-cli",
+        ]
+    )
+
+    assert args.caller == "zenith-cli"
 
 
 def test_parse_cli_args_supports_metadata_mode_without_action():
@@ -100,6 +128,67 @@ def test_headless_code_review_success_returns_json_only_on_stdout(
     assert calls["headless"] is True
 
 
+def test_headless_code_review_success_records_action_level_log(
+    monkeypatch, tmp_path, capsys
+):
+    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
+    log_path = tmp_path / ".luma_ai_usage.jsonl"
+
+    def fake_action(current_state, current_project, headless=False):
+        print("action log should go to stderr")
+        return {"summary": "review complete"}
+
+    monkeypatch.setattr(main, "PROJECTS", {"1": project})
+    monkeypatch.setattr(main, "load_state", lambda path: state)
+    monkeypatch.setattr(main.actions, "action_code_review", fake_action)
+    monkeypatch.setattr(main.usage_tracker, "get_log_path", lambda: str(log_path))
+    monkeypatch.setattr(main.usage_tracker, "_SESSION_ID", "headless123")
+    monkeypatch.setattr(main.usage_tracker, "_get_luma_version", lambda: "1.7.0-test")
+
+    usage_tracker.clear_action()
+    usage_tracker.clear_context()
+
+    exit_code = main.main(
+        [
+            "--auto",
+            "--action",
+            "code_review",
+            "--json",
+            "--project",
+            "1",
+            "--caller",
+            "zenith-cli",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    events = _read_usage_events(log_path)
+    action_events = [event for event in events if event.get("event") == "action_run"]
+
+    assert exit_code == 0
+    assert payload == {
+        "status": "success",
+        "action": "code_review",
+        "project": "1",
+        "result": {"summary": "review complete"},
+    }
+    assert len(action_events) == 1
+    assert action_events[0]["mode"] == "headless"
+    assert action_events[0]["action"] == "code_review"
+    assert action_events[0]["project"] == "1"
+    assert action_events[0]["status"] == "success"
+    assert action_events[0]["exit_code"] == 0
+    assert action_events[0]["session_id"] == "headless123"
+    assert action_events[0]["caller"] == "zenith-cli"
+    assert action_events[0]["error"] is None
+    assert isinstance(action_events[0]["duration_ms"], int)
+    assert action_events[0]["duration_ms"] >= 0
+    assert "action log should go to stderr" not in captured.out
+    assert "action log should go to stderr" in captured.err
+
+
 def test_headless_invalid_action_returns_json_error(monkeypatch, tmp_path, capsys):
     project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
     state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
@@ -147,6 +236,56 @@ def test_headless_json_failure_returns_actionable_error(monkeypatch, tmp_path, c
         "project": "1",
         "error": "review execution failed",
     }
+    assert "debug output should stay off stdout" not in captured.out
+    assert "debug output should stay off stdout" in captured.err
+
+
+def test_headless_json_failure_records_action_level_log(monkeypatch, tmp_path, capsys):
+    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
+    log_path = tmp_path / ".luma_ai_usage.jsonl"
+
+    def fake_action(current_state, current_project, headless=False):
+        print("debug output should stay off stdout")
+        raise RuntimeError("review execution failed")
+
+    monkeypatch.setattr(main, "PROJECTS", {"1": project})
+    monkeypatch.setattr(main, "load_state", lambda path: state)
+    monkeypatch.setattr(main.actions, "action_code_review", fake_action)
+    monkeypatch.setattr(main.usage_tracker, "get_log_path", lambda: str(log_path))
+    monkeypatch.setattr(main.usage_tracker, "_SESSION_ID", "headless123")
+    monkeypatch.setattr(main.usage_tracker, "_get_luma_version", lambda: "1.7.0-test")
+
+    usage_tracker.clear_action()
+    usage_tracker.clear_context()
+
+    exit_code = main.main(
+        ["--auto", "--action", "code_review", "--json", "--project", "1"]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    events = _read_usage_events(log_path)
+    action_events = [event for event in events if event.get("event") == "action_run"]
+
+    assert exit_code == 2
+    assert payload == {
+        "status": "error",
+        "action": "code_review",
+        "project": "1",
+        "error": "review execution failed",
+    }
+    assert len(action_events) == 1
+    assert action_events[0]["mode"] == "headless"
+    assert action_events[0]["action"] == "code_review"
+    assert action_events[0]["project"] == "1"
+    assert action_events[0]["status"] == "error"
+    assert action_events[0]["exit_code"] == 2
+    assert action_events[0]["session_id"] == "headless123"
+    assert action_events[0]["error"] == "review execution failed"
+    assert "caller" not in action_events[0]
+    assert isinstance(action_events[0]["duration_ms"], int)
+    assert action_events[0]["duration_ms"] >= 0
     assert "debug output should stay off stdout" not in captured.out
     assert "debug output should stay off stdout" in captured.err
 
@@ -325,6 +464,96 @@ def test_headless_alias_supported_action_keeps_stdout_json_only(tmp_path):
     }
     assert "alias diagnostic should stay off stdout" not in result.stdout
     assert "alias diagnostic should stay off stdout" in result.stderr
+
+
+def test_zenith_style_consumer_still_parses_headless_json_after_action_logging(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    log_path = tmp_path / ".luma_ai_usage.jsonl"
+    inner_script = textwrap.dedent(
+        f"""
+        import main
+        import luma_core.usage_tracker as usage_tracker
+        from luma_core.state_manager import LumaState, WorkflowPhase
+
+        project = {{"name": "Zenith Project", "path": {str(tmp_path)!r}, "repo": "example/repo"}}
+        state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
+
+        main.PROJECTS = {{"1": project}}
+        main.load_state = lambda path: state
+        usage_tracker.get_log_path = lambda: {str(log_path)!r}
+        usage_tracker._SESSION_ID = "zenith123"
+
+        def fake_action(current_state, current_project, headless=False):
+            print("zenith diagnostic should stay off stdout")
+            return {{"summary": "ok"}}
+
+        main.actions.action_code_review = fake_action
+
+        raise SystemExit(
+            main.main(
+                [
+                    "--auto",
+                    "--action",
+                    "code_review",
+                    "--json",
+                    "--project",
+                    "1",
+                    "--caller",
+                    "zenith-wrapper",
+                ]
+            )
+        )
+        """
+    )
+    wrapper_script = textwrap.dedent(
+        f"""
+        import json
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-c", {inner_script!r}],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        payload = json.loads(result.stdout)
+        print(
+            json.dumps(
+                {{
+                    "status": payload["status"],
+                    "action": payload["action"],
+                    "project": payload["project"],
+                    "returncode": result.returncode,
+                }}
+            )
+        )
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", wrapper_script],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    payload = json.loads(result.stdout)
+    action_events = [
+        event for event in _read_usage_events(log_path) if event.get("event") == "action_run"
+    ]
+
+    assert result.returncode == 0
+    assert payload == {
+        "status": "success",
+        "action": "code_review",
+        "project": "1",
+        "returncode": 0,
+    }
+    assert len(action_events) == 1
+    assert action_events[0]["caller"] == "zenith-wrapper"
 
 
 def test_readme_documents_metadata_and_stdout_contract():

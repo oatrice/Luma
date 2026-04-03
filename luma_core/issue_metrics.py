@@ -1527,6 +1527,10 @@ def get_earliest_usage_timestamp(project_path: str, issue_number: int) -> Option
                     except json.JSONDecodeError:
                         continue
 
+                    event_type = data.get("event")
+                    if event_type and event_type != "llm_call":
+                        continue
+
                     # Check if this entry is for the target issue
                     nums = data.get("issue_numbers", [])
                     found = issue_number in nums

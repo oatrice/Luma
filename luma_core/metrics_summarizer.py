@@ -81,6 +81,10 @@ def summarize_usage_stats(
                 except json.JSONDecodeError:
                     continue
 
+                event_type = event.get("event")
+                if event_type and event_type != "llm_call":
+                    continue
+
                 if project and not _event_matches_project(event, project):
                     continue
                 

@@ -1,3 +1,4 @@
+import json
 from dataclasses import asdict
 from typing import Dict, Any
 import os
@@ -12,6 +13,7 @@ from luma_core.issue_metrics import (
     apply_planning_defaults,
     apply_pre_pr_defaults,
     format_metric_datetime,
+    get_earliest_usage_timestamp,
     get_issue_metrics,
     list_issue_metrics,
     parse_metric_datetime,
@@ -83,6 +85,34 @@ def test_issue_metrics_start_datetime_parsed_from_roadmap_body(tmp_path):
 
     assert loaded is not None
     assert loaded.start_datetime == "2026-03-25T08:30:00"
+
+
+def test_get_earliest_usage_timestamp_ignores_action_run_events(tmp_path):
+    log_path = tmp_path / ".luma_ai_usage.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "ts": "2026-03-21T10:00:00Z",
+                        "event": "action_run",
+                        "issue_numbers": [29],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "ts": "2026-03-21T10:05:00Z",
+                        "event": "llm_call",
+                        "issue_numbers": [29],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert get_earliest_usage_timestamp(str(tmp_path), 29) == "2026-03-21T10:05:00"
 
 
 def test_apply_planning_defaults_sets_estimates_and_start_without_actuals():

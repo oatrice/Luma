@@ -75,6 +75,16 @@ def get_log_path() -> str:
     return os.path.join(luma_root, _LOG_FILENAME)
 
 
+def _write_event(event: Dict[str, Any]) -> None:
+    log_path = get_log_path()
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception:
+        # Best-effort logging only
+        pass
+
+
 def _get_luma_version() -> str:
     global _LUMA_VERSION_CACHE
     if _LUMA_VERSION_CACHE is not None:
@@ -285,10 +295,42 @@ def record_llm_event(
         if key not in event and value is not None:
             event[key] = value
 
-    log_path = get_log_path()
-    try:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(event, ensure_ascii=False) + "\n")
-    except Exception:
-        # Best-effort logging only
-        pass
+    _write_event(event)
+
+
+def record_action_event(
+    *,
+    mode: str,
+    action: Optional[str],
+    project: Optional[str],
+    status: str,
+    exit_code: int,
+    duration_ms: Optional[float] = None,
+    error: Optional[str] = None,
+    caller: Optional[str] = None,
+) -> None:
+    event: Dict[str, Any] = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "event": "action_run",
+        "mode": mode,
+        "action": action,
+        "project": project,
+        "status": status,
+        "exit_code": exit_code,
+        "duration_ms": int(round(duration_ms or 0)),
+        "session_id": _SESSION_ID,
+        "luma_version": _get_luma_version(),
+        "error": str(error)[:500] if error else None,
+    }
+
+    if caller:
+        event["caller"] = caller
+    if _current_sub_action:
+        event["sub_action"] = _current_sub_action
+
+    context = _build_context()
+    for key, value in context.items():
+        if key not in event and value is not None:
+            event[key] = value
+
+    _write_event(event)
