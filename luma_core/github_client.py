@@ -1,23 +1,96 @@
+import os
+import subprocess
+
 import requests
-from .config import GITHUB_TOKEN
+
+from . import config
+
+
+_GITHUB_ACCEPT_HEADER = "application/vnd.github.v3+json"
+
+
+def _build_github_headers(token=None):
+    headers = {"Accept": _GITHUB_ACCEPT_HEADER}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _get_configured_github_token():
+    return os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN") or config.GITHUB_TOKEN
+
+
+def _get_gh_cli_token():
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    token = result.stdout.strip()
+    return token or None
+
+
+def _get_github_auth_tokens():
+    tokens = []
+    for token in (_get_configured_github_token(), _get_gh_cli_token()):
+        if token and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def _request_with_github_auth(request_func, url, retry_on_401=False, **kwargs):
+    auth_tokens = _get_github_auth_tokens()
+    if not auth_tokens:
+        return request_func(url, headers=_build_github_headers(), **kwargs)
+
+    last_response = None
+    for index, token in enumerate(auth_tokens):
+        last_response = request_func(
+            url,
+            headers=_build_github_headers(token),
+            **kwargs,
+        )
+        should_retry = (
+            retry_on_401
+            and last_response.status_code == 401
+            and index < len(auth_tokens) - 1
+        )
+        if should_retry:
+            print(
+                "⚠️ GitHub API returned 401 with the configured token. "
+                "Retrying with gh CLI token..."
+            )
+            continue
+        return last_response
+
+    return last_response
 
 def get_github_headers():
-    if not GITHUB_TOKEN:
+    tokens = _get_github_auth_tokens()
+    if not tokens:
         print("⚠️ Warning: GITHUB_TOKEN not found. Public rate limits apply.")
-        return {}
-    return {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+        return _build_github_headers()
+    return _build_github_headers(tokens[0])
 
 def fetch_issues_rest(repo_name):
     """Fallback: Fetch all issues via REST API (if GraphQL is unavailable)"""
     url = f"https://api.github.com/repos/{repo_name}/issues?state=open"
-    headers = get_github_headers()
-    
     print(f"🌍 Connecting to GitHub REST API: {repo_name}...")
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = _request_with_github_auth(
+            requests.get,
+            url,
+            retry_on_401=True,
+            timeout=10,
+        )
         response.raise_for_status()
         issues = response.json()
         
@@ -57,8 +130,6 @@ def fetch_issues_graphql(repo_name):
         return []
 
     url = "https://api.github.com/graphql"
-    headers = get_github_headers()
-    
     # GraphQL Query
     query = """
     query($owner: String!, $name: String!) {
@@ -99,7 +170,13 @@ def fetch_issues_graphql(repo_name):
     
     print(f"🌍 Connecting to GitHub GraphQL: {repo_name} (Filter: Status='Ready')...")
     try:
-        response = requests.post(url, headers=headers, json={"query": query, "variables": variables}, timeout=10)
+        response = _request_with_github_auth(
+            requests.post,
+            url,
+            retry_on_401=True,
+            json={"query": query, "variables": variables},
+            timeout=10,
+        )
         
         if response.status_code == 401:
             print("❌ Unauthorized. Please check your GITHUB_TOKEN.")
@@ -183,7 +260,6 @@ def update_issue_status(issue, status_name="In Progress"):
 
     print(f"🔄 Moving Issue '{issue['title']}' to '{status_name}'...")
     
-    headers = get_github_headers()
     url = "https://api.github.com/graphql"
 
     # Step 1: Find Field ID and Option ID
@@ -209,7 +285,13 @@ def update_issue_status(issue, status_name="In Progress"):
     """
     
     try:
-        resp = requests.post(url, headers=headers, json={"query": schema_query, "variables": {"projectId": project_id}}, timeout=10)
+        resp = _request_with_github_auth(
+            requests.post,
+            url,
+            retry_on_401=True,
+            json={"query": schema_query, "variables": {"projectId": project_id}},
+            timeout=10,
+        )
         if resp.status_code != 200:
             print(f"❌ Failed to fetch project schema: {resp.text}")
             return
@@ -259,7 +341,13 @@ def update_issue_status(issue, status_name="In Progress"):
             "optionId": target_option["id"]
         }
         
-        resp_mut = requests.post(url, headers=headers, json={"query": mutation, "variables": vars}, timeout=10)
+        resp_mut = _request_with_github_auth(
+            requests.post,
+            url,
+            retry_on_401=True,
+            json={"query": mutation, "variables": vars},
+            timeout=10,
+        )
         
         if resp_mut.status_code == 200 and "errors" not in resp_mut.json():
             print(f"✅ Status updated to '{status_name}'")
@@ -275,8 +363,6 @@ def create_pull_request(repo_name, title, body, head_branch, base_branch="main")
     """
     owner, name = repo_name.split("/")
     url = f"https://api.github.com/repos/{owner}/{name}/pulls"
-    headers = get_github_headers()
-    
     payload = {
         "title": title,
         "body": body,
@@ -286,7 +372,13 @@ def create_pull_request(repo_name, title, body, head_branch, base_branch="main")
     
     print(f"🌍 Creating PR on {repo_name} ({head_branch} -> {base_branch})...")
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response = _request_with_github_auth(
+            requests.post,
+            url,
+            retry_on_401=True,
+            json=payload,
+            timeout=10,
+        )
         
         if response.status_code == 201:
             pr_data = response.json()
@@ -307,10 +399,13 @@ def get_open_pr(repo_name, head_branch):
     owner, name = repo_name.split("/")
     # GitHub API expects head as 'user:branch'
     url = f"https://api.github.com/repos/{owner}/{name}/pulls?head={owner}:{head_branch}&state=open"
-    headers = get_github_headers()
-    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = _request_with_github_auth(
+            requests.get,
+            url,
+            retry_on_401=True,
+            timeout=10,
+        )
         if response.status_code == 200:
             prs = response.json()
             if prs:
@@ -326,8 +421,6 @@ def update_pull_request(repo_name, pr_number, title=None, body=None):
     """
     owner, name = repo_name.split("/")
     url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
-    headers = get_github_headers()
-    
     payload = {}
     if title:
         payload["title"] = title
@@ -339,7 +432,13 @@ def update_pull_request(repo_name, pr_number, title=None, body=None):
         
     print(f"🌍 Updating PR #{pr_number} on {repo_name}...")
     try:
-        response = requests.patch(url, headers=headers, json=payload, timeout=10)
+        response = _request_with_github_auth(
+            requests.patch,
+            url,
+            retry_on_401=True,
+            json=payload,
+            timeout=10,
+        )
         
         if response.status_code == 200:
             pr_data = response.json()
