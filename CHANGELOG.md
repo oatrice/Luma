@@ -3,6 +3,17 @@
 ## [1.11.0] - 2026-04-03
 
 ### Added
+- **Guided Planning:** Enhanced multi-issue planning with compact naming, safe directory generation, and improved circular LLM fallback.
+- **Usage Tracking:** Implemented recording of action events and filtering for metric logs.
+- **Feature Directories:** Centralized logic for feature directory naming.
+- **Metrics:** Added functionality to prompt for post story points, enhancing effort tracking.
+
+### Fixed
+- **LLM:** Resolved an issue with the fallback model rotation logic.
+
+## [1.11.0] - 2026-04-03
+
+### Added
 - **CLI:** Introduced action-level logging for headless CLI executions to improve debuggability.
 - **Metrics:** Added a prompt to record post-story points for actual effort tracking against initial estimates.
 
