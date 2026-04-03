@@ -1,6 +1,6 @@
 import os
-import re
 from langchain_core.messages import SystemMessage, HumanMessage
+from luma_core.feature_dirs import build_feature_dirname
 from luma_core.llm import get_llm
 from luma_core.state import AgentState
 from luma_core.project_context import load_project_context, build_context_block
@@ -129,9 +129,11 @@ Your goal is to write a detailed Specification Document (`spec.md`) for the user
         # Use simple timestamp-based or just count dirs
         count = len([d for d in os.listdir(features_root) if os.path.isdir(os.path.join(features_root, d))])
         next_index = count + 1
-        
-        safe_title = re.sub(r'[^\w\s-]', '', task).strip().lower().replace(" ", "-")
-        output_dir = os.path.join(features_root, f"{next_index}_issue-{issue_number}_{safe_title}")
+
+        output_dir = os.path.join(
+            features_root,
+            build_feature_dirname(next_index, issue_number, task),
+        )
         os.makedirs(output_dir, exist_ok=True)
 
     output_file = os.path.join(output_dir, "spec.md")
