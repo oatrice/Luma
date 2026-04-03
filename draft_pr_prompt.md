@@ -12,6 +12,7 @@ ISSUE: {
 
 GIT CONTEXT:
 COMMITS:
+77de8a4 feat: Guided planning can fail on multi-issue runs due t...
 f0ada88 feat: Guided planning can fail on multi-issue runs due t...
 5990a85 feat: Guided planning can fail on multi-issue runs due t...
 72c1ba1 docs: sync AI brain artifacts
@@ -35,7 +36,7 @@ STATS:
  .../sbe.md                                         |  72 +++
  .../spec.md                                        | 122 ++++
  draft_pr_body.md                                   |  44 ++
- draft_pr_prompt.md                                 | 654 +++++++++++++++++++++
+ draft_pr_prompt.md                                 | 657 +++++++++++++++++++++
  luma_core/actions/metrics_actions.py               |  20 +-
  luma_core/actions/utils.py                         |  24 +
  luma_core/actions/workflow_actions.py              |   4 +
@@ -43,6 +44,7 @@ STATS:
  luma_core/agents/sbe_agent.py                      |  10 +-
  luma_core/agents/spec_agent.py                     |  10 +-
  luma_core/feature_dirs.py                          | 180 ++++++
+ luma_core/github_client.py                         | 149 ++++-
  luma_core/issue_metrics.py                         |   4 +
  luma_core/llm.py                                   |   8 +-
  luma_core/metrics_summarizer.py                    |   4 +
@@ -50,11 +52,12 @@ STATS:
  main.py                                            |  76 ++-
  package.json                                       |   2 +-
  tests/test_feature_dir_naming.py                   |  98 +++
+ tests/test_github_client.py                        |  83 +++
  tests/test_issue_metrics.py                        |  30 +
  tests/test_llm_fallback_rotation.py                |  52 ++
- tests/test_main_headless_cli.py                    | 229 ++++++++
+ tests/test_main_headless_cli.py                    | 229 +++++++
  tests/test_metrics_summarizer.py                   |  22 +
- 30 files changed, 2112 insertions(+), 88 deletions(-)
+ 32 files changed, 2322 insertions(+), 113 deletions(-)
 
 KEY FILE DIFFS:
 diff --git a/luma_core/actions/metrics_actions.py b/luma_core/actions/metrics_actions.py
@@ -427,221 +430,230 @@ index 0000000..c80106e
 +
 +    available_slug_bytes = MAX_DIRNAME_BYTES - len(prefix.encode("utf-8"))
 +    return f"{prefix}{_with_hash_suffix(compact_slug, digest, available_slug_bytes)}"
-diff --git a/luma_core/issue_metrics.py b/luma_core/issue_metrics.py
-index a5ecc2c..9b6b0da 100644
---- a/luma_core/issue_metrics.py
-+++ b/luma_core/issue_metrics.py
-@@ -1527,6 +1527,10 @@ def get_earliest_usage_timestamp(project_path: str, issue_number: int) -> Option
-                     except json.JSONDecodeError:
-                         continue
- 
-+                    event_type = data.get("event")
-+                    if event_type and event_type != "llm_call":
-+                        continue
+diff --git a/luma_core/github_client.py b/luma_core/github_client.py
+index f86294c..208a98b 100644
+--- a/luma_core/github_client.py
++++ b/luma_core/github_client.py
+@@ -1,23 +1,96 @@
++import os
++import subprocess
 +
-                     # Check if this entry is for the target issue
-                     nums = data.get("issue_numbers", [])
-                     found = issue_number in nums
-diff --git a/luma_core/llm.py b/luma_core/llm.py
-index a577bde..7878aeb 100644
---- a/luma_core/llm.py
-+++ b/luma_core/llm.py
-@@ -383,7 +383,11 @@ class FallbackModel(BaseChatModel):
-         active_idx, last_reset = config.get_fallback_info(current_path)
-         start_idx = active_idx if 0 <= active_idx < len(self.models) else 0
- 
--        for i in range(start_idx, len(self.models)):
-+        ordered_indices = list(range(start_idx, len(self.models)))
-+        if start_idx > 0:
-+            ordered_indices.extend(range(0, start_idx))
+ import requests
+-from .config import GITHUB_TOKEN
 +
-+        for position, i in enumerate(ordered_indices):
-             model = self.models[i]
-             call_id = uuid.uuid4().hex[:12]
-             start_time = time.time()
-@@ -426,7 +430,7 @@ class FallbackModel(BaseChatModel):
-                     account=_mask_account(account),
-                 )
-                 errors.append(f"Model {i + 1} ({model_type}): {str(e)}")
--                if i < len(self.models) - 1:
-+                if position < len(ordered_indices) - 1:
-                     if is_retryable(error_type_enum):
-                         time.sleep(1)
- 
-diff --git a/luma_core/metrics_summarizer.py b/luma_core/metrics_summarizer.py
-index 715a302..556a700 100644
---- a/luma_core/metrics_summarizer.py
-+++ b/luma_core/metrics_summarizer.py
-@@ -81,6 +81,10 @@ def summarize_usage_stats(
-                 except json.JSONDecodeError:
-                     continue
- 
-+                event_type = event.get("event")
-+                if event_type and event_type != "llm_call":
-+                    continue
++from . import config
 +
-                 if project and not _event_matches_project(event, project):
-                     continue
-                 
-diff --git a/luma_core/usage_tracker.py b/luma_core/usage_tracker.py
-index c4b4e6e..9db5911 100644
---- a/luma_core/usage_tracker.py
-+++ b/luma_core/usage_tracker.py
-@@ -75,6 +75,16 @@ def get_log_path() -> str:
-     return os.path.join(luma_root, _LOG_FILENAME)
- 
- 
-+def _write_event(event: Dict[str, Any]) -> None:
-+    log_path = get_log_path()
++
++_GITHUB_ACCEPT_HEADER = "application/vnd.github.v3+json"
++
++
++def _build_github_headers(token=None):
++    headers = {"Accept": _GITHUB_ACCEPT_HEADER}
++    if token:
++        headers["Authorization"] = f"Bearer {token}"
++    return headers
++
++
++def _get_configured_github_token():
++    return os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN") or config.GITHUB_TOKEN
++
++
++def _get_gh_cli_token():
 +    try:
-+        with open(log_path, "a", encoding="utf-8") as f:
-+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
++        result = subprocess.run(
++            ["gh", "auth", "token"],
++            capture_output=True,
++            text=True,
++            timeout=5,
++        )
 +    except Exception:
-+        # Best-effort logging only
-+        pass
++        return None
++
++    if result.returncode != 0:
++        return None
++
++    token = result.stdout.strip()
++    return token or None
 +
 +
- def _get_luma_version() -> str:
-     global _LUMA_VERSION_CACHE
-     if _LUMA_VERSION_CACHE is not None:
-@@ -285,10 +295,42 @@ def record_llm_event(
-         if key not in event and value is not None:
-             event[key] = value
++def _get_github_auth_tokens():
++    tokens = []
++    for token in (_get_configured_github_token(), _get_gh_cli_token()):
++        if token and token not in tokens:
++            tokens.append(token)
++    return tokens
++
++
++def _request_with_github_auth(request_func, url, retry_on_401=False, **kwargs):
++    auth_tokens = _get_github_auth_tokens()
++    if not auth_tokens:
++        return request_func(url, headers=_build_github_headers(), **kwargs)
++
++    last_response = None
++    for index, token in enumerate(auth_tokens):
++        last_response = request_func(
++            url,
++            headers=_build_github_headers(token),
++            **kwargs,
++        )
++        should_retry = (
++            retry_on_401
++            and last_response.status_code == 401
++            and index < len(auth_tokens) - 1
++        )
++        if should_retry:
++            print(
++                "⚠️ GitHub API returned 401 with the configured token. "
++                "Retrying with gh CLI token..."
++            )
++            continue
++        return last_response
++
++    return last_response
  
--    log_path = get_log_path()
--    try:
--        with open(log_path, "a", encoding="utf-8") as f:
--            f.write(json.dumps(event, ensure_ascii=False) + "\n")
--    except Exception:
--        # Best-effort logging only
--        pass
-+    _write_event(event)
-+
-+
-+def record_action_event(
-+    *,
-+    mode: str,
-+    action: Optional[str],
-+    project: Optional[str],
-+    status: str,
-+    exit_code: int,
-+    duration_ms: Optional[float] = None,
-+    error: Optional[str] = None,
-+    caller: Optional[str] = None,
-+) -> None:
-+    event: Dict[str, Any] = {
-+        "ts": datetime.now(timezone.utc).isoformat(),
-+        "event": "action_run",
-+        "mode": mode,
-+        "action": action,
-+        "project": project,
-+        "status": status,
-+        "exit_code": exit_code,
-+        "duration_ms": int(round(duration_ms or 0)),
-+        "session_id": _SESSION_ID,
-+        "luma_version": _get_luma_version(),
-+        "error": str(error)[:500] if error else None,
-+    }
-+
-+    if caller:
-+        event["caller"] = caller
-+    if _current_sub_action:
-+        event["sub_action"] = _current_sub_action
-+
-+    context = _build_context()
-+    for key, value in context.items():
-+        if key not in event and value is not None:
-+            event[key] = value
-+
-+    _write_event(event)
-diff --git a/main.py b/main.py
-index 71d45fb..e791ecc 100644
---- a/main.py
-+++ b/main.py
-@@ -97,6 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
-         action="store_true",
-         help="Emit machine-readable metadata for external consumers",
-     )
-+    parser.add_argument(
-+        "--caller",
-+        type=str,
-+        default=None,
-+        help="Optional caller identifier for headless telemetry",
-+    )
-     return parser
+ def get_github_headers():
+-    if not GITHUB_TOKEN:
++    tokens = _get_github_auth_tokens()
++    if not tokens:
+         print("⚠️ Warning: GITHUB_TOKEN not found. Public rate limits apply.")
+-        return {}
+-    return {
+-        "Authorization": f"Bearer {GITHUB_TOKEN}",
+-        "Accept": "application/vnd.github.v3+json"
+-    }
++        return _build_github_headers()
++    return _build_github_headers(tokens[0])
  
- 
-@@ -116,7 +122,13 @@ def parse_cli_args(argv=None):
-     parser = build_parser()
-     args = parser.parse_args(argv)
- 
--    headless_requested = args.auto or args.action is not None or args.json or args.meta
-+    headless_requested = (
-+        args.auto
-+        or args.action is not None
-+        or args.json
-+        or args.meta
-+        or args.caller is not None
-+    )
-     if args.meta:
-         if not args.json:
-             raise CLIArgumentError(
-@@ -307,10 +319,18 @@ def run_headless(args) -> int:
-         emit_json(build_metadata_payload())
-         return 0
- 
-+    start_time = time.perf_counter()
-     current_cwd = os.getcwd()
-     global_config = load_global_config()
-     project_map = global_config.get("last_projects_by_path", {})
-     stored_project = project_map.get(current_cwd)
-+    requested_project = _get_requested_project_value(
-+        args,
-+        args.project or "1",
-+    )
-+    action_name = args.action
-+    exit_code = 0
-+    error_message = None
- 
+ def fetch_issues_rest(repo_name):
+     """Fallback: Fetch all issues via REST API (if GraphQL is unavailable)"""
+     url = f"https://api.github.com/repos/{repo_name}/issues?state=open"
+-    headers = get_github_headers()
+-    
+     print(f"🌍 Connecting to GitHub REST API: {repo_name}...")
      try:
-         project_key = resolve_project_key(
-@@ -320,12 +340,17 @@ def run_headless(args) -> int:
-             cli_project_explicit=args.project is not None,
-         )
-         requested_project = _get_requested_project_value(args, project_key)
--        action_name = args.action
-+
-+        project = PROJECTS[project_key]
-+        state = load_state(project["path"])
-+        state.project_key = project_key
-+
-+        usage_tracker.clear_action()
-+        usage_tracker.clear_context()
-+        usage_tracker.set_action(action_name)
-+        usage_tracker.set_context(state, project)
+-        response = requests.get(url, headers=headers, timeout=10)
++        response = _request_with_github_auth(
++            requests.get,
++            url,
++            retry_on_401=True,
++            timeout=10,
++        )
+         response.raise_for_status()
+         issues = response.json()
+         
+@@ -57,8 +130,6 @@ def fetch_issues_graphql(repo_name):
+         return []
  
-         with redirect_stdout(sys.stderr):
--            project = PROJECTS[project_key]
--            state = load_state(project["path"])
--            state.project_key = project_key
-             action_runner = _resolve_headless_action(action_name)
-             result = action_runner(state, project)
+     url = "https://api.github.com/graphql"
+-    headers = get_github_headers()
+-    
+     # GraphQL Query
+     query = """
+     query($owner: String!, $name: String!) {
+@@ -99,7 +170,13 @@ def fetch_issues_graphql(repo_name):
+     
+     print(f"🌍 Connecting to GitHub GraphQL: {repo_name} (Filter: Status='Ready')...")
+     try:
+-        response = requests.post(url, headers=headers, json={"query": query, "variables": variables}, timeout=10)
++        response = _request_with_github_auth(
++            requests.post,
++            url,
++            retry_on_401=True,
++            json={"query": query, "variables": variables},
++            timeout=10,
++        )
+         
+         if response.status_code == 401:
+             print("❌ Unauthorized. Please check your GITHUB_TOKEN.")
+@@ -183,7 +260,6 @@ def update_issue_status(issue, status_name="In Progress"):
  
-@@ -335,25 +360,34 @@ def run_headless(args) -> int:
-             print(f"✅ {action_name} completed for project {requested_project}")
-         return 0
-     except CLIError as exc:
--        requested_project = _get_requested_project_value(
--            args,
--            args.project or "1",
--        )
-+        exit_code = exc.exit_code
-+        error_message = str(exc)
-         if args.json:
--            emit_json(build_error_payload(args.action, requested_project, str(exc)))
-+            emit_json(build_error_payload(args.action, requested_project, error_message))
-         else:
--            print(s
+     print(f"🔄 Moving Issue '{issue['title']}' to '{status_name}'...")
+     
+-    headers = get_github_headers()
+     url = "https://api.github.com/graphql"
+ 
+     # Step 1: Find Field ID and Option ID
+@@ -209,7 +285,13 @@ def update_issue_status(issue, status_name="In Progress"):
+     """
+     
+     try:
+-        resp = requests.post(url, headers=headers, json={"query": schema_query, "variables": {"projectId": project_id}}, timeout=10)
++        resp = _request_with_github_auth(
++            requests.post,
++            url,
++            retry_on_401=True,
++            json={"query": schema_query, "variables": {"projectId": project_id}},
++            timeout=10,
++        )
+         if resp.status_code != 200:
+             print(f"❌ Failed to fetch project schema: {resp.text}")
+             return
+@@ -259,7 +341,13 @@ def update_issue_status(issue, status_name="In Progress"):
+             "optionId": target_option["id"]
+         }
+         
+-        resp_mut = requests.post(url, headers=headers, json={"query": mutation, "variables": vars}, timeout=10)
++        resp_mut = _request_with_github_auth(
++            requests.post,
++            url,
++            retry_on_401=True,
++            json={"query": mutation, "variables": vars},
++            timeout=10,
++        )
+         
+         if resp_mut.status_code == 200 and "errors" not in resp_mut.json():
+             print(f"✅ Status updated to '{status_name}'")
+@@ -275,8 +363,6 @@ def create_pull_request(repo_name, title, body, head_branch, base_branch="main")
+     """
+     owner, name = repo_name.split("/")
+     url = f"https://api.github.com/repos/{owner}/{name}/pulls"
+-    headers = get_github_headers()
+-    
+     payload = {
+         "title": title,
+         "body": body,
+@@ -286,7 +372,13 @@ def create_pull_request(repo_name, title, body, head_branch, base_branch="main")
+     
+     print(f"🌍 Creating PR on {repo_name} ({head_branch} -> {base_branch})...")
+     try:
+-        response = requests.post(url, headers=headers, json=payload, timeout=10)
++        response = _request_with_github_auth(
++            requests.post,
++            url,
++            retry_on_401=True,
++            json=payload,
++            timeout=10,
++        )
+         
+         if response.status_code == 201:
+             pr_data = response.json()
+@@ -307,10 +399,13 @@ def get_open_pr(repo_name, head_branch):
+     owner, name = repo_name.split("/")
+     # GitHub API expects head as 'user:branch'
+     url = f"https://api.github.com/repos/{owner}/{name}/pulls?head={owner}:{head_branch}&state=open"
+-    headers = get_github_headers()
+-    
+     try:
+-        response = requests.get(url, headers=headers, timeout=10)
++        response = _request_with_github_auth(
++            requests.get,
++            url,
++            retry_on_401=True,
++            timeout=10,
++        )
+         if response.status_code == 200:
+             prs = response.json()
+             if prs:
+@@ -326,8 +421,6 @@ def update_pull_request(repo_name, pr_number, title=None, body=None):
+     """
+     owner, name = repo_name.split("/")
+     url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+-    headers = get_github_headers()
+-    
+     payload = {}
+     if title:
+         payload["title"] = title
+@@ -339,7 +432,13 @@ def update_pull_request(repo_name, pr_num
 ... (Diff truncated for size) ...
 
 
