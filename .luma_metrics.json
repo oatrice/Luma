@@ -198,6 +198,28 @@
       "gh_mandays": null,
       "created_at": "2026-04-03T03:05:38Z",
       "updated_at": "2026-04-03T12:12:08.560042"
+    },
+    "oatrice/Luma#39": {
+      "issue_key": "oatrice/Luma#39",
+      "issue_number": 39,
+      "issue_title": "Create portable dotfiles bootstrap for shared AI memory and global agents",
+      "issue_url": "https://github.com/oatrice/Luma/issues/39",
+      "repository": "oatrice/Luma",
+      "project_name": "Luma",
+      "issue_status": null,
+      "estimate_points": 3,
+      "post_story_point": null,
+      "estimated_mandays": 1.5,
+      "start_datetime": "2026-04-03T20:30:03",
+      "actual_mandays": null,
+      "due_date": null,
+      "actual_completion_date": null,
+      "effort_level": "Medium",
+      "notes": null,
+      "gh_closed_at": null,
+      "gh_mandays": null,
+      "created_at": "2026-04-03T20:30:03.135136",
+      "updated_at": "2026-04-03T20:30:03.139641"
     }
   }
 }
