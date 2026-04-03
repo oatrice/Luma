@@ -6,12 +6,13 @@ TASK: Guided planning can fail on multi-issue runs due to overlong feature dirs 
 ISSUE: {
   "title": "Guided planning can fail on multi-issue runs due to overlong feature dirs and sticky LLM fallback",
   "number": 35,
-  "body": "## Summary\n\nGuided Planning can fail during a multi-issue run for two independent reasons that surfaced in the same Zenith workflow:\n\n1. `Analyst`/`Spec` build `docs/features/...` directory names directly from the combined multi-issue title, which can exceed the filesystem basename limit and raise `OSError: [Errno 63] File name too long`.\n2. The LLM fallback chain resumes from the saved `FALLBACK_ACTIVE_INDEX` but does not wrap back to earlier models. If the saved model fails transiently, the entire chain can stop without trying the remaining configured models.\n\n## Impact\n\n- Guided Feature Workflow can stop in the Planning phase even when other fallback models are still available.\n- Multi-issue planning is especially vulnerable because combined titles are much longer than single-issue titles.\n- Zenith loses the expected `Analyst -> Spec -> SBE -> Architect` handoff and drops into manual recovery.\n\n## Reproduction\n\n1. In Zenith, start Guided Feature Workflow with multiple selected issues, for example `#13-14-15-8`.\n2. Run Planning Phase.\n3. Observe one of these failures:\n   - `Analyst` or `Spec` tries to create an overlong `docs/features/...` directory name and fails with `File name too long`.\n   - `Spec`/`SBE` starts from a saved fallback model index, that model aborts, and the fallback chain does not retry earlier configured models.\n\n## Expected\n\n- Feature directory naming should stay within filesystem limits for multi-issue runs.\n- Fallback LLM selection should try the full configured chain, starting from the saved index and wrapping around the list.\n\n## Proposed Fix\n\n- Centralize feature directory naming behind a byte-safe helper that truncates long slugs and appends a short hash suffix when needed.\n- Update `FallbackModel` to iterate through the model list in circular order instead of only trying `range(start_idx, len(models))`.\n- Add regression tests for both behaviors.\n\n## Acceptance Criteria\n\n- Multi-issue planning does not fail when the combined issue title is very long.\n- `Analyst` and `Spec` both create safe feature directory names for multi-issue runs.\n- When `FALLBACK_ACTIVE_INDEX` points near the end of the model chain and that model fails, Luma still retries the earlier models.\n- Regression tests cover both the directory naming bug and the fallback rotation bug.\n\n## Related\n\n- Observed while planning Zenith issues:\n  - https://github.com/oatrice/Zenith/issues/13\n  - https://github.com/oatrice/Zenith/issues/14\n  - https://github.com/oatrice/Zenith/issues/15\n  - https://github.com/oatrice/Zenith/issues/8\n\n\n## \ud83e\udde0 AI Brain Context\n- [task.md](https://raw.githubusercontent.com/oatrice/Luma/feat/35-handle-long-feature-dirs/docs/features/15_issue-35_guided-planning-can-fail-on-multi-issue-runs-due-to-overlong-feature-dirs-and-sticky-llm-fallback/ai_brain/task.md)\n- [walkthrough.md](https://raw.githubusercontent.com/oatrice/Luma/feat/35-handle-long-feature-dirs/docs/features/15_issue-35_guided-planning-can-fail-on-multi-issue-runs-due-to-overlong-feature-dirs-and-sticky-llm-fallback/ai_brain/walkthrough.md)\n- [implementation_plan.md](https://raw.githubusercontent.com/oatrice/Luma/feat/35-handle-long-feature-dirs/docs/features/15_issue-35_guided-planning-can-fail-on-multi-issue-runs-due-to-overlong-feature-dirs-and-sticky-llm-fallback/ai_brain/implementation_plan.md)\n\n\nCloses #35",
+  "body": "## Summary\n\nGuided Planning can fail during a multi-issue run for two independent reasons that surfaced in the same Zenith workflow:\n\n1. `Analyst`/`Spec` build `docs/features/...` directory names directly from the combined multi-issue title, which can exceed the filesystem basename limit and raise `OSError: [Errno 63] File name too long`.\n2. The LLM fallback chain resumes from the saved `FALLBACK_ACTIVE_INDEX` but does not wrap back to earlier models. If the saved model fails transiently, the entire chain can stop without trying the remaining configured models.\n\n## Impact\n\n- Guided Feature Workflow can stop in the Planning phase even when other fallback models are still available.\n- Multi-issue planning is especially vulnerable because combined titles are much longer than single-issue titles.\n- Zenith loses the expected `Analyst -> Spec -> SBE -> Architect` handoff and drops into manual recovery.\n\n## Reproduction\n\n1. In Zenith, start Guided Feature Workflow with multiple selected issues, for example `#13-14-15-8`.\n2. Run Planning Phase.\n3. Observe one of these failures:\n   - `Analyst` or `Spec` tries to create an overlong `docs/features/...` directory name and fails with `File name too long`.\n   - `Spec`/`SBE` starts from a saved fallback model index, that model aborts, and the fallback chain does not retry earlier configured models.\n\n## Expected\n\n- Feature directory naming should stay within filesystem limits for multi-issue runs.\n- Fallback LLM selection should try the full configured chain, starting from the saved index and wrapping around the list.\n\n## Proposed Fix\n\n- Centralize feature directory naming behind a byte-safe helper that truncates long slugs and appends a short hash suffix when needed.\n- Update `FallbackModel` to iterate through the model list in circular order instead of only trying `range(start_idx, len(models))`.\n- Add regression tests for both behaviors.\n\n## Acceptance Criteria\n\n- Multi-issue planning does not fail when the combined issue title is very long.\n- `Analyst` and `Spec` both create safe feature directory names for multi-issue runs.\n- When `FALLBACK_ACTIVE_INDEX` points near the end of the model chain and that model fails, Luma still retries the earlier models.\n- Regression tests cover both the directory naming bug and the fallback rotation bug.\n\n## Related\n\n- Observed while planning Zenith issues:\n  - https://github.com/oatrice/Zenith/issues/13\n  - https://github.com/oatrice/Zenith/issues/14\n  - https://github.com/oatrice/Zenith/issues/15\n  - https://github.com/oatrice/Zenith/issues/8\n\n\nCloses #35",
   "url": "https://github.com/oatrice/Luma/issues/35"
 }
 
 GIT CONTEXT:
 COMMITS:
+f0ada88 feat: Guided planning can fail on multi-issue runs due t...
 5990a85 feat: Guided planning can fail on multi-issue runs due t...
 72c1ba1 docs: sync AI brain artifacts
 dd7df44 chore(release): v1.11.0 with guided planning and metrics tracking
@@ -23,35 +24,37 @@ cbaf87f 🐛 fix(llm): Correct fallback model rotation logic
 db295d1 ✨ feat(metrics): Prompt for post story points
 
 STATS:
-.luma_metrics.json                                 |  44 +++-
+.luma_metrics.json                                 |  95 ++-
  CHANGELOG.md                                       |  11 +
  README.md                                          |   4 +-
- .../ai_brain/implementation_plan.md                |  38 ++++
- .../ai_brain/task.md                               |  13 ++
- .../ai_brain/walkthrough.md                        |  29 +++
- .../analysis.md                                    | 147 +++++++++++++
- .../plan.md                                        | 132 ++++++++++++
- .../sbe.md                                         |  72 +++++++
- .../spec.md                                        | 122 +++++++++++
+ .../ai_brain/implementation_plan.md                |  38 ++
+ .../ai_brain/task.md                               |  13 +
+ .../ai_brain/walkthrough.md                        |  29 +
+ .../analysis.md                                    | 147 +++++
+ .../plan.md                                        | 132 +++++
+ .../sbe.md                                         |  72 +++
+ .../spec.md                                        | 122 ++++
+ draft_pr_body.md                                   |  44 ++
+ draft_pr_prompt.md                                 | 654 +++++++++++++++++++++
  luma_core/actions/metrics_actions.py               |  20 +-
- luma_core/actions/utils.py                         |  24 +++
+ luma_core/actions/utils.py                         |  24 +
  luma_core/actions/workflow_actions.py              |   4 +
  luma_core/agents/analyst.py                        |  10 +-
  luma_core/agents/sbe_agent.py                      |  10 +-
  luma_core/agents/spec_agent.py                     |  10 +-
- luma_core/feature_dirs.py                          | 180 ++++++++++++++++
+ luma_core/feature_dirs.py                          | 180 ++++++
  luma_core/issue_metrics.py                         |   4 +
  luma_core/llm.py                                   |   8 +-
  luma_core/metrics_summarizer.py                    |   4 +
- luma_core/usage_tracker.py                         |  56 ++++-
- main.py                                            |  76 +++++--
+ luma_core/usage_tracker.py                         |  56 +-
+ main.py                                            |  76 ++-
  package.json                                       |   2 +-
- tests/test_feature_dir_naming.py                   |  98 +++++++++
- tests/test_issue_metrics.py                        |  30 +++
- tests/test_llm_fallback_rotation.py                |  52 +++++
- tests/test_main_headless_cli.py                    | 229 +++++++++++++++++++++
- tests/test_metrics_summarizer.py                   |  22 ++
- 28 files changed, 1376 insertions(+), 75 deletions(-)
+ tests/test_feature_dir_naming.py                   |  98 +++
+ tests/test_issue_metrics.py                        |  30 +
+ tests/test_llm_fallback_rotation.py                |  52 ++
+ tests/test_main_headless_cli.py                    | 229 ++++++++
+ tests/test_metrics_summarizer.py                   |  22 +
+ 30 files changed, 2112 insertions(+), 88 deletions(-)
 
 KEY FILE DIFFS:
 diff --git a/luma_core/actions/metrics_actions.py b/luma_core/actions/metrics_actions.py
