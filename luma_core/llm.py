@@ -383,7 +383,11 @@ class FallbackModel(BaseChatModel):
         active_idx, last_reset = config.get_fallback_info(current_path)
         start_idx = active_idx if 0 <= active_idx < len(self.models) else 0
 
-        for i in range(start_idx, len(self.models)):
+        ordered_indices = list(range(start_idx, len(self.models)))
+        if start_idx > 0:
+            ordered_indices.extend(range(0, start_idx))
+
+        for position, i in enumerate(ordered_indices):
             model = self.models[i]
             call_id = uuid.uuid4().hex[:12]
             start_time = time.time()
@@ -426,7 +430,7 @@ class FallbackModel(BaseChatModel):
                     account=_mask_account(account),
                 )
                 errors.append(f"Model {i + 1} ({model_type}): {str(e)}")
-                if i < len(self.models) - 1:
+                if position < len(ordered_indices) - 1:
                     if is_retryable(error_type_enum):
                         time.sleep(1)
 

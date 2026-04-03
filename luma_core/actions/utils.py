@@ -598,6 +598,30 @@ def prompt_post_story_points_for_records(project: dict, records: list) -> int:
 
     return updated
 
+def prompt_missing_post_story_points(project: dict):
+    """Find issues that are complete but missing post_story_point and prompt for them."""
+    from luma_core.issue_metrics import list_issue_metrics
+    
+    completed_missing_post_points = [
+        record
+        for record in list_issue_metrics(project["path"])
+        if record.post_story_point is None
+        and record.repository == project.get("repo")
+        and any(
+            marker in (record.issue_status or "").lower()
+            for marker in ("done", "complete", "released", "closed")
+        )
+    ]
+    
+    if completed_missing_post_points:
+        print(
+            "\n   📌 Re-estimate Post Story Point for completed issues missing actual complexity..."
+        )
+        prompt_post_story_points_for_records(
+            project,
+            completed_missing_post_points,
+        )
+
 def _edit_issue_metrics_record(project: dict, record: IssueMetricsRecord, is_new: bool = False):
     print(f"\n📝 Issue Metrics for #{record.issue_number} - {record.issue_title}")
     print(f"   Project: {project['name']}")

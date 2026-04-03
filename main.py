@@ -97,6 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit machine-readable metadata for external consumers",
     )
+    parser.add_argument(
+        "--caller",
+        type=str,
+        default=None,
+        help="Optional caller identifier for headless telemetry",
+    )
     return parser
 
 
@@ -116,7 +122,13 @@ def parse_cli_args(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    headless_requested = args.auto or args.action is not None or args.json or args.meta
+    headless_requested = (
+        args.auto
+        or args.action is not None
+        or args.json
+        or args.meta
+        or args.caller is not None
+    )
     if args.meta:
         if not args.json:
             raise CLIArgumentError(
@@ -307,10 +319,18 @@ def run_headless(args) -> int:
         emit_json(build_metadata_payload())
         return 0
 
+    start_time = time.perf_counter()
     current_cwd = os.getcwd()
     global_config = load_global_config()
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
+    requested_project = _get_requested_project_value(
+        args,
+        args.project or "1",
+    )
+    action_name = args.action
+    exit_code = 0
+    error_message = None
 
     try:
         project_key = resolve_project_key(
@@ -320,12 +340,17 @@ def run_headless(args) -> int:
             cli_project_explicit=args.project is not None,
         )
         requested_project = _get_requested_project_value(args, project_key)
-        action_name = args.action
+
+        project = PROJECTS[project_key]
+        state = load_state(project["path"])
+        state.project_key = project_key
+
+        usage_tracker.clear_action()
+        usage_tracker.clear_context()
+        usage_tracker.set_action(action_name)
+        usage_tracker.set_context(state, project)
 
         with redirect_stdout(sys.stderr):
-            project = PROJECTS[project_key]
-            state = load_state(project["path"])
-            state.project_key = project_key
             action_runner = _resolve_headless_action(action_name)
             result = action_runner(state, project)
 
@@ -335,25 +360,34 @@ def run_headless(args) -> int:
             print(f"✅ {action_name} completed for project {requested_project}")
         return 0
     except CLIError as exc:
-        requested_project = _get_requested_project_value(
-            args,
-            args.project or "1",
-        )
+        exit_code = exc.exit_code
+        error_message = str(exc)
         if args.json:
-            emit_json(build_error_payload(args.action, requested_project, str(exc)))
+            emit_json(build_error_payload(args.action, requested_project, error_message))
         else:
-            print(str(exc), file=sys.stderr)
-        return exc.exit_code
+            print(error_message, file=sys.stderr)
+        return exit_code
     except Exception as exc:
-        requested_project = _get_requested_project_value(
-            args,
-            args.project or "1",
-        )
+        exit_code = 2
+        error_message = str(exc)
         if args.json:
-            emit_json(build_error_payload(args.action, requested_project, str(exc)))
+            emit_json(build_error_payload(args.action, requested_project, error_message))
         else:
-            print(str(exc), file=sys.stderr)
-        return 2
+            print(error_message, file=sys.stderr)
+        return exit_code
+    finally:
+        usage_tracker.record_action_event(
+            mode="headless",
+            action=action_name,
+            project=requested_project,
+            status="success" if exit_code == 0 else "error",
+            exit_code=exit_code,
+            duration_ms=(time.perf_counter() - start_time) * 1000,
+            error=error_message,
+            caller=args.caller,
+        )
+        usage_tracker.clear_action()
+        usage_tracker.clear_context()
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
@@ -583,6 +617,7 @@ def run_interactive(args) -> int:
 
         elif choice.upper() == "Q":
             from luma_core.issue_metrics import sync_github_metrics_for_project
+            from luma_core.actions.utils import prompt_missing_post_story_points
             print(f"\n🐙 Audit & Sync GitHub Metrics - {project['name']}")
             result = sync_github_metrics_for_project(
                 project["path"],
@@ -598,6 +633,9 @@ def run_interactive(args) -> int:
                 print(f"   ⚠️  Encountered {result['errors']} errors during sync.")
             if result.get("paradoxes_fixed", 0) > 0:
                 print(f"   ⏱️  Fixed {result['paradoxes_fixed']} Time Paradox(es).")
+            
+            # Suggest and prompt for post story points for newly completed issues
+            prompt_missing_post_story_points(project)
         
         elif choice.upper() == "R":
             print("🔄 Refreshing state...")
