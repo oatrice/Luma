@@ -1,0 +1,16 @@
+{
+  "links": [
+    {
+      "source": "home/.ai-shared-memory.md",
+      "target": ".ai-shared-memory.md"
+    },
+    {
+      "source": "home/.codex/AGENTS.md",
+      "target": ".codex/AGENTS.md"
+    },
+    {
+      "source": "home/.gemini/GEMINI.md",
+      "target": ".gemini/GEMINI.md"
+    }
+  ]
+}
