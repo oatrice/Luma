@@ -1,14 +1,14 @@
 import os
 import re
 from langchain_core.messages import SystemMessage, HumanMessage
+from luma_core.feature_dirs import build_feature_dirname, sanitize_slug
 from luma_core.llm import get_llm
 from luma_core.state import AgentState
 from luma_core.project_context import load_project_context, build_context_block
 
 def sanitize_filename(name: str) -> str:
     """Sanitize string for use in filename."""
-    name = re.sub(r'[^\w\s-]', '', name).strip().lower()
-    return re.sub(r'[-\s]+', '-', name)
+    return sanitize_slug(name)
 
 def analyst_agent(state: AgentState):
     """
@@ -142,12 +142,8 @@ def analyst_agent(state: AgentState):
         output_dir = existing_dir_path
     else:
         # specific format: N_issue-ID_slug
-        sanitized_title = sanitize_filename(task)
-        # Replace spaces with hyphens for slug style if sanitize didn't
-        sanitized_title = sanitized_title.replace(" ", "-")
-        
         issue_number = issue_data.get('number', '0')
-        output_folder_name = f"{next_index}_issue-{issue_number}_{sanitized_title}"
+        output_folder_name = build_feature_dirname(next_index, issue_number, task)
         
         output_dir = os.path.join(features_root, output_folder_name)
         os.makedirs(output_dir, exist_ok=True)
