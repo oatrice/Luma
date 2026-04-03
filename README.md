@@ -230,3 +230,4 @@ Contract guarantees:
 - [x] **Standardized Logging**: Clear visibility of which account/model is being used per request, with enhanced error handling and logging for Gemini CLI. 🆕
 - [x] **Headless CLI Logging**: Action-level logging for headless CLI executions, directing diagnostics to stderr. 🆕
 - [x] **Reviewing Phase**: Dedicated state for AI code review with direct PR creation support. 🆕
+- [x] **Portable dotfiles bootstrap**: Template for creating portable dotfiles with AI integration. 🆕
