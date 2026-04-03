@@ -17,7 +17,6 @@ from .utils import (
     list_issue_metrics,
     prefill_metrics_from_roadmap,
     prompt_missing_post_story_points,
-    prompt_post_story_points_for_records,
 )
 
 def action_view_dashboard(state: LumaState, project: dict):
