@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.0] - 2026-04-03
+
+### Added
+- **CLI:** Introduced action-level logging for headless CLI executions to improve debuggability.
+- **Metrics:** Added a prompt to record post-story points for actual effort tracking against initial estimates.
+
 ## [1.10.0] - 2026-04-02
 
 ### Added

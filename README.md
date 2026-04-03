@@ -225,7 +225,8 @@ Contract guarantees:
 - [x] **Smart Fallback**: Optimized fallback chain with intelligent Rate Limit handling.
 - [x] **Cross-Repo Context & Planning**: Agents can plan and access context across multiple repositories. 🆕
 - [x] **Background CI**: CI checks now run as a background process for a non-blocking workflow. 🆕
-- [x] **Automated Issue Metrics**: Automatically calculates and fills story points and effort. 🆕
+- [x] **Automated Issue Metrics**: Automatically calculates, prompts for, and fills story points and effort. 🆕
 - [x] **LLM Key Rotation**: Supports multiple Google API keys with automatic failover and cooldown. 🆕
 - [x] **Standardized Logging**: Clear visibility of which account/model is being used per request, with enhanced error handling and logging for Gemini CLI. 🆕
+- [x] **Headless CLI Logging**: Action-level logging for headless CLI executions, directing diagnostics to stderr. 🆕
 - [x] **Reviewing Phase**: Dedicated state for AI code review with direct PR creation support. 🆕
