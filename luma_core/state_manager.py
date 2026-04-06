@@ -65,7 +65,7 @@ class LumaState:
 # =============================================================================
 
 VALID_TRANSITIONS = {
-    WorkflowPhase.IDLE: [WorkflowPhase.SELECTING],
+    WorkflowPhase.IDLE: [WorkflowPhase.SELECTING, WorkflowPhase.CODING],
     WorkflowPhase.SELECTING: [WorkflowPhase.IDLE, WorkflowPhase.CODING],
     WorkflowPhase.CODING: [WorkflowPhase.IDLE, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],  # Allow switching issues while coding
     WorkflowPhase.REVIEWING: [WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],
@@ -75,6 +75,7 @@ VALID_TRANSITIONS = {
 
 TRANSITION_REQUIREMENTS = {
     (WorkflowPhase.SELECTING, WorkflowPhase.CODING): ["active_issues", "active_branch"],
+    (WorkflowPhase.IDLE, WorkflowPhase.CODING): ["active_issues", "active_branch"],
     (WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING): ["pr_url"],
 }
 

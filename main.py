@@ -43,7 +43,7 @@ from luma_core.tools import (
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONTRACT_VERSION = "2.0"
-SUPPORTED_HEADLESS_ACTIONS = ("code_review",)
+SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap")
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
 
@@ -73,6 +73,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Project key (for example 1=JarWise-Root, 12=Luma)",
+    )
+    parser.add_argument(
+        "--issue",
+        type=str,
+        default=None,
+        help="Issue number(s) for bootstrap (comma-separated for multi-select)",
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default=None,
+        help="Optional branch name for bootstrap",
     )
     parser.add_argument(
         "--auto",
@@ -323,6 +335,22 @@ def _resolve_headless_action(args, action_name: str):
             project,
             auto_approve=True,
             force=args.force
+        )
+
+    if action_name == "bootstrap":
+        if not args.issue:
+            raise CLIArgumentError("--issue <number> is required for bootstrap action.", exit_code=2)
+        
+        try:
+            issue_numbers = [int(i.strip()) for i in args.issue.split(",")]
+        except ValueError:
+            raise CLIArgumentError("Invalid issue format. Use numbers (e.g. --issue 40 or --issue 40,41).", exit_code=2)
+            
+        return lambda state, project: actions.bootstrap_issue(
+            state,
+            project,
+            issue_numbers=issue_numbers,
+            branch_name=args.branch
         )
 
     raise CLIError(f"Action '{action_name}' not found.", exit_code=1)
