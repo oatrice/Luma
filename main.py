@@ -32,6 +32,7 @@ from luma_core.state_manager import (
 from luma_core.tools import (
     get_current_version,
     get_project_git_info,
+    repair_invalid_branch,
 )
 
 
@@ -518,6 +519,14 @@ def run_interactive(args) -> int:
     # Load state
     state = load_state(project["path"])
     state.project_key = project_key
+
+    # --- CRITICAL BRANCH REPAIR ON STARTUP ---
+    print(f"🔄 Debug: Current branch in state is '{state.active_branch}'")
+    if repair_invalid_branch(state, project["path"]):
+        print("🔄 Debug: Saving repaired state...")
+        # CRITICAL: state must be first, path must be second
+        save_state(state, project["path"])
+    # -----------------------------------------
     
     print("\n🚀 Starting Luma V2 Workflow Guardian...")
     

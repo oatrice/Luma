@@ -27,6 +27,38 @@ import os
 
 def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None, force: bool = False):
     """Create Pull Request with Pre-flight Checks"""
+
+    # --- CRITICAL BRANCH REPAIR ---
+    # We use string conversion to catch all variants of '1', True, etc.
+    current_val = str(state.active_branch).strip() if state.active_branch is not None else ""
+    if current_val in ["1", "True", "None", "", "HEAD"] or not isinstance(state.active_branch, str):
+        print(f"🔍 System detected invalid branch state: '{current_val}'. Attempting repair...")
+        try:
+            import subprocess
+            # Try to get the actual branch name from Git
+            detected = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=project["path"],  # Use project path explicitly
+                text=True
+            ).strip()
+
+            if detected and detected != "HEAD":
+                print(f"✅ Branch repaired: '{current_val}' -> '{detected}'")
+                state.active_branch = detected
+            else:
+                print("⚠️ Git returned 'HEAD' or empty. Checking for any local branch...")
+                # Fallback: find the first local branch that isn't main/master
+                branches = subprocess.check_output(["git", "branch", "--list"], cwd=project["path"], text=True)
+                for line in branches.splitlines():
+                    br = line.replace("*", "").strip()
+                    if br and br not in ["main", "master", "develop"]:
+                        state.active_branch = br
+                        print(f"✅ Fallback repair: Use '{br}'")
+                        break
+        except Exception as e:
+            print(f"❌ Branch repair failed: {e}")
+    # -----------------------------
+
     # Allow if Coding OR (PR_Pending to sync other repos) OR Preflight (Retry)
     allowed_phases = [
         WorkflowPhase.CODING,
