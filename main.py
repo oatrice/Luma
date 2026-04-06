@@ -98,6 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit machine-readable metadata for external consumers",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force the current operation",
+    )
+    parser.add_argument(
         "--caller",
         type=str,
         default=None,
@@ -303,12 +308,20 @@ def _get_requested_project_value(args, resolved_project_key: str) -> str:
     return args.project or resolved_project_key
 
 
-def _resolve_headless_action(action_name: str):
+def _resolve_headless_action(args, action_name: str):
     if action_name == "code_review":
         return lambda state, project: actions.action_code_review(
             state,
             project,
             headless=True,
+        )
+    
+    if action_name == "create_pr":
+        return lambda state, project: actions.action_create_pr(
+            state,
+            project,
+            auto_approve=True,
+            force=args.force
         )
 
     raise CLIError(f"Action '{action_name}' not found.", exit_code=1)
@@ -351,7 +364,7 @@ def run_headless(args) -> int:
         usage_tracker.set_context(state, project)
 
         with redirect_stdout(sys.stderr):
-            action_runner = _resolve_headless_action(action_name)
+            action_runner = _resolve_headless_action(args, action_name)
             result = action_runner(state, project)
 
         if args.json:
@@ -401,7 +414,7 @@ MENU_ACTIONS = {
     "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING, WorkflowPhase.REVIEWING]},
     "B": {"label": "🧠 Sync AI Agent Brain",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT, WorkflowPhase.REVIEWING]},
     "P": {"label": "🚀 Create/Sync PRs",           "valid_phases": "ALL"},
-    "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
+    "8": {"label": "🚀 Create Pull Request",       "valid_phases": "ALL"},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},

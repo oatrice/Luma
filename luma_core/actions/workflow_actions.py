@@ -25,7 +25,7 @@ from .quality_actions import action_code_review, action_update_docs, action_upda
 import sys
 import os
 
-def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None):
+def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None, force: bool = False):
     """Create Pull Request with Pre-flight Checks"""
     # Allow if Coding OR (PR_Pending to sync other repos) OR Preflight (Retry)
     allowed_phases = [
@@ -35,9 +35,16 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         WorkflowPhase.PREFLIGHT,
     ]
     if state.phase not in allowed_phases:
-        print(f"❌ Cannot create PR in '{state.phase.value}' phase")
-        print("💡 Start coding first by selecting an issue")
-        return
+        if not force:
+            print(f"❌ Cannot create PR in '{state.phase.value}' phase")
+            confirm = safe_input("💡 Do you want to force create PR anyway? (y/N): ").lower()
+            if confirm != 'y':
+                print("💡 Start coding first by selecting an issue")
+                return
+            print("🚀 Forcing PR creation...")
+            force = True
+        else:
+            print("🚀 Forcing PR creation as requested...")
 
     if not state.active_issues or not state.active_branch:
         print("❌ No active issue/branch")
