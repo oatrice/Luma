@@ -310,6 +310,13 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     elif choice:
         branch_name = choice
 
+    # Validate branch name to prevent corruption (e.g., "1", "True", "None")
+    invalid_branch_values = ["1", "0", "True", "False", "None", "", "HEAD"]
+    if branch_name in invalid_branch_values or len(branch_name) < 2:
+        # Fallback to first suggestion if invalid
+        print(f"⚠️ Invalid branch name '{branch_name}' detected, using default suggestion.")
+        branch_name = suggestions[0]
+
     # Transition to coding
     ok, msg = transition_to(
         state, WorkflowPhase.CODING, active_issues=issues, active_branch=branch_name
