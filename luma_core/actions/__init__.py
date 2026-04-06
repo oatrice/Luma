@@ -3,7 +3,8 @@ from .issue_actions import (
     action_add_issue,
     action_remove_issue,
     action_view_kanban,
-    action_list_active_issues
+    action_list_active_issues,
+    bootstrap_issue
 )
 from .plan_actions import (
     action_refine_issue,
@@ -54,6 +55,7 @@ __all__ = [
     "action_remove_issue",
     "action_view_kanban",
     "action_list_active_issues",
+    "bootstrap_issue",
     "action_refine_issue",
     "action_generate_sbe",
     "action_generate_draft",
