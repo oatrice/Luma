@@ -180,6 +180,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             # Also ensure sibling repos are on the correct branch
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
+                import os
 
                 print("🔄 Syncing sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
@@ -227,7 +228,6 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 html_url=card.url,
                 body=card.body,
                 project_item_id=card.item_id,
-                project_id=project["kanban_id"],
                 repository=card.repository,
             )
         )
@@ -358,6 +358,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             # Create branches in sibling repos
             if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
                 from luma_core.config import PROJECTS
+                import os
 
                 print("\n🔄 Creating branches in sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
@@ -399,13 +400,112 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                     "select_issue",
                     project["kanban_id"],
                     card.item_id,
-                    workflow.get("action_status_map"),
+                    project,
                 )
 
         return True
-    else:
-        print(f"❌ {msg}")
+
+    print(f"❌ Transition failed: {msg}")
+    return False
+
+def _start_issues_headless(
+    state: LumaState, 
+    cards: list, 
+    project: dict, 
+    branch_name: str = None
+) -> bool:
+    """Headless version of _start_issues that doesn't ask for user input."""
+    from luma_core.state_manager import IssueData
+    
+    issues = [
+        IssueData(
+            number=c.issue_number,
+            title=c.title,
+            html_url=c.url,
+            project_item_id=c.item_id,
+            repository=c.repository,
+        )
+        for c in cards
+    ]
+
+    issue_nums = "-".join(str(c.issue_number) for c in cards)
+    primary_title = cards[0].title
+    primary_body = cards[0].body or ""
+    primary_number = cards[0].issue_number
+
+    if not branch_name:
+        try:
+            from luma_core.agents.analyst import generate_branch_names
+            suggestions = generate_branch_names(primary_title, primary_body, primary_number)
+            branch_name = suggestions[0]  # Default to first suggestion
+            
+            if len(cards) > 1:
+                branch_name = branch_name.replace(f"/{primary_number}-", f"/{issue_nums}-")
+        except Exception:
+            slug = primary_title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
+            branch_name = f"feat/{issue_nums}-{slug}"
+
+    # Validate branch name
+    invalid_branch_values = ["1", "0", "True", "False", "None", "", "HEAD"]
+    if branch_name in invalid_branch_values or len(branch_name) < 2:
+        print(f"❌ Invalid branch name: '{branch_name}'")
         return False
+
+    # Transition to coding
+    from luma_core.state_manager import transition_to, WorkflowPhase
+    ok, msg = transition_to(
+        state, WorkflowPhase.CODING, active_issues=issues, active_branch=branch_name
+    )
+
+    if ok:
+        issue_display = ", ".join(f"#{c.issue_number}" for c in cards)
+        print(f"\n✅ Started (Headless): {issue_display}")
+        print(f"🌿 Branch: {branch_name}")
+
+        import subprocess
+        import os
+        try:
+            print("🔄 Creating git branch...")
+            result = subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                cwd=project["path"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                print(f"✅ Branch '{branch_name}' created and checked out.")
+            else:
+                switch_result = subprocess.run(
+                    ["git", "checkout", branch_name],
+                    cwd=project["path"],
+                    capture_output=True,
+                    text=True,
+                )
+                if switch_result.returncode == 0:
+                    print(f"✅ Switched to existing branch '{branch_name}'.")
+                else:
+                    print(f"⚠️ Git error: {result.stderr.strip()}")
+
+            # Create branches in sibling repos if monorepo
+            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+                from luma_core.config import PROJECTS
+                for sibling_key in project.get("sibling_repos", []):
+                    sibling = PROJECTS.get(sibling_key)
+                    if sibling and os.path.exists(sibling["path"]):
+                        subprocess.run(["git", "checkout", "-b", branch_name], cwd=sibling["path"], capture_output=True)
+                        subprocess.run(["git", "checkout", branch_name], cwd=sibling["path"], capture_output=True)
+
+        except Exception as e:
+            print(f"⚠️ Failed to create branch: {e}")
+
+        # Sync Kanban
+        for i, card in enumerate(cards):
+            if card.item_id and project.get("kanban_id"):
+                sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id, project)
+        return True
+    
+    print(f"❌ Transition failed: {msg}")
+    return False
 
 _KEEP_METRIC_VALUE = object()
 
