@@ -1,0 +1,33 @@
+# Copy this file into each repository that should report issues into Project 11.
+#
+# Prerequisite:
+# - Create a secret named PROJECTS_TOKEN in the target repository.
+# - Use a token that can access user projects. GitHub's built-in GITHUB_TOKEN cannot access Projects.
+
+name: Add Issues To Master Plan
+
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+      - labeled
+      - unlabeled
+
+jobs:
+  add_issue_to_master_plan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to Master plan
+        uses: actions/add-to-project@v1.0.2
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          project-url: https://github.com/users/oatrice/projects/11
+
+      - name: Trigger Sync in Cerebro
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.PROJECTS_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/oatrice/Cerebro/actions/workflows/sync-project-statuses.yml/dispatches \
+            -d '{"ref":"main"}'
