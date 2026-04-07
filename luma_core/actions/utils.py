@@ -17,6 +17,7 @@ from luma_core.github_project import (
     sync_kanban_on_action,
 )
 from luma_core.preflight_checker import PreflightChecker
+from luma_core.state_manager import save_state
 from luma_core.issue_metrics import (
     EFFORT_LEVELS,
     IssueMetricsRecord,
@@ -400,7 +401,6 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                     "select_issue",
                     project["kanban_id"],
                     card.item_id,
-                    project,
                 )
 
         return True
@@ -514,7 +514,7 @@ def _start_issues_headless(
         # Sync Kanban - USE "select_issue" (Registered Action)
         for i, card in enumerate(cards):
             if card.item_id and project.get("kanban_id"):
-                sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id, project)
+                sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
         
         # Explicit save with debug
         print(f"DEBUG: Saving state to {project['path']}")
