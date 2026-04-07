@@ -33,13 +33,15 @@ def action_test_telegram_notification(state: LumaState, project: dict):
     
     safe_input("\nPress Enter to return to menu...")
 
-def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
+def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False) -> bool:
     """Manually trigger AI Brain Sync with preview + confirm + session picker. Supports Antigravity and Gemini CLI."""
     if not state.active_issue:
-        print("❌ No active issue selected. Please select an issue first.")
+        if not headless:
+            print("❌ No active issue selected. Please select an issue first.")
         return False
 
-    print(f"\n🧠 Syncing AI Agent Brain Artifacts for {project['name']}...")
+    if not headless:
+        print(f"\n🧠 Syncing AI Agent Brain Artifacts for {project['name']}...")
     all_synced_docs = []
 
     # 1. Try Antigravity Brain
@@ -50,20 +52,23 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
         if sessions:
             # Preview latest session
             latest = sessions[0]
-            print(
-                f"\n   📂 [Antigravity] Latest Session: {latest['session_id'][:12]}..."
-            )
-            print(f"   📄 Preview: {latest['preview']}")
+            if not headless:
+                print(
+                    f"\n   📂 [Antigravity] Latest Session: {latest['session_id'][:12]}..."
+                )
+                print(f"   📄 Preview: {latest['preview']}")
 
-            confirm = (
-                safe_input("\n   ✅ Use this Antigravity session? (Y/n/s to skip): ")
-                .lower()
-            )
+                confirm = (
+                    safe_input("\n   ✅ Use this Antigravity session? (Y/n/s to skip): ")
+                    .lower()
+                )
+            else:
+                confirm = "y" # Auto-use latest in headless
 
             if confirm != "s":
                 selected_path = latest["path"]
 
-                if confirm == "n":
+                if not headless and confirm == "n":
                     # Show session picker
                     print("\n   📋 Available Antigravity Sessions:")
                     display_limit = min(8, len(sessions))
@@ -103,35 +108,40 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
                     )
                     all_synced_docs.extend(synced_antigravity)
                     state.context["selected_brain_session"] = selected_path
-        else:
+        elif not headless:
             print("ℹ️ No Antigravity sessions found.")
 
     except Exception as e:
-        print(f"⚠️ Antigravity sync failed: {e}")
+        if not headless:
+            print(f"⚠️ Antigravity sync failed: {e}")
 
     # 2. Try Gemini CLI Brain
     try:
         from luma_core.ai_brain_sync import GeminiCLIBrain
 
-        print("\n   🔍 Checking Gemini CLI session artifacts...")
+        if not headless:
+            print("\n   🔍 Checking Gemini CLI session artifacts...")
 
         gemini_sessions = GeminiCLIBrain.get_all_sessions()
         if gemini_sessions:
             latest = gemini_sessions[0]
-            print(
-                f"\n   📂 [Gemini CLI] Latest Session: {latest['session_id'][:12]}..."
-            )
-            print(f"   📄 Preview: {latest['preview'][:80]}")
+            if not headless:
+                print(
+                    f"\n   📂 [Gemini CLI] Latest Session: {latest['session_id'][:12]}..."
+                )
+                print(f"   📄 Preview: {latest['preview'][:80]}")
 
-            confirm = (
-                safe_input("\n   ✅ Sync this Gemini CLI session? (Y/n/s to skip): ")
-                .lower()
-            )
+                confirm = (
+                    safe_input("\n   ✅ Sync this Gemini CLI session? (Y/n/s to skip): ")
+                    .lower()
+                )
+            else:
+                confirm = "y" # Auto-sync in headless
 
             if confirm != "s":
                 selected_path = latest["path"]
 
-                if confirm == "n":
+                if not headless and confirm == "n":
                     # Show session picker
                     print("\n   📋 Available Gemini CLI Sessions:")
                     display_limit = min(8, len(gemini_sessions))
@@ -169,23 +179,26 @@ def action_sync_ai_brain(state: LumaState, project: dict) -> bool:
                         session_path=selected_path,
                     )
                     all_synced_docs.extend(synced_gemini)
-        else:
+        elif not headless:
             print("   ℹ️ No Gemini CLI session artifacts found.")
     except Exception as e:
-        print(f"⚠️ Gemini CLI sync failed: {e}")
+        if not headless:
+            print(f"⚠️ Gemini CLI sync failed: {e}")
 
     if all_synced_docs:
-        print(
-            f"\n✅ Successfully synced {len(all_synced_docs)} files from AI Brain(s)."
-        )
-        for doc in all_synced_docs:
-            print(f"  - {doc}")
-        print(
-            "💡 The files have been copied to the project. You can review and commit them manually."
-        )
+        if not headless:
+            print(
+                f"\n✅ Successfully synced {len(all_synced_docs)} files from AI Brain(s)."
+            )
+            for doc in all_synced_docs:
+                print(f"  - {doc}")
+            print(
+                "💡 The files have been copied to the project. You can review and commit them manually."
+            )
         return True
     else:
-        print("\n⚠️ No new artifacts to sync (content unchanged or no sources found).")
+        if not headless:
+            print("\n⚠️ No new artifacts to sync (content unchanged or no sources found).")
         return False
 
 def action_switch_project(state: LumaState) -> str:
@@ -329,10 +342,11 @@ def action_settings():
     except Exception as e:
         print(f"\n❌ Failed to save settings: {e}")
 
-def action_archive_artifacts(state: LumaState, project: dict):
+def action_archive_artifacts(state: LumaState, project: dict, headless: bool = False):
     """Move active artifacts to feature directory"""
     if not state.active_issue:
-        print("❌ No active issue to archive for.")
+        if not headless:
+            print("❌ No active issue to archive for.")
         return
 
     combined_number = "-".join([str(i.number) for i in state.active_issues])

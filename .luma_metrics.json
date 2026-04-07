@@ -227,7 +227,7 @@
       "issue_title": "Add headless Select Issue action that mirrors Menu 2 branch bootstrap",
       "issue_url": "https://github.com/oatrice/Luma/issues/40",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "Luma-40-42-41-1\u001b[_",
       "issue_status": null,
       "estimate_points": 1,
       "post_story_point": null,
@@ -241,7 +241,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.884473",
-      "updated_at": "2026-04-06T19:31:29.888819"
+      "updated_at": "2026-04-06T20:19:16.591792"
     },
     "oatrice/Luma#42": {
       "issue_key": "oatrice/Luma#42",
@@ -249,7 +249,7 @@
       "issue_title": "Promote GitHub issue creation to a first-class Luma action",
       "issue_url": "https://github.com/oatrice/Luma/issues/42",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "Luma-40-42-41-1\u001b[_",
       "issue_status": null,
       "estimate_points": 1,
       "post_story_point": null,
@@ -263,7 +263,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.891266",
-      "updated_at": "2026-04-06T19:31:29.891338"
+      "updated_at": "2026-04-06T20:19:16.592861"
     },
     "oatrice/Luma#41": {
       "issue_key": "oatrice/Luma#41",
@@ -271,7 +271,7 @@
       "issue_title": "Add machine-readable guided workflow action for Auto Full Workflow",
       "issue_url": "https://github.com/oatrice/Luma/issues/41",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "Luma-40-42-41-1\u001b[_",
       "issue_status": null,
       "estimate_points": 2,
       "post_story_point": null,
@@ -285,7 +285,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.891630",
-      "updated_at": "2026-04-06T19:31:29.891693"
+      "updated_at": "2026-04-06T20:19:16.593556"
     }
   }
 }

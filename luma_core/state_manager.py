@@ -45,6 +45,8 @@ class LumaState:
     started_at: Optional[str] = None
     checklist: Dict[str, bool] = field(default_factory=dict)
     context: Dict[str, Any] = field(default_factory=dict)
+    checkpoint_data: Dict[str, Any] = field(default_factory=dict)
+    last_headless_action: Optional[str] = None
     pr_url: Optional[str] = None
     pr_number: Optional[int] = None
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())

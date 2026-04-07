@@ -1,4 +1,5 @@
 import re
+import re
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState, WorkflowPhase, IssueData
 from .utils import (
@@ -14,6 +15,53 @@ from .utils import (
     KanbanCard
 )
 from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
+from luma_core.github_client import create_issue
+
+def action_create_issue(state: LumaState, project: dict, title: str = None, body: str = None, headless: bool = False) -> dict:
+    """Create a new GitHub issue (First-class action)"""
+    if not headless:
+        print("\n➕ Create New GitHub Issue")
+        if not title:
+            title = safe_input("   Issue Title: ").strip()
+        if not title:
+            print("   ❌ Title cannot be empty.")
+            return {"success": False, "error": "Title cannot be empty"}
+
+        if not body:
+            print("   Issue Body (enter for default template):")
+            body = safe_input("   > ").strip()
+
+    # Ensure title and body are present for headless
+    if headless and not title:
+        return {"success": False, "error": "Missing --title for create_issue action"}
+
+    # Mandatory ## Related section logic
+    related_tag = "## Related"
+    if not body:
+        body = f"\n\n{related_tag}: #"
+    elif related_tag not in body:
+        body = body.rstrip() + f"\n\n{related_tag}: #"
+
+    repo_name = project.get("repo")
+    if not repo_name:
+        error_msg = f"No repository configured for project '{project['name']}'"
+        if not headless:
+            print(f"   ❌ {error_msg}")
+        return {"success": False, "error": error_msg}
+
+    if not headless:
+        print(f"   🚀 Creating issue in {repo_name}...")
+
+    result = create_issue(repo_name, title, body)
+
+    if result.get("success"):
+        if not headless:
+            print(f"   ✅ Created: {result['url']}")
+        return result
+    else:
+        if not headless:
+            print(f"   ❌ Failed: {result.get('error')}")
+        return result
 
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""

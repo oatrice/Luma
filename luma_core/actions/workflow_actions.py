@@ -1,6 +1,6 @@
 import luma_core.ui as ui
 from luma_core.ui import safe_input
-from luma_core.state_manager import LumaState, WorkflowPhase, transition_to
+from luma_core.state_manager import LumaState, WorkflowPhase, transition_to, save_state
 from luma_core.preflight_checker import PreflightChecker
 from luma_core.config import PROJECTS
 from luma_core.issue_metrics import (
@@ -24,6 +24,8 @@ from .plan_actions import action_generate_plan, action_generate_spec, action_ref
 from .quality_actions import action_code_review, action_update_docs, action_update_roadmap, sync_roadmap_for_closed_issues
 import sys
 import os
+import json
+from dataclasses import asdict
 
 def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None, force: bool = False):
     """Create Pull Request with Pre-flight Checks"""
@@ -406,51 +408,79 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         for name, url in created_prs:
             print(f"  ✅ {name:<20} → {url}")
 
-def action_guided_workflow(state: LumaState, project: dict):
+def action_guided_workflow(state: LumaState, project: dict, headless: bool = False):
     """Run a guided end-to-end feature workflow"""
-    print("\n⚡ Starting Guided Feature Workflow")
-    print("====================================")
+    if not headless:
+        print("\n⚡ Starting Guided Feature Workflow")
+        print("====================================")
+
+    def _emit_headless_state(step_name: str):
+        if headless:
+            state.last_headless_action = step_name
+            # Convert to dict and handle non-serializable types (Enum)
+            state_data = asdict(state)
+            state_data["phase"] = state.phase.value
+            print(f"JSON_STATE_UPDATE:{json.dumps(state_data, ensure_ascii=False)}")
 
     # 1. Select Issue
     if not state.active_issue:
+        if headless:
+            # Headless mode MUST have an issue selected or provided via state already
+            # If not, it's an error unless it's a resume that somehow lost it (unlikely)
+            if not headless:
+                print("\n🔹 Step 1: Select Issue")
+            return {"success": False, "error": "No active issue for guided workflow in headless mode"}
+        
         print("\n🔹 Step 1: Select Issue")
         if not action_select_issue(state, project):
             print("❌ No issue selected. Aborting.")
             return
     else:
         combined_number = "-".join([str(i.number) for i in state.active_issues])
-        print(f"\n🔹 Step 1: Issue #{combined_number} already selected.")
+        if not headless:
+            print(f"\n🔹 Step 1: Issue #{combined_number} already selected.")
+
+    _emit_headless_state("step_1_select_issue")
 
     # 2. Planning (Refine -> Spec -> Plan)
-    print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
+    if not headless:
+        print("\n🔹 Step 2: Planning Phase (Analyst -> Spec -> Architect)")
 
     target_planning_repos = [project]
     if project.get("sibling_repos"):
-        print("\n   📂 Select repos for Planning:")
-        print(f"   [1] ✅ {project['name']} (current)")
-        
-        selectable_repos = [project]
-        # We need to access global PROJECTS dictionary if it's available, otherwise skip sibling lookup
-        from luma_core.actions import PROJECTS
-        for sib_id in project["sibling_repos"]:
-            if sib_id in PROJECTS:
-                selectable_repos.append(PROJECTS[sib_id])
-                
-        for i, sib in enumerate(selectable_repos[1:], start=2):
-            print(f"   [{i}] ☐  {sib['name']}")
+        if not headless:
+            print("\n   📂 Select repos for Planning:")
+            print(f"   [1] ✅ {project['name']} (current)")
             
-        repo_choice = safe_input("   Select (e.g. 1,2,3 or 'a' for all, Enter for current only): ").lower()
-        if repo_choice in ['a', 'all']:
-            target_planning_repos = selectable_repos
-        elif repo_choice:
-            selected_indices = [idx.strip() for idx in repo_choice.split(",") if idx.strip().isdigit()]
-            new_targets = []
-            for idx_str in selected_indices:
-                idx = int(idx_str) - 1
-                if 0 <= idx < len(selectable_repos):
-                    new_targets.append(selectable_repos[idx])
-            if new_targets:
-                target_planning_repos = new_targets
+            selectable_repos = [project]
+            # We need to access global PROJECTS dictionary if it's available, otherwise skip sibling lookup
+            from luma_core.actions import PROJECTS
+            for sib_id in project["sibling_repos"]:
+                if sib_id in PROJECTS:
+                    selectable_repos.append(PROJECTS[sib_id])
+                    
+            for i, sib in enumerate(selectable_repos[1:], start=2):
+                print(f"   [{i}] ☐  {sib['name']}")
+                
+            repo_choice = safe_input("   Select (e.g. 1,2,3 or 'a' for all, Enter for current only): ").lower()
+            if repo_choice in ['a', 'all']:
+                target_planning_repos = selectable_repos
+            elif repo_choice:
+                selected_indices = [idx.strip() for idx in repo_choice.split(",") if idx.strip().isdigit()]
+                new_targets = []
+                for idx_str in selected_indices:
+                    idx = int(idx_str) - 1
+                    if 0 <= idx < len(selectable_repos):
+                        new_targets.append(selectable_repos[idx])
+                if new_targets:
+                    target_planning_repos = new_targets
+        else:
+            # Headless defaults: all sibling repos if it's a monorepo root
+            if project.get("type") == "monorepo_root":
+                from luma_core.actions import PROJECTS
+                for sib_id in project.get("sibling_repos", []):
+                    if sib_id in PROJECTS:
+                        target_planning_repos.append(PROJECTS[sib_id])
 
     # Save target planning repos to context so AI agents can use it to build context
     state.context["target_planning_repos"] = target_planning_repos
@@ -474,12 +504,14 @@ def action_guided_workflow(state: LumaState, project: dict):
     planning_completed = skip_planning
     
     if skip_planning:
-        print("\n🔹 Step 2: Planning Phase (Skipped - already completed)")
+        if not headless:
+            print("\n🔹 Step 2: Planning Phase (Skipped - already completed)")
     else:
-        if len(target_planning_repos) > 1:
-            print(f"\n   ────────────── Planning for {planning_proj['name']} (including {len(target_planning_repos)-1} siblings) ──────────────")
-        else:
-            print(f"\n   ────────────── Planning for {planning_proj['name']} ──────────────")
+        if not headless:
+            if len(target_planning_repos) > 1:
+                print(f"\n   ────────────── Planning for {planning_proj['name']} (including {len(target_planning_repos)-1} siblings) ──────────────")
+            else:
+                print(f"\n   ────────────── Planning for {planning_proj['name']} ──────────────")
 
         # Save to context immediately so action_generate_plan will use it
         if feature_dir:
@@ -491,47 +523,51 @@ def action_guided_workflow(state: LumaState, project: dict):
         planning_mode = "all"  # all, missing, selective
         selected_steps = ["analysis", "spec", "plan"]
 
-        if has_any:
-            print(
-                f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:"
-            )
-            for k, exists in artifacts_status.items():
-                icon = "[x]" if exists else "[ ]"
-                print(f"      {icon} {k.capitalize()} ({k}.md)")
+        if not headless:
+            if has_any:
+                print(
+                    f"\n   📝 Found existing Planning Docs in {os.path.basename(feature_dir)}:"
+                )
+                for k, exists in artifacts_status.items():
+                    icon = "[x]" if exists else "[ ]"
+                    print(f"      {icon} {k.capitalize()} ({k}.md)")
 
-            print("\n   Select action:")
-            print("   [1] Run All (Overwrite)")
-            print("   [2] Generate Missing Only")
-            print("   [3] Select Specific Documents")
-            print("   [0] Skip Planning Phase")
+                print("\n   Select action:")
+                print("   [1] Run All (Overwrite)")
+                print("   [2] Generate Missing Only")
+                print("   [3] Select Specific Documents")
+                print("   [0] Skip Planning Phase")
 
-            p_choice = ui.safe_input("\n   Select [0-3]: ").strip()
+                p_choice = ui.safe_input("\n   Select [0-3]: ").strip()
 
-            if p_choice == "0":
-                run_planning = False
-            elif p_choice == "2":
-                planning_mode = "missing"
-            elif p_choice == "3":
-                planning_mode = "selective"
-                # Ask for selection
-                selected_steps = []
-                if ui.safe_input("      - Run Analysis? (y/N): ").lower() == "y":
-                    selected_steps.append("analysis")
-                if ui.safe_input("      - Run Spec? (y/N): ").lower() == "y":
-                    selected_steps.append("spec")
-                if ui.safe_input("      - Run Plan? (y/N): ").lower() == "y":
-                    selected_steps.append("plan")
-                if not selected_steps:
-                    print("      (No steps selected, skipping planning)")
+                if p_choice == "0":
                     run_planning = False
-            else:
-                # Default to Run All
-                planning_mode = "all"
+                elif p_choice == "2":
+                    planning_mode = "missing"
+                elif p_choice == "3":
+                    planning_mode = "selective"
+                    # Ask for selection
+                    selected_steps = []
+                    if ui.safe_input("      - Run Analysis? (y/N): ").lower() == "y":
+                        selected_steps.append("analysis")
+                    if ui.safe_input("      - Run Spec? (y/N): ").lower() == "y":
+                        selected_steps.append("spec")
+                    if ui.safe_input("      - Run Plan? (y/N): ").lower() == "y":
+                        selected_steps.append("plan")
+                    if not selected_steps:
+                        print("      (No steps selected, skipping planning)")
+                        run_planning = False
+                else:
+                    # Default to Run All
+                    planning_mode = "all"
 
+            else:
+                # Standard flow
+                if ui.safe_input("   Run Planning Phase? (Y/n): ").lower() == "n":
+                    run_planning = False
         else:
-            # Standard flow
-            if ui.safe_input("   Run Planning Phase? (Y/n): ").lower() == "n":
-                run_planning = False
+            # Headless default: Generate Missing Only if any exist, else Run All
+            planning_mode = "missing" if has_any else "all"
 
         if run_planning:
             # Execute based on mode/selection
@@ -586,8 +622,9 @@ def action_guided_workflow(state: LumaState, project: dict):
         planning_completed = has_any_artifact or run_planning
 
         state.checklist["step_planning"] = True
-        from luma_core.state_manager import save_state
         save_state(state, project["path"])
+
+    _emit_headless_state("step_2_planning")
 
     if planning_completed:
         planning_synced = sync_planning_metrics_for_issues(
@@ -596,7 +633,7 @@ def action_guided_workflow(state: LumaState, project: dict):
             planning_proj.get("repo"),
             state.active_issues,
         )
-        if planning_synced:
+        if not headless and planning_synced:
             print(f"\n   📏 Synced planning metrics for {planning_synced} issue(s).")
 
     # 3. Coding (User)
@@ -605,25 +642,40 @@ def action_guided_workflow(state: LumaState, project: dict):
     ]) and has_any_artifact
     
     if skip_coding:
-        print("\n🔹 Step 3: Coding Phase (Skipped - already completed)")
+        if not headless:
+            print("\n🔹 Step 3: Coding Phase (Skipped - already completed)")
     else:
         # If we are in a later phase but artifacts are missing, we should probably be in CODING
         if state.phase in [WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and not has_any_artifact:
-            print(f"⚠️ Current phase is {state.phase.value} but no planning artifacts found.")
-            print("   Reverting to CODING phase to ensure proper implementation.")
+            if not headless:
+                print(f"⚠️ Current phase is {state.phase.value} but no planning artifacts found.")
+                print("   Reverting to CODING phase to ensure proper implementation.")
             transition_to(state, WorkflowPhase.CODING)
-            from luma_core.state_manager import save_state
             save_state(state, project["path"])
 
-        print("\n🔹 Step 3: Coding Phase")
-        print("   🤖 AI Assist + 👤 Human Coding")
+        if not headless:
+            print("\n🔹 Step 3: Coding Phase")
+            print("   🤖 AI Assist + 👤 Human Coding")
     
         # Offer Multi-Agent Swarm
         usage_tracker.set_sub_action("Auto:Coding/Multi-Agent")
-        action_run_multi_agent_coding(state, project)
+        
+        # In headless mode, we can't wait for human coding. 
+        # We either run the swarm or skip if already done.
+        # For now, let's skip swarm in headless unless explicitly requested?
+        # Actually, let's run it with default selection (All) if headless.
+        if headless:
+            # Pre-set choice for multi-agent coding if headless?
+            # Let's say choice '6' (Generate Prompts Only) is safest for headless unless they want full auto.
+            # But the requirement is "Resumable", so maybe we just generate prompts.
+            # Actually, let's skip multi-agent coding in headless by default to avoid accidental overwrites.
+            pass
+        else:
+            action_run_multi_agent_coding(state, project)
     
-        print("   - Use your IDE to implement the feature.")
-        print("   - Run 'Luma' > 'Code Review' periodically.")
+        if not headless:
+            print("   - Use your IDE to implement the feature.")
+            print("   - Run 'Luma' > 'Code Review' periodically.")
     
         if feature_dir:
             try:
@@ -631,132 +683,180 @@ def action_guided_workflow(state: LumaState, project: dict):
             except Exception:
                 pass
     
-        cont = ui.safe_input(
-            "\n   Have you finished coding and verified the feature? (y/N): "
-        ).lower()
-        if cont != "y":
-            print("\n⏳ Pausing workflow. Come back when you're done!")
-            return
+        if not headless:
+            cont = ui.safe_input(
+                "\n   Have you finished coding and verified the feature? (y/N): "
+            ).lower()
+            if cont != "y":
+                print("\n⏳ Pausing workflow. Come back when you're done!")
+                return
+        else:
+            # In headless, we assume they want to proceed to Step 4 if coding artifacts are present
+            # or if they are resuming from a later stage.
+            # For now, if it's headless and they haven't finished coding, we stop here.
+            if not state.checklist.get("step_coding", False):
+                print("\n⏳ Headless: Waiting for coding to finish. Please run again with --resume once done.")
+                return
     
         state.checklist["step_coding"] = True
         if state.phase == WorkflowPhase.CODING:
             transition_to(state, WorkflowPhase.REVIEWING)
-        from luma_core.state_manager import save_state
         save_state(state, project["path"])
     
-        print("\n   " + "🛠️" * 5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️" * 5)
+        if not headless:
+            print("\n   " + "🛠️" * 5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️" * 5)
+
+    _emit_headless_state("step_3_coding")
 
     # 4. Review & Docs & Roadmap
-    print("\n🔹 Step 4: Quality, Documentation & Roadmap")
+    if not headless:
+        print("\n🔹 Step 4: Quality, Documentation & Roadmap")
+        
     if not state.checklist.get("step_review", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        if ui.safe_input("   Run Code Review? (Y/n): ").lower() != "n":
+        should_run_review = True
+        if not headless:
+            if ui.safe_input("   Run Code Review? (Y/n): ").lower() == "n":
+                should_run_review = False
+        
+        if should_run_review:
             usage_tracker.set_sub_action("Auto:Quality/CodeReview")
-            action_code_review(state, project)
+            action_code_review(state, project, headless=headless)
     
-            print("\n   " + "🔍" * 5 + " RE-VERIFY AFTER REVIEW " + "🔍" * 5)
-            print("   กรุณา Re-verify ฟังก์ชันต่างๆ อีกครั้งหลังจากทำการแก้ไขตาม Code Review")
-            print("   เพื่อยืนยันว่าไม่มีผลกระทบ (Regression) ต่อส่วนอื่นๆ ของระบบ")
-            print("   " + "-" * 75)
+            if not headless:
+                print("\n   " + "🔍" * 5 + " RE-VERIFY AFTER REVIEW " + "🔍" * 5)
+                print("   กรุณา Re-verify ฟังก์ชันต่างๆ อีกครั้งหลังจากทำการแก้ไขตาม Code Review")
+                print("   เพื่อยืนยันว่าไม่มีผลกระทบ (Regression) ต่อส่วนอื่นๆ ของระบบ")
+                print("   " + "-" * 75)
         
         state.checklist["step_review"] = True
-        from luma_core.state_manager import save_state
         save_state(state, project["path"])
 
     if not state.checklist.get("step_docs", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        if ui.safe_input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() != "n":
+        should_run_docs = True
+        if not headless:
+            if ui.safe_input("   Update Docs (Changelog/README/Version)? (Y/n): ").lower() == "n":
+                should_run_docs = False
+        
+        if should_run_docs:
             usage_tracker.set_sub_action("Auto:Quality/Docs")
-            action_update_docs(state, project)
+            action_update_docs(state, project, skip_confirm=headless)
         state.checklist["step_docs"] = True
-        from luma_core.state_manager import save_state
         save_state(state, project["path"])
 
     if not state.checklist.get("step_roadmap", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        if ui.safe_input("   Update Roadmap? (Y/n): ").lower() != "n":
+        should_run_roadmap = True
+        if not headless:
+            if ui.safe_input("   Update Roadmap? (Y/n): ").lower() == "n":
+                should_run_roadmap = False
+        
+        if should_run_roadmap:
             usage_tracker.set_sub_action("Auto:Quality/Roadmap")
             # Auto-sync closed issues first
             if state.active_issues:
                 issue_nums = [i.number for i in state.active_issues]
                 synced = sync_roadmap_for_closed_issues(project, issue_nums)
-                if synced:
+                if not headless and synced:
                     print(f"\n   🔄 Auto-synced {synced} closed issue(s) → Roadmap.md")
-            action_update_roadmap(state, project)
+            action_update_roadmap(state, project, headless=headless)
         state.checklist["step_roadmap"] = True
-        from luma_core.state_manager import save_state
         save_state(state, project["path"])
+
+    _emit_headless_state("step_4_quality")
 
     # 5. Archive Artifacts
-    print("\n🔹 Step 5: Archive Artifacts")
+    if not headless:
+        print("\n🔹 Step 5: Archive Artifacts")
+        
     if not state.checklist.get("step_archive", False) and state.phase not in [WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING]:
-        user_input = ui.safe_input("   Move artifacts to docs/features/...? (Y/n): ").lower()
-        if user_input != "n":
+        should_archive = True
+        if not headless:
+            user_input = ui.safe_input("   Move artifacts to docs/features/...? (Y/n): ").lower()
+            if user_input == "n":
+                should_archive = False
+        
+        if should_archive:
             action_archive_artifacts(state, project)
         state.checklist["step_archive"] = True
-        from luma_core.state_manager import save_state
         save_state(state, project["path"])
 
+    _emit_headless_state("step_5_archive")
+
     # 6. Create PR (With Auto Option)
-    print("\n🔹 Step 6: Create Pull Request")
+    if not headless:
+        print("\n🔹 Step 6: Create Pull Request")
 
     # Check for "Yes to All" preference
-    choice = (
-        ui.safe_input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
-        .strip()
-        .lower()
-    )
+    if not headless:
+        choice = (
+            ui.safe_input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
+            .strip()
+            .lower()
+        )
 
-    if choice == "a":
+        if choice == "a":
+            usage_tracker.set_sub_action("Auto:PR/Auto-Approve")
+            action_create_pr(state, project, auto_approve=True, target_repos=target_planning_repos)
+        elif choice == "y" or choice == "":
+            usage_tracker.set_sub_action("Auto:PR/Interactive")
+            action_create_pr(state, project, auto_approve=False, target_repos=target_planning_repos)
+    else:
+        # Headless default: Create PR with auto-approve
         usage_tracker.set_sub_action("Auto:PR/Auto-Approve")
         action_create_pr(state, project, auto_approve=True, target_repos=target_planning_repos)
-    elif choice == "y" or choice == "":
-        usage_tracker.set_sub_action("Auto:PR/Interactive")
-        action_create_pr(state, project, auto_approve=False, target_repos=target_planning_repos)
+
+    _emit_headless_state("step_6_pr")
 
     # Poll for Merge?
     if state.phase == WorkflowPhase.PR_PENDING and state.pr_url:
-        print(f"\n⏳ PR Created: {state.pr_url}")
+        if not headless:
+            print(f"\n⏳ PR Created: {state.pr_url}")
 
-        # 7. CI Check
-        print("\n🔹 Step 7: Check CI Status")
-        if ui.safe_input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
-            import subprocess
-            import sys
-            
-            parts = state.pr_url.split("/")
-            if len(parts) >= 7 and "github.com" in state.pr_url:
-                ci_repo = f"{parts[-4]}/{parts[-3]}"
-                ci_pr_num = parts[-1]
+            # 7. CI Check
+            print("\n🔹 Step 7: Check CI Status")
+            if ui.safe_input("   Check CI status in background? (Y/n): ").strip().lower() != "n":
+                import subprocess
+                import sys
                 
-                print("   ✅ ส่งคำสั่งตรวจสอบ CI ไปทำงานเป็น Background แล้ว")
-                print("      (เมื่อพบว่า CI สำเร็จหรือผิดพลาด ระบบจะแจ้งเตือนผ่าน Telegram)")
-                
-                luma_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                subprocess.Popen(
-                    [
-                        sys.executable,
-                        "-m",
-                        "luma_core.ci_checker",
-                        ci_pr_num,
-                        ci_repo,
-                        project.get("name", "Unknown"),
-                        state.pr_url
-                    ],
-                    cwd=luma_root,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True
-                )
-            else:
-                print("   ⚠️ Could not parse PR URL to check CI.")
+                parts = state.pr_url.split("/")
+                if len(parts) >= 7 and "github.com" in state.pr_url:
+                    ci_repo = f"{parts[-4]}/{parts[-3]}"
+                    ci_pr_num = parts[-1]
+                    
+                    print("   ✅ ส่งคำสั่งตรวจสอบ CI ไปทำงานเป็น Background แล้ว")
+                    print("      (เมื่อพบว่า CI สำเร็จหรือผิดพลาด ระบบจะแจ้งเตือนผ่าน Telegram)")
+                    
+                    luma_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    subprocess.Popen(
+                        [
+                            sys.executable,
+                            "-m",
+                            "luma_core.ci_checker",
+                            ci_pr_num,
+                            ci_repo,
+                            project.get("name", "Unknown"),
+                            state.pr_url
+                        ],
+                        cwd=luma_root,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
+                else:
+                    print("   ⚠️ Could not parse PR URL to check CI.")
 
-        print("\n   Please merge the PR on GitHub.")
-        ui.safe_input("   Press Enter AFTER you have merged the PR...")
+            print("\n   Please merge the PR on GitHub.")
+            ui.safe_input("   Press Enter AFTER you have merged the PR...")
 
-        # Use the refresh check logic from main loop or just assume
-        from luma_core.github_project import check_pr_merged
+            # Use the refresh check logic from main loop or just assume
+            from luma_core.github_project import check_pr_merged
 
-        pr_status = check_pr_merged(state.pr_url)
-        if pr_status["merged"]:
-            print("✅ PR Merged confirmed!")
+            pr_status = check_pr_merged(state.pr_url)
+            if pr_status["merged"]:
+                print("✅ PR Merged confirmed!")
+        else:
+            # Headless: we can't wait for merge. Just exit.
+            print(f"\n⏳ Headless: PR Created: {state.pr_url}. Waiting for merge.")
+            return {"success": True, "pr_url": state.pr_url, "phase": state.phase.value}
 
     # Clear sub_action at the end of the auto workflow so future usage is clean
     usage_tracker.set_sub_action(None)
@@ -771,27 +871,30 @@ def action_guided_workflow(state: LumaState, project: dict):
         from luma_core.notifier import notify_task_complete as _notify
         from luma_core.issue_metrics import prefill_metrics_from_roadmap, sync_github_metrics_for_project
 
-        print("\n   🔄 Auto-syncing issue metrics from Roadmap...")
+        if not headless:
+            print("\n   🔄 Auto-syncing issue metrics from Roadmap...")
         prefill_result = prefill_metrics_from_roadmap(
             project["path"],
             project.get("name"),
             project.get("repo"),
         )
-        if prefill_result["created"] or prefill_result["updated"]:
+        if not headless and (prefill_result["created"] or prefill_result["updated"]):
             print(f"   🗺️  Synced (created {prefill_result['created']}, updated {prefill_result['updated']})")
             
-        print("\n   🐙 Auto-syncing issue metrics from GitHub...")
+        if not headless:
+            print("\n   🐙 Auto-syncing issue metrics from GitHub...")
         gh_sync_result = sync_github_metrics_for_project(
             project["path"],
             project.get("name"),
             project.get("repo"),
         )
-        if gh_sync_result["updated"] > 0:
+        if not headless and gh_sync_result["updated"] > 0:
             print(f"   📊 Synced {gh_sync_result['updated']} records from GH.")
 
         # Suggest and prompt for post story points for newly completed issues
         from luma_core.actions.utils import prompt_missing_post_story_points
-        prompt_missing_post_story_points(project)
+        if not headless:
+            prompt_missing_post_story_points(project)
 
         usage_summary = summarize_usage_stats(
             usage_tracker.get_log_path(), project, usage_tracker._SESSION_ID,
@@ -813,11 +916,16 @@ def action_guided_workflow(state: LumaState, project: dict):
             status="success",
             message=summary_msg,
         )
-        print("\n📊 Summary sent to Telegram!")
+        if not headless:
+            print("\n📊 Summary sent to Telegram!")
     except Exception as e:
-        print(f"\n⚠️ Could not send summary: {e}")
+        if not headless:
+            print(f"\n⚠️ Could not send summary: {e}")
 
-    print("\n🎉 Workflow Completed! You can now select the next issue.")
+    if not headless:
+        print("\n🎉 Workflow Completed! You can now select the next issue.")
+    
+    return {"success": True, "phase": state.phase.value}
 
 def action_run_multi_agent_coding(state: LumaState, project: dict):
     """Run sequential AI coding agents for different stacks."""

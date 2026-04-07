@@ -1,4 +1,5 @@
 from .issue_actions import (
+    action_create_issue,
     action_select_issue,
     action_add_issue,
     action_remove_issue,
@@ -50,6 +51,7 @@ from luma_core.config import PROJECTS
 from luma_core.issue_metrics import sync_github_metrics_for_project
 
 __all__ = [
+    "action_create_issue",
     "action_select_issue",
     "action_add_issue",
     "action_remove_issue",

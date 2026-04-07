@@ -43,7 +43,7 @@ from luma_core.tools import (
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONTRACT_VERSION = "2.0"
-SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap")
+SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap", "create_issue", "auto_workflow")
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
 
@@ -81,6 +81,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Issue number(s) for bootstrap (comma-separated for multi-select)",
     )
     parser.add_argument(
+        "--title",
+        type=str,
+        default=None,
+        help="Title for create_issue action",
+    )
+    parser.add_argument(
+        "--body",
+        type=str,
+        default=None,
+        help="Body for create_issue action",
+    )
+    parser.add_argument(
         "--branch",
         type=str,
         default=None,
@@ -98,6 +110,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Headless action name to execute",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume the workflow from the last checkpoint",
     )
     parser.add_argument(
         "--json",
@@ -146,6 +163,7 @@ def parse_cli_args(argv=None):
         or args.json
         or args.meta
         or args.caller is not None
+        or args.resume
     )
     if args.meta:
         if not args.json:
@@ -159,10 +177,14 @@ def parse_cli_args(argv=None):
                 exit_code=2,
             )
     elif headless_requested and not args.action:
-        raise CLIArgumentError(
-            "--action is required when using headless mode.",
-            exit_code=2,
-        )
+        # Default to auto_workflow if --resume is used without explicit --action
+        if args.resume:
+            args.action = "auto_workflow"
+        else:
+            raise CLIArgumentError(
+                "--action is required when using headless mode.",
+                exit_code=2,
+            )
 
     if args.project is not None and args.project not in PROJECTS:
         raise CLIArgumentError(
@@ -353,6 +375,22 @@ def _resolve_headless_action(args, action_name: str):
             branch_name=args.branch
         )
 
+    if action_name == "create_issue":
+        return lambda state, project: actions.action_create_issue(
+            state,
+            project,
+            title=args.title,
+            body=args.body,
+            headless=True
+        )
+
+    if action_name == "auto_workflow":
+        return lambda state, project: actions.action_guided_workflow(
+            state,
+            project,
+            headless=True
+        )
+
     raise CLIError(f"Action '{action_name}' not found.", exit_code=1)
 
 
@@ -386,6 +424,14 @@ def run_headless(args) -> int:
         project = PROJECTS[project_key]
         state = load_state(project["path"])
         state.project_key = project_key
+
+        if args.resume:
+            print(f"🔄 Resuming workflow for project {requested_project}...")
+            # We already loaded the state from disk above.
+            # If it's IDLE, then resume might not make sense unless they provided --issue
+            if state.phase == WorkflowPhase.IDLE and args.issue:
+                 # Auto-bootstrap if resuming from idle with issue
+                 pass
 
         usage_tracker.clear_action()
         usage_tracker.clear_context()
@@ -433,6 +479,7 @@ def run_headless(args) -> int:
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
+    "N": {"label": "➕ Create New GitHub Issue",  "valid_phases": "ALL"},
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
     "+": {"label": "➕ Add Issue (to session)",     "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
     "-": {"label": "➖ Remove Issue (from session)", "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
@@ -600,6 +647,9 @@ def run_interactive(args) -> int:
         
         elif choice == "1":
             actions.action_list_active_issues(project)
+
+        elif choice.upper() == "N":
+            actions.action_create_issue(state, project)
 
         elif choice == "2":
             if actions.action_select_issue(state, project):
