@@ -98,8 +98,52 @@ def fetch_issues_rest(repo_name):
         real_issues = [i for i in issues if "pull_request" not in i]
         return real_issues
     except Exception as e:
-        print(f"❌ REST API Error: {e}")
+        print(f"⚠️ REST API Fetch failed: {e}")
         return []
+
+def create_issue(repo_name: str, title: str, body: str, labels: list = None) -> dict:
+    """Create a new GitHub issue using gh CLI and return the result."""
+    gh_args = ["issue", "create", "--title", title, "--body", body]
+    if repo_name:
+        gh_args.extend(["--repo", repo_name])
+    if labels:
+        for label in labels:
+            gh_args.extend(["--label", label])
+
+    try:
+        # We need the output to get the URL of the created issue
+        result = subprocess.run(
+            ["gh"] + gh_args,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        output = result.stdout.strip()
+        # Usually 'gh issue create' returns the URL of the created issue
+        # e.g. https://github.com/owner/repo/issues/123
+        issue_url = output
+        issue_number = None
+        match = re.search(r"/issues/(\d+)", issue_url)
+        if match:
+            issue_number = int(match.group(1))
+
+        return {
+            "success": True,
+            "url": issue_url,
+            "number": issue_number,
+            "title": title
+        }
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else str(e)
+        return {
+            "success": False,
+            "error": error_msg
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 def fetch_issues(repo_name):
     """
