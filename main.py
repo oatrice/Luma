@@ -186,11 +186,14 @@ def parse_cli_args(argv=None):
                 exit_code=2,
             )
 
+    # Validate project key only if it's not an existing absolute path
     if args.project is not None and args.project not in PROJECTS:
-        raise CLIArgumentError(
-            f"Unknown project key '{args.project}'.",
-            exit_code=2,
-        )
+        # Check if it's a valid directory path (absolute or relative to CWD)
+        if not os.path.isdir(args.project):
+            raise CLIArgumentError(
+                f"Unknown project key or invalid path '{args.project}'.",
+                exit_code=2,
+            )
 
     return args
 
@@ -326,6 +329,10 @@ def resolve_project_key(
     if cli_project_explicit and cli_project_key in PROJECTS:
         return cli_project_key
 
+    # If it's an explicit path but not in PROJECTS, it's dynamic
+    if cli_project_key and os.path.isdir(cli_project_key):
+        return "dynamic"
+
     if cli_project_key and cli_project_key != "1" and cli_project_key in PROJECTS:
         return cli_project_key
 
@@ -336,7 +343,9 @@ def resolve_project_key(
     if inferred_project and inferred_project in PROJECTS:
         return inferred_project
 
-    return "1"
+    # NEW: Only return "dynamic" if we are truly in an unknown directory
+    # and no project was explicitly requested.
+    return "dynamic"
 
 
 def _get_requested_project_value(args, resolved_project_key: str) -> str:
@@ -404,24 +413,52 @@ def run_headless(args) -> int:
     global_config = load_global_config()
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
-    requested_project = _get_requested_project_value(
-        args,
-        args.project or "1",
-    )
+    
     action_name = args.action
     exit_code = 0
     error_message = None
 
     try:
+        # 1. Determine Project Key
         project_key = resolve_project_key(
             args.project,
             stored_project,
             current_cwd,
             cli_project_explicit=args.project is not None,
         )
-        requested_project = _get_requested_project_value(args, project_key)
 
-        project = PROJECTS[project_key]
+        # 2. Determine Project Object (Support Dynamic/CWD)
+        if project_key == "dynamic":
+            # If it's truly dynamic, we use current_cwd or explicit path
+            target_path = args.project if args.project and os.path.isdir(args.project) else current_cwd
+            project_path = os.path.abspath(target_path)
+            
+            # Detect repo automatically
+            detected_repo = None
+            try:
+                res = subprocess.run(
+                    ["git", "remote", "get-url", "origin"],
+                    cwd=project_path, capture_output=True, text=True
+                )
+                if res.returncode == 0:
+                    remote = res.stdout.strip()
+                    if "github.com" in remote:
+                        path_part = remote.split("github.com")[-1].lstrip(":").lstrip("/")
+                        detected_repo = path_part.replace(".git", "")
+            except Exception:
+                pass
+
+            project = {
+                "name": os.path.basename(project_path) or "Current Project",
+                "path": project_path,
+                "repo": detected_repo,
+                "kanban_number": None 
+            }
+        else:
+            project = PROJECTS[project_key]
+            
+        requested_project = args.project or project_key
+
         state = load_state(project["path"])
         state.project_key = project_key
 
@@ -438,6 +475,7 @@ def run_headless(args) -> int:
         usage_tracker.set_action(action_name)
         usage_tracker.set_context(state, project)
 
+        print(f"DEBUG: Executing action '{action_name}' with project: {project['name']} at {project['path']}")
         with redirect_stdout(sys.stderr):
             action_runner = _resolve_headless_action(args, action_name)
             result = action_runner(state, project)
@@ -576,14 +614,24 @@ def run_interactive(args) -> int:
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
     
-    project_key = resolve_project_key(
-        args.project,
-        stored_project,
-        current_cwd,
-        cli_project_explicit=args.project is not None,
-    )
-
-    project = PROJECTS[project_key]
+    # Resolve project: check if args.project is a path first
+    if args.project and os.path.isdir(args.project):
+        project_key = "dynamic"
+        project_path = os.path.abspath(args.project)
+        project = {
+            "name": os.path.basename(project_path) or "Current Project",
+            "path": project_path,
+            "repo": None,
+            "kanban_number": None
+        }
+    else:
+        project_key = resolve_project_key(
+            args.project,
+            stored_project,
+            current_cwd,
+            cli_project_explicit=args.project is not None,
+        )
+        project = PROJECTS[project_key]
     
     # Save initial mapping if not exists
     if current_cwd not in project_map or project_map[current_cwd] != project_key:
