@@ -208,7 +208,6 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
                     "select_issue",
                     project["kanban_id"],
                     card.item_id,
-                    project,
                 )
             return True
     except ValueError:

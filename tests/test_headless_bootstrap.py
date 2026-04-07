@@ -21,10 +21,12 @@ def mock_project():
     }
 
 @patch("luma_core.actions.issue_actions.fetch_kanban_cards")
+@patch("luma_core.actions.utils.save_state")
+@patch("luma_core.actions.utils.sync_kanban_on_action")
 @patch("luma_core.state_manager.transition_to")
 @patch("subprocess.run")
 @patch("luma_core.agents.analyst.generate_branch_names")
-def test_bootstrap_issue_success(mock_gen_branch, mock_run, mock_transition, mock_fetch, mock_state, mock_project):
+def test_bootstrap_issue_success(mock_gen_branch, mock_run, mock_transition, mock_sync_kanban, mock_save_state, mock_fetch, mock_state, mock_project):
     # Setup mock data
     card1 = KanbanCard(
         issue_number=40,
