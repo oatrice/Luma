@@ -329,8 +329,11 @@ def resolve_project_key(
     if cli_project_explicit and cli_project_key in PROJECTS:
         return cli_project_key
 
-    # If it's an explicit path but not in PROJECTS, it's dynamic
+    # If it's an explicit path, try to match with known projects first
     if cli_project_key and os.path.isdir(cli_project_key):
+        detected_key = detect_project_key_for_path(cli_project_key)
+        if detected_key and detected_key in PROJECTS:
+            return detected_key
         return "dynamic"
 
     if cli_project_key and cli_project_key != "1" and cli_project_key in PROJECTS:
