@@ -412,7 +412,7 @@ def sync_kanban_on_action(
     Auto-sync Kanban based on Luma action
     
     Args:
-        action: Action name ("select_issue", "create_pr", "pr_merged")
+        action: Action name ("start_issue", "select_issue", "create_pr", "pr_merged")
         project_id: GitHub Project ID
         item_id: Project item ID
         
@@ -420,6 +420,7 @@ def sync_kanban_on_action(
         True if synced successfully
     """
     status_map = status_map or {
+        "start_issue": "In Progress",
         "select_issue": "In Progress",
         "create_pr": "In Review",
         "pr_merged": "Done",

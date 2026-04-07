@@ -415,7 +415,8 @@ def _start_issues_headless(
     branch_name: str = None
 ) -> bool:
     """Headless version of _start_issues that doesn't ask for user input."""
-    from luma_core.state_manager import IssueData
+    from luma_core.state_manager import IssueData, transition_to, WorkflowPhase
+    from luma_core.context_summarizer import ContextSummarizer
     
     issues = [
         IssueData(
@@ -428,12 +429,25 @@ def _start_issues_headless(
         for c in cards
     ]
 
+    # Set context for usage tracker immediately
+    usage_tracker.set_context(state, project)
+
+    # Show Context (Log only)
+    try:
+        summarizer = ContextSummarizer(project["path"])
+        reminders = summarizer.summarize_rules()
+        if reminders:
+            print("\n📝 Project Reminders & Rules loaded.")
+    except Exception:
+        pass
+
     issue_nums = "-".join(str(c.issue_number) for c in cards)
     primary_title = cards[0].title
     primary_body = cards[0].body or ""
     primary_number = cards[0].issue_number
 
     if not branch_name:
+        print("🤖 Generating smart branch names...")
         try:
             from luma_core.agents.analyst import generate_branch_names
             suggestions = generate_branch_names(primary_title, primary_body, primary_number)
@@ -452,7 +466,6 @@ def _start_issues_headless(
         return False
 
     # Transition to coding
-    from luma_core.state_manager import transition_to, WorkflowPhase
     ok, msg = transition_to(
         state, WorkflowPhase.CODING, active_issues=issues, active_branch=branch_name
     )
@@ -498,10 +511,15 @@ def _start_issues_headless(
         except Exception as e:
             print(f"⚠️ Failed to create branch: {e}")
 
-        # Sync Kanban
+        # Sync Kanban - USE "select_issue" (Registered Action)
         for i, card in enumerate(cards):
             if card.item_id and project.get("kanban_id"):
                 sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id, project)
+        
+        # Explicit save with debug
+        print(f"DEBUG: Saving state to {project['path']}")
+        save_state(state, project["path"])
+        
         return True
     
     print(f"❌ Transition failed: {msg}")
