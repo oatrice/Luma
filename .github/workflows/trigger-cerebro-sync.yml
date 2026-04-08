@@ -1,12 +1,14 @@
 name: Trigger Cerebro Sync
 
 on:
-  # ดักฟังการเปลี่ยนแปลงที่ตัว Project Item (ต้อง Link Project กับ Repo นี้ก่อน)
-  project_item:
-    types: [created, edited, deleted]
-  # ดักฟังการขยับ Issue (เผื่อการขยับสถานะโดยตรง)
+  # ดักฟังการเปลี่ยนแปลง Issue และ PR (Project V2 ไม่มี native trigger)
   issues:
-    types: [opened, reopened, labeled, unlabeled]
+    types: [opened, reopened, labeled, unlabeled, edited, closed]
+  pull_request:
+    types: [opened, reopened, closed, labeled, edited]
+  # Schedule fallback สำหรับ Project changes ที่ไม่มี event
+  schedule:
+    - cron: '0 */4 * * *'  # ทุก 4 ชั่วโมง
 
 jobs:
   trigger:
