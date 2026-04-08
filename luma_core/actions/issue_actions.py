@@ -206,9 +206,9 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
             new_issue = IssueData(
                 number=card.issue_number,
                 title=card.title,
-                url=card.url,
+                html_url=card.url,
                 body=card.body,
-                item_id=card.item_id,
+                project_item_id=card.item_id,
                 repository=card.repository,
             )
             state.active_issues.append(new_issue)
