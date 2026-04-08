@@ -88,11 +88,27 @@ class TestTransitions:
         assert ok
         assert state.phase == WorkflowPhase.SELECTING
     
-    def test_invalid_idle_to_coding(self):
+    def test_idle_to_coding_requires_data(self):
+        """IDLE -> CODING is valid but requires active_issues and branch"""
         state = LumaState()
         ok, msg = transition_to(state, WorkflowPhase.CODING)
         assert not ok
-        assert "Cannot transition" in msg
+        assert "Missing required" in msg
+    
+    def test_idle_to_coding_with_data(self):
+        """IDLE -> CODING works with bootstrap data (headless mode)"""
+        state = LumaState()
+        issue = IssueData(number=1, title="Test", html_url="http://test")
+        
+        ok, msg = transition_to(
+            state,
+            WorkflowPhase.CODING,
+            active_issues=[issue],
+            active_branch="feat/1"
+        )
+        
+        assert ok
+        assert state.phase == WorkflowPhase.CODING
     
     def test_selecting_to_coding_requires_data(self):
         state = LumaState(phase=WorkflowPhase.SELECTING)
@@ -134,9 +150,9 @@ class TestTransitions:
     
     def test_can_transition_helper(self):
         assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.SELECTING)
-        assert not can_transition(WorkflowPhase.IDLE, WorkflowPhase.CODING)
+        assert can_transition(WorkflowPhase.IDLE, WorkflowPhase.CODING)  # Now valid for headless bootstrap
         assert can_transition(WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT)
-        # Failing tests for new REVIEWING phase
+        # REVIEWING phase transitions
         assert can_transition(WorkflowPhase.CODING, WorkflowPhase.REVIEWING)
         assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT)
         assert can_transition(WorkflowPhase.REVIEWING, WorkflowPhase.CODING)
