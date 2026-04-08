@@ -242,6 +242,10 @@ CANONICAL_KANBAN_BY_REPO = {
         "kanban_number": 5,
         "kanban_id": "PVT_kwHOATfKEM4BKOOI",
     },
+    "oatrice/Zenith": {
+        "kanban_number": 10,  # Zenith Project
+        "kanban_id": None,  # TODO: lookup correct project ID if needed for status sync
+    },
     "oatrice/TheMiddleWay-Metadata": {
         "kanban_number": 8,
         "kanban_id": "PVT_kwHOATfKEM4BOWVD",

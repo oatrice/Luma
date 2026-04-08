@@ -21,7 +21,7 @@ from luma_core.importlib_compat import ensure_importlib_metadata_compat
 import luma_core.ui as ui
 import luma_core.actions as actions
 import luma_core.usage_tracker as usage_tracker
-from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow
+from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow, CANONICAL_KANBAN_BY_REPO
 from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
 from luma_core.notifier import notify_task_complete
 
@@ -32,6 +32,7 @@ from luma_core.state_manager import (
 from luma_core.tools import (
     get_current_version,
     get_project_git_info,
+    repair_invalid_branch,
 )
 
 
@@ -42,7 +43,7 @@ from luma_core.tools import (
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONTRACT_VERSION = "2.0"
-SUPPORTED_HEADLESS_ACTIONS = ("code_review",)
+SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap", "create_issue", "auto_workflow")
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
 
@@ -74,6 +75,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Project key (for example 1=JarWise-Root, 12=Luma)",
     )
     parser.add_argument(
+        "--issue",
+        type=str,
+        default=None,
+        help="Issue number(s) for bootstrap (comma-separated for multi-select)",
+    )
+    parser.add_argument(
+        "--title",
+        type=str,
+        default=None,
+        help="Title for create_issue action",
+    )
+    parser.add_argument(
+        "--body",
+        type=str,
+        default=None,
+        help="Body for create_issue action",
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default=None,
+        help="Optional branch name for bootstrap",
+    )
+    parser.add_argument(
         "--auto",
         "--headless",
         action="store_true",
@@ -87,6 +112,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Headless action name to execute",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume the workflow from the last checkpoint",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         dest="json",
@@ -96,6 +126,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--meta",
         action="store_true",
         help="Emit machine-readable metadata for external consumers",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force the current operation",
     )
     parser.add_argument(
         "--caller",
@@ -128,6 +163,7 @@ def parse_cli_args(argv=None):
         or args.json
         or args.meta
         or args.caller is not None
+        or args.resume
     )
     if args.meta:
         if not args.json:
@@ -141,16 +177,23 @@ def parse_cli_args(argv=None):
                 exit_code=2,
             )
     elif headless_requested and not args.action:
-        raise CLIArgumentError(
-            "--action is required when using headless mode.",
-            exit_code=2,
-        )
+        # Default to auto_workflow if --resume is used without explicit --action
+        if args.resume:
+            args.action = "auto_workflow"
+        else:
+            raise CLIArgumentError(
+                "--action is required when using headless mode.",
+                exit_code=2,
+            )
 
+    # Validate project key only if it's not an existing absolute path
     if args.project is not None and args.project not in PROJECTS:
-        raise CLIArgumentError(
-            f"Unknown project key '{args.project}'.",
-            exit_code=2,
-        )
+        # Check if it's a valid directory path (absolute or relative to CWD)
+        if not os.path.isdir(args.project):
+            raise CLIArgumentError(
+                f"Unknown project key or invalid path '{args.project}'.",
+                exit_code=2,
+            )
 
     return args
 
@@ -286,6 +329,13 @@ def resolve_project_key(
     if cli_project_explicit and cli_project_key in PROJECTS:
         return cli_project_key
 
+    # If it's an explicit path, try to match with known projects first
+    if cli_project_key and os.path.isdir(cli_project_key):
+        detected_key = detect_project_key_for_path(cli_project_key)
+        if detected_key and detected_key in PROJECTS:
+            return detected_key
+        return "dynamic"
+
     if cli_project_key and cli_project_key != "1" and cli_project_key in PROJECTS:
         return cli_project_key
 
@@ -296,19 +346,61 @@ def resolve_project_key(
     if inferred_project and inferred_project in PROJECTS:
         return inferred_project
 
-    return "1"
+    # NEW: Only return "dynamic" if we are truly in an unknown directory
+    # and no project was explicitly requested.
+    return "dynamic"
 
 
 def _get_requested_project_value(args, resolved_project_key: str) -> str:
     return args.project or resolved_project_key
 
 
-def _resolve_headless_action(action_name: str):
+def _resolve_headless_action(args, action_name: str):
     if action_name == "code_review":
         return lambda state, project: actions.action_code_review(
             state,
             project,
             headless=True,
+        )
+    
+    if action_name == "create_pr":
+        return lambda state, project: actions.action_create_pr(
+            state,
+            project,
+            auto_approve=True,
+            force=args.force
+        )
+
+    if action_name == "bootstrap":
+        if not args.issue:
+            raise CLIArgumentError("--issue <number> is required for bootstrap action.", exit_code=2)
+        
+        try:
+            issue_numbers = [int(i.strip()) for i in args.issue.split(",")]
+        except ValueError:
+            raise CLIArgumentError("Invalid issue format. Use numbers (e.g. --issue 40 or --issue 40,41).", exit_code=2)
+            
+        return lambda state, project: actions.bootstrap_issue(
+            state,
+            project,
+            issue_numbers=issue_numbers,
+            branch_name=args.branch
+        )
+
+    if action_name == "create_issue":
+        return lambda state, project: actions.action_create_issue(
+            state,
+            project,
+            title=args.title,
+            body=args.body,
+            headless=True
+        )
+
+    if action_name == "auto_workflow":
+        return lambda state, project: actions.action_guided_workflow(
+            state,
+            project,
+            headless=True
         )
 
     raise CLIError(f"Action '{action_name}' not found.", exit_code=1)
@@ -324,26 +416,66 @@ def run_headless(args) -> int:
     global_config = load_global_config()
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
-    requested_project = _get_requested_project_value(
-        args,
-        args.project or "1",
-    )
+    
     action_name = args.action
     exit_code = 0
     error_message = None
 
     try:
+        # 1. Determine Project Key
         project_key = resolve_project_key(
             args.project,
             stored_project,
             current_cwd,
             cli_project_explicit=args.project is not None,
         )
-        requested_project = _get_requested_project_value(args, project_key)
 
-        project = PROJECTS[project_key]
+        # 2. Determine Project Object (Support Dynamic/CWD)
+        if project_key == "dynamic":
+            # If it's truly dynamic, we use current_cwd or explicit path
+            target_path = args.project if args.project and os.path.isdir(args.project) else current_cwd
+            project_path = os.path.abspath(target_path)
+            
+            # Detect repo automatically
+            detected_repo = None
+            try:
+                res = subprocess.run(
+                    ["git", "remote", "get-url", "origin"],
+                    cwd=project_path, capture_output=True, text=True
+                )
+                if res.returncode == 0:
+                    remote = res.stdout.strip()
+                    if "github.com" in remote:
+                        path_part = remote.split("github.com")[-1].lstrip(":").lstrip("/")
+                        detected_repo = path_part.replace(".git", "")
+            except Exception:
+                pass
+
+            # Lookup kanban info from canonical mapping if repo detected
+            kanban_info = CANONICAL_KANBAN_BY_REPO.get(detected_repo, {})
+            
+            project = {
+                "name": os.path.basename(project_path) or "Current Project",
+                "path": project_path,
+                "repo": detected_repo,
+                "kanban_number": kanban_info.get("kanban_number"),
+                "kanban_id": kanban_info.get("kanban_id")
+            }
+        else:
+            project = PROJECTS[project_key]
+            
+        requested_project = args.project or project_key
+
         state = load_state(project["path"])
         state.project_key = project_key
+
+        if args.resume:
+            print(f"🔄 Resuming workflow for project {requested_project}...")
+            # We already loaded the state from disk above.
+            # If it's IDLE, then resume might not make sense unless they provided --issue
+            if state.phase == WorkflowPhase.IDLE and args.issue:
+                 # Auto-bootstrap if resuming from idle with issue
+                 pass
 
         usage_tracker.clear_action()
         usage_tracker.clear_context()
@@ -351,7 +483,8 @@ def run_headless(args) -> int:
         usage_tracker.set_context(state, project)
 
         with redirect_stdout(sys.stderr):
-            action_runner = _resolve_headless_action(action_name)
+            print(f"DEBUG: Executing action '{action_name}' with project: {project['name']} at {project['path']}")
+            action_runner = _resolve_headless_action(args, action_name)
             result = action_runner(state, project)
 
         if args.json:
@@ -391,6 +524,7 @@ def run_headless(args) -> int:
 
 MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
+    "N": {"label": "➕ Create New GitHub Issue",  "valid_phases": "ALL"},
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
     "+": {"label": "➕ Add Issue (to session)",     "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
     "-": {"label": "➖ Remove Issue (from session)", "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
@@ -401,7 +535,7 @@ MENU_ACTIONS = {
     "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING, WorkflowPhase.REVIEWING]},
     "B": {"label": "🧠 Sync AI Agent Brain",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT, WorkflowPhase.REVIEWING]},
     "P": {"label": "🚀 Create/Sync PRs",           "valid_phases": "ALL"},
-    "8": {"label": "🚀 Create Pull Request",       "valid_phases": [WorkflowPhase.CODING]},
+    "8": {"label": "🚀 Create Pull Request",       "valid_phases": "ALL"},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
     "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
     "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
@@ -487,14 +621,24 @@ def run_interactive(args) -> int:
     project_map = global_config.get("last_projects_by_path", {})
     stored_project = project_map.get(current_cwd)
     
-    project_key = resolve_project_key(
-        args.project,
-        stored_project,
-        current_cwd,
-        cli_project_explicit=args.project is not None,
-    )
-
-    project = PROJECTS[project_key]
+    # Resolve project: check if args.project is a path first
+    if args.project and os.path.isdir(args.project):
+        project_key = "dynamic"
+        project_path = os.path.abspath(args.project)
+        project = {
+            "name": os.path.basename(project_path) or "Current Project",
+            "path": project_path,
+            "repo": None,
+            "kanban_number": None
+        }
+    else:
+        project_key = resolve_project_key(
+            args.project,
+            stored_project,
+            current_cwd,
+            cli_project_explicit=args.project is not None,
+        )
+        project = PROJECTS[project_key]
     
     # Save initial mapping if not exists
     if current_cwd not in project_map or project_map[current_cwd] != project_key:
@@ -505,6 +649,14 @@ def run_interactive(args) -> int:
     # Load state
     state = load_state(project["path"])
     state.project_key = project_key
+
+    # --- CRITICAL BRANCH REPAIR ON STARTUP ---
+    print(f"🔄 Debug: Current branch in state is '{state.active_branch}'")
+    if repair_invalid_branch(state, project["path"]):
+        print("🔄 Debug: Saving repaired state...")
+        # CRITICAL: state must be first, path must be second
+        save_state(state, project["path"])
+    # -----------------------------------------
     
     print("\n🚀 Starting Luma V2 Workflow Guardian...")
     
@@ -550,6 +702,9 @@ def run_interactive(args) -> int:
         
         elif choice == "1":
             actions.action_list_active_issues(project)
+
+        elif choice.upper() == "N":
+            actions.action_create_issue(state, project)
 
         elif choice == "2":
             if actions.action_select_issue(state, project):

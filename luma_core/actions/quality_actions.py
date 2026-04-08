@@ -5,7 +5,7 @@ import subprocess
 import datetime
 import luma_core.ui as ui
 from luma_core.ui import safe_input
-from luma_core.state_manager import LumaState
+from luma_core.state_manager import LumaState, WorkflowPhase
 from luma_core.config import PROJECTS
 from .utils import (
     get_git_changed_files,
@@ -604,9 +604,10 @@ def sync_roadmap_for_new_issues(project: dict, cards: list) -> int:
     return synced
 
 
-def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-issue support
+def action_update_roadmap(state: LumaState, project: dict, headless: bool = False):  # PATCHED: multi-issue support
     """Update ROADMAP.md status for one or more issues (supports comma-separated input)."""
-    print(f"\n🗺️  Updating Roadmap for {project['name']}...")
+    if not headless:
+        print(f"\n🗺️  Updating Roadmap for {project['name']}...")
 
     # Locate ROADMAP.md
     roadmap_paths = [
@@ -616,67 +617,45 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
     roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
 
     if not roadmap_path:
-        print("❌ Roadmap not found in docs/ or root.")
+        if not headless:
+            print("❌ Roadmap not found in docs/ or root.")
         return
 
     try:
         with open(roadmap_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
     except Exception as e:
-        print(f"❌ Failed to read roadmap: {e}")
+        if not headless:
+            print(f"❌ Failed to read roadmap: {e}")
         return
 
     # ── Input: รองรับ single ("65"), comma-separated ("33, 34"), หรือพิมพ์ "new" เพื่อสร้างใหม่ ──
-    issue_input = ui.safe_input("Enter Issue # to update, or 'new' to create one: ").strip()
+    if not headless:
+        issue_input = ui.safe_input("Enter Issue # to update, or 'new' to create one: ").strip()
+    else:
+        # Headless: use active issues from state
+        if state.active_issues:
+            issue_input = ",".join(str(i.number) for i in state.active_issues)
+        else:
+            return
+
     if not issue_input:
         return
 
     raw_ids = issue_input.replace(",", " ").split()
     issue_ids = [x.strip().replace("#", "") for x in raw_ids if x.strip().replace("#", "").isdigit()]
 
-    if issue_input.lower() == "new":
-        print("\n➕ Creating new GitHub Issue...")
-        title = ui.safe_input("   Issue Title: ").strip()
-        if not title:
-            print("❌ Title cannot be empty.")
-            return
-
-        body = ui.safe_input("   Issue Body (optional): ").strip()
-        
-        gh_args = ["issue", "create", "--title", title, "--body", body]
-        repo_name = project.get("repo")
-        if repo_name:
-            gh_args.extend(["--repo", repo_name])
-            
-        print(f"   🚀 Running: gh {' '.join(gh_args)}")
-        try:
-            gh_res = subprocess.run(
-                ["gh"] + gh_args,
-                cwd=project["path"],
-                capture_output=True,
-                text=True,
-            )
-            if gh_res.returncode == 0:
-                output = gh_res.stdout.strip()
-                print(f"   ✅ Created: {output}")
-                
-                # extracting issue URL from gh output (usually returns the issue URL)
-                url = output.splitlines()[-1].strip()
-                match = re.search(r"/issues/(\d+)", url)
-                if match:
-                    new_issue_id = match.group(1)
-                    issue_ids.append(new_issue_id)
-                else:
-                    print("   ⚠️ Could not parse issue ID from output. Will not update Roadmap.")
-            else:
-                print(f"   ❌ GitHub CLI error: {gh_res.stderr.strip()}")
-                return
-        except Exception as e:
-            print(f"   ❌ GitHub CLI execution failed: {e}")
+    if not headless and issue_input.lower() == "new":
+        from .issue_actions import action_create_issue
+        res = action_create_issue(state, project)
+        if res.get("success") and res.get("number"):
+            issue_ids.append(str(res["number"]))
+        else:
             return
             
     if not issue_ids:
-        print("❌ No valid issue numbers found to update.")
+        if not headless:
+            print("❌ No valid issue numbers found to update.")
         return
 
     def _fetch_issue_from_github(issue_id: str):
@@ -690,9 +669,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
             try:
                 return json.loads(output)
             except json.JSONDecodeError as e:
-                print(f"   ⚠️ Failed to parse gh output for issue #{issue_id}: {e}")
-
-        import subprocess
+                if not headless:
+                    print(f"   ⚠️ Failed to parse gh output for issue #{issue_id}: {e}")
 
         try:
             fallback_cmd = ["gh", "issue", "view", issue_id, "--json", "number,title,state,url"]
@@ -709,10 +687,11 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
                 return json.loads(gh_res.stdout)
 
             error_text = gh_res.stderr.strip()
-            if error_text:
+            if not headless and error_text:
                 print(f"   ⚠️ Could not verify issue via gh: {error_text}")
         except Exception as e:
-            print(f"   ⚠️ GitHub CLI check failed: {e}")
+            if not headless:
+                print(f"   ⚠️ GitHub CLI check failed: {e}")
 
         return None
 
@@ -720,16 +699,19 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
 
     # ── Verify each issue via gh CLI and keep metadata for sync ──────────────
     for issue_id in issue_ids:
-        print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
+        if not headless:
+            print(f"🔍 Verifying Issue #{issue_id} via GitHub CLI...")
         issue_data = _fetch_issue_from_github(issue_id)
         if issue_data:
             verified_issues[issue_id] = issue_data
             issue_number = issue_data.get("number", issue_id)
             title = (issue_data.get("title") or "").replace("\n", " ").strip() or "(Untitled issue)"
             state_name = issue_data.get("state", "UNKNOWN")
-            print(f"   ✅ Found: #{issue_number} {title} ({state_name})")
+            if not headless:
+                print(f"   ✅ Found: #{issue_number} {title} ({state_name})")
         else:
-            print(f"   ⚠️ Could not verify issue #{issue_id}. Existing Roadmap entry can still be updated.")
+            if not headless:
+                print(f"   ⚠️ Could not verify issue #{issue_id}. Existing Roadmap entry can still be updated.")
 
     # ── Helper: find issue in roadmap and return metadata ────────────────────
     def _find_issue(issue_id, lines):
@@ -752,7 +734,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
 
         if is_table_row:
             status_idx = found_idx
-            print(f"   Current row: {lines[found_idx].strip()}")
+            if not headless:
+                print(f"   Current row: {lines[found_idx].strip()}")
         else:
             for i in range(found_idx + 1, min(found_idx + 6, len(lines))):
                 stripped = lines[i].strip()
@@ -764,7 +747,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
                     or "✅ **Done**" in stripped
                 ):
                     status_idx = i
-                    print(f"   Current: {stripped}")
+                    if not headless:
+                        print(f"   Current: {stripped}")
                     if lines[i].startswith("    -"):
                         indent = "    - "
                     elif lines[i].startswith("\t-"):
@@ -810,22 +794,28 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         found_idx, is_table_row, status_idx, indent = _find_issue(issue_id, lines)
         if found_idx == -1:
             if issue_id in verified_issues:
-                print(f"⚠️  Issue #{issue_id} not found in Roadmap. Will append it from GitHub metadata.")
+                if not headless:
+                    print(f"⚠️  Issue #{issue_id} not found in Roadmap. Will append it from GitHub metadata.")
                 missing_issues.append(issue_id)
             else:
-                print(f"⚠️  Issue #{issue_id} not found in Roadmap and could not be verified via gh. Skipping.")
+                if not headless:
+                    print(f"⚠️  Issue #{issue_id} not found in Roadmap and could not be verified via gh. Skipping.")
         else:
-            print(f"✅ Found issue #{issue_id} at line {found_idx + 1}: {lines[found_idx].strip()}")
+            if not headless:
+                print(f"✅ Found issue #{issue_id} at line {found_idx + 1}: {lines[found_idx].strip()}")
             found_issues.append((issue_id, found_idx, is_table_row, status_idx, indent))
 
     if not found_issues and not missing_issues:
-        print("❌ No requested issues could be updated in the Roadmap.")
+        if not headless:
+            print("❌ No requested issues could be updated in the Roadmap.")
         return
 
     # ── Ask for status ONCE — applies to all found issues ────────────────────
     issues_to_update = [x[0] for x in found_issues] + missing_issues
     issue_list = ", ".join(f"#{issue_id}" for issue_id in issues_to_update)
-    print(f"\nSelecting status for {len(issues_to_update)} issue(s): {issue_list}")
+    if not headless:
+        print(f"\nSelecting status for {len(issues_to_update)} issue(s): {issue_list}")
+    
     # Check if all verified issues being updated are CLOSED
     all_closed = False
     if verified_issues:
@@ -836,30 +826,48 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         if states and all(s == "CLOSED" for s in states):
             all_closed = True
 
-    if all_closed:
-        print("\n💡 GitHub state is CLOSED, auto-selecting ✅ Done (press Enter to confirm, or choose manually)")
-        prompt_str = "Select [1-4] (Enter for '1'): "
+    if not headless:
+        if all_closed:
+            print("\n💡 GitHub state is CLOSED, auto-selecting ✅ Done (press Enter to confirm, or choose manually)")
+            prompt_str = "Select [1-4] (Enter for '1'): "
+        else:
+            print("\nSelect new status:")
+            prompt_str = "Select [1-4]: "
+
+        print("  [1] ✅ Done / Complete")
+        print("  [2] 🟢 Ready")
+        print("  [3] 🟡 In Progress / Todo")
+        print("  [4] 🔴 Blocked")
+
+        status_choice = ui.safe_input(prompt_str).strip()
+        if all_closed and status_choice == "":
+            status_choice = "1"
     else:
-        print("\nSelect new status:")
-        prompt_str = "Select [1-4]: "
+        # Headless: Auto-detect status
+        # If PR is pending or merged, it's Done.
+        # Otherwise, if we are in guided workflow, maybe it's In Progress.
+        if state.phase in [WorkflowPhase.PR_PENDING, WorkflowPhase.IDLE] and all_closed:
+            status_choice = "1"
+        elif state.phase in [WorkflowPhase.CODING, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT]:
+            status_choice = "3"
+        else:
+            status_choice = "3" # Default to In Progress
 
-    print("  [1] ✅ Done / Complete")
-    print("  [2] 🟢 Ready")
-    print("  [3] 🟡 In Progress / Todo")
-    print("  [4] 🔴 Blocked")
-
-    status_choice = ui.safe_input(prompt_str).strip()
-    if all_closed and status_choice == "":
-        status_choice = "1"
     if status_choice not in ("1", "2", "3", "4"):
-        print("❌ Invalid selection")
+        if not headless:
+            print("❌ Invalid selection")
         return
 
     version = ""
     note = ""
     if status_choice == "1":
-        version = ui.safe_input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
-        note = ui.safe_input("Enter Completion Note (Enter to skip): ").strip()
+        if not headless:
+            version = ui.safe_input("Enter Version (e.g. v1.8.0, Enter to skip): ").strip()
+            note = ui.safe_input("Enter Completion Note (Enter to skip): ").strip()
+        else:
+            # Headless version detection?
+            # For now, keep it empty or get from version file if possible
+            pass
 
         from luma_core.issue_metrics import (
             IssueMetricsRecord,
@@ -898,7 +906,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
                 )
             )
 
-        prompt_post_story_points_for_records(project, records_to_update)
+        if not headless:
+            prompt_post_story_points_for_records(project, records_to_update)
 
     def _build_status_strings(is_table_row, indent, existing_content=""):
         # If user left version/note empty, try to preserve from existing content
@@ -969,14 +978,17 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
                 if not lines[found_idx].endswith("\n"):
                     lines[found_idx] += "\n"
             else:
-                print(f"⚠️  Issue #{issue_id}: row does not have standard table formatting.")
+                if not headless:
+                    print(f"⚠️  Issue #{issue_id}: row does not have standard table formatting.")
         elif status_idx != -1:
             lines[status_idx] = new_status_line + "\n"
         else:
-            print(f"⚠️  Issue #{issue_id}: status line not found nearby. Appending.")
+            if not headless:
+                print(f"⚠️  Issue #{issue_id}: status line not found nearby. Appending.")
             lines.insert(found_idx + 2, new_status_line + "\n")
 
-        print(f"   ✅ Issue #{issue_id} → updated.")
+        if not headless:
+            print(f"   ✅ Issue #{issue_id} → updated.")
 
     added_issue_count = 0
     if missing_issues:
@@ -989,7 +1001,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
             _, new_status_line = _build_status_strings(False, "- ")
             new_issue_lines.extend(_build_missing_issue_block(issue_data, new_status_line))
             added_issue_count += 1
-            print(f"   ✅ Issue #{issue_id} → added to Roadmap from GitHub.")
+            if not headless:
+                print(f"   ✅ Issue #{issue_id} → added to Roadmap from GitHub.")
         if new_issue_lines:
             lines[insert_at:insert_at] = new_issue_lines
 
@@ -998,6 +1011,8 @@ def action_update_roadmap(state: LumaState, project: dict):  # PATCHED: multi-is
         with open(roadmap_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
         updated_count = len(found_issues) + added_issue_count
-        print(f"\n✅ Roadmap updated successfully! ({updated_count} issue(s))")
+        if not headless:
+            print(f"\n✅ Roadmap updated successfully! ({updated_count} issue(s))")
     except Exception as e:
-        print(f"❌ Failed to write roadmap: {e}")
+        if not headless:
+            print(f"❌ Failed to write roadmap: {e}")
