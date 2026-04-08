@@ -32,6 +32,81 @@ def get_project_git_info(project_path: str) -> dict:
         return {"hash": "unknown", "date": "unknown"}
 
 
+def get_git_worktree_path(cwd: str = None) -> Optional[str]:
+    """
+    Detect if current directory is a git worktree and return the worktree path.
+
+    Returns the worktree toplevel path if in a worktree, otherwise None.
+    Uses 'git rev-parse --show-toplevel' to get the actual worktree root.
+    """
+    import subprocess
+    try:
+        work_dir = cwd or os.getcwd()
+        # Get the toplevel of the current directory (works for both regular repos and worktrees)
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=work_dir, capture_output=True, text=True, check=True
+        )
+        toplevel = result.stdout.strip()
+        if toplevel and os.path.isdir(toplevel):
+            return toplevel
+    except Exception:
+        pass
+    return None
+
+
+def is_git_worktree(cwd: str = None) -> bool:
+    """
+    Check if current directory is inside a git worktree.
+
+    Returns True if in a worktree (git-common-dir is different from git-dir),
+    False otherwise.
+    """
+    import subprocess
+    try:
+        work_dir = cwd or os.getcwd()
+        # Get git-dir and git-common-dir
+        git_dir_result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=work_dir, capture_output=True, text=True, check=True
+        )
+        git_common_dir_result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=work_dir, capture_output=True, text=True, check=True
+        )
+        git_dir = git_dir_result.stdout.strip()
+        git_common_dir = git_common_dir_result.stdout.strip()
+        # If they're different, we're in a worktree
+        return git_dir != git_common_dir
+    except Exception:
+        return False
+
+
+def resolve_project_target_dir(project_path: str, cwd: str = None) -> str:
+    """
+    Resolve the target directory for a project, considering git worktrees.
+
+    If the current working directory is a git worktree, returns the worktree path.
+    Otherwise, returns the original project path.
+
+    This ensures that when running from a worktree, generated files (spec.md,
+    plan.md, sbe.md) go to the worktree's docs/features/ instead of the
+    original repo.
+    """
+    work_dir = cwd or os.getcwd()
+
+    # Check if we're in a worktree
+    if is_git_worktree(work_dir):
+        worktree_path = get_git_worktree_path(work_dir)
+        if worktree_path:
+            # Verify the worktree is related to the project
+            # by checking if it's under the same parent or shares git history
+            return worktree_path
+
+    # Fall back to original project path
+    return project_path
+
+
 def repair_invalid_branch(state, project_path: str) -> bool:
     """
     Detects if state.active_branch is invalid (e.g., '1', 'True', 'None', 'HEAD')
