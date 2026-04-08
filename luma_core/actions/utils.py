@@ -325,7 +325,6 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
 
     if ok:
         issue_display = ", ".join(f"#{c.issue_number}" for c in cards)
-        workflow = get_status_workflow(project)
         print(f"\n✅ Started: {issue_display}")
         for c in cards:
             print(f"   🎯 #{c.issue_number}: {c.title[:50]}")

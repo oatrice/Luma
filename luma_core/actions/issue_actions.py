@@ -1,5 +1,4 @@
 import re
-import re
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState, WorkflowPhase, IssueData
 from .utils import (
@@ -64,11 +63,11 @@ def action_create_issue(state: LumaState, project: dict, title: str = None, body
             item_id = add_issue_to_project(kanban_number, result["url"])
             if item_id:
                 if not headless:
-                    print(f"   ✅ Added to Kanban")
+                    print("   ✅ Added to Kanban")
                 result["project_item_id"] = item_id
             else:
                 if not headless:
-                    print(f"   ⚠️ Could not add to Kanban (may need manual addition)")
+                    print("   ⚠️ Could not add to Kanban (may need manual addition)")
         
         if not headless:
             print(f"   ✅ Created: {result['url']}")
@@ -177,7 +176,6 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
         return False
 
     print("\n➕ Add Issue to Current Work Session")
-    workflow = get_status_workflow(project)
     if state.active_issues:
         print(
             f"   Current issues: {', '.join(f'#{i.number}' for i in state.active_issues)}"
@@ -295,6 +293,7 @@ def action_list_active_issues(project: dict):
     """List all active issues (Backlog, Ready, In Progress)"""
     print(f"\n📋 Fetching Active Issues for {project['name']}...")
     workflow = get_status_workflow(project)
+    board_priority = _status_priority(workflow.get("board_order", []))
 
     cards = fetch_kanban_cards(project["kanban_number"])
 
@@ -305,6 +304,10 @@ def action_list_active_issues(project: dict):
     active_statuses = {_status_key(status) for status in workflow.get("active_statuses", [])}
     if active_statuses:
         active_cards = [c for c in cards if _status_key(c.status) in active_statuses]
+        # Sort by board priority then by issue number
+        active_cards.sort(
+            key=lambda c: (board_priority.get(_status_key(c.status), 999), c.issue_number)
+        )
         for card in active_cards:
             print(f"  #{card.issue_number}: {card.title[:65]} ({card.status})")
     else:
