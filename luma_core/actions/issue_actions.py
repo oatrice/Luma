@@ -16,6 +16,7 @@ from .utils import (
 )
 from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
 from luma_core.github_client import create_issue
+from luma_core.github_project import add_issue_to_project
 
 def action_create_issue(state: LumaState, project: dict, title: str = None, body: str = None, headless: bool = False) -> dict:
     """Create a new GitHub issue (First-class action)"""
@@ -55,6 +56,20 @@ def action_create_issue(state: LumaState, project: dict, title: str = None, body
     result = create_issue(repo_name, title, body)
 
     if result.get("success"):
+        # Auto-add to Kanban if project has kanban_number
+        kanban_number = project.get("kanban_number")
+        if kanban_number and result.get("url"):
+            if not headless:
+                print(f"   🔄 Adding to Kanban (Project #{kanban_number})...")
+            item_id = add_issue_to_project(kanban_number, result["url"])
+            if item_id:
+                if not headless:
+                    print(f"   ✅ Added to Kanban")
+                result["project_item_id"] = item_id
+            else:
+                if not headless:
+                    print(f"   ⚠️ Could not add to Kanban (may need manual addition)")
+        
         if not headless:
             print(f"   ✅ Created: {result['url']}")
         return result
