@@ -1,0 +1,17 @@
+name: Add Cerebro Issues To Project 12
+
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+
+jobs:
+  add_issue_to_cerebro_project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to Cerebro Project
+        uses: actions/add-to-project@v1.0.2
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          project-url: https://github.com/users/oatrice/projects/12

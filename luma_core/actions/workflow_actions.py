@@ -22,6 +22,11 @@ from .admin_actions import action_archive_artifacts
 from .issue_actions import action_select_issue
 from .plan_actions import action_generate_plan, action_generate_spec, action_refine_issue
 from .quality_actions import action_code_review, action_update_docs, action_update_roadmap, sync_roadmap_for_closed_issues
+from .create_issue_action import (
+    detect_zenith_issues_from_text,
+    detect_zenith_issues_from_branch,
+    CrossRepoLink,
+)
 import sys
 import os
 import json
@@ -342,6 +347,34 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
         print(f"   ✨ Creating PR for {proj['name']}...")
 
+        # Detect cross-repo links (Zenith issues) from issue body and branch
+        cross_repo_links = []
+        for issue in state.active_issues:
+            if issue.body:
+                cross_repo_links.extend(detect_zenith_issues_from_text(issue.body))
+        if state.active_branch:
+            cross_repo_links.extend(detect_zenith_issues_from_branch(state.active_branch))
+        
+        # Also include links stored from issue selection phase
+        stored_links = state.context.get("cross_repo_links", [])
+        for stored in stored_links:
+            cross_repo_links.append(CrossRepoLink(
+                repo=stored["repo"],
+                issue_number=stored["issue_number"],
+                url=stored["url"],
+                relationship=stored.get("relationship", "Related"),
+            ))
+        
+        # Remove duplicates
+        seen_links = set()
+        unique_links = []
+        for link in cross_repo_links:
+            key = f"{link.repo}#{link.issue_number}"
+            if key not in seen_links:
+                unique_links.append(link)
+                seen_links.add(key)
+        cross_repo_links = unique_links
+
         # Construct a temporary state for the publisher
         # Append screenshots and AI brain context to body
         # Multi-issue: combine all issue bodies + closing references
@@ -368,6 +401,14 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
         # Add closes line at the end
         combined_body += f"\n\n{closes_line}"
+
+        # Add cross-repo links section if detected
+        if cross_repo_links:
+            cross_repo_section = "\n\n## 🔗 Cross-Repo Links\n"
+            for link in cross_repo_links:
+                cross_repo_section += f"- Related: [{link.repo}#{link.issue_number}]({link.url})\n"
+            combined_body += cross_repo_section
+            print(f"   🔗 Linked {len(cross_repo_links)} cross-repo issue(s)")
 
         pub_state = {
             "task": pr_title,

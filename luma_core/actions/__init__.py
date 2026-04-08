@@ -7,6 +7,13 @@ from .issue_actions import (
     action_list_active_issues,
     bootstrap_issue
 )
+from .create_issue_action import (
+    action_create_issue,
+    action_create_issue_headless,
+    CrossRepoLink,
+    detect_zenith_issues_from_text,
+    detect_zenith_issues_from_branch,
+)
 from .plan_actions import (
     action_refine_issue,
     action_generate_sbe,
@@ -58,6 +65,10 @@ __all__ = [
     "action_view_kanban",
     "action_list_active_issues",
     "bootstrap_issue",
+    "action_create_issue_headless",
+    "CrossRepoLink",
+    "detect_zenith_issues_from_text",
+    "detect_zenith_issues_from_branch",
     "action_refine_issue",
     "action_generate_sbe",
     "action_generate_draft",

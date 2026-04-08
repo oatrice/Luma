@@ -1,0 +1,21 @@
+name: Trigger Cerebro Sync
+
+on:
+  # ดักฟังการเปลี่ยนแปลงที่ตัว Project Item (ต้อง Link Project กับ Repo นี้ก่อน)
+  project_item:
+    types: [created, edited, deleted]
+  # ดักฟังการขยับ Issue (เผื่อการขยับสถานะโดยตรง)
+  issues:
+    types: [opened, reopened, labeled, unlabeled]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Cerebro Sync Engine
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.PROJECTS_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/oatrice/Cerebro/actions/workflows/sync-project-statuses.yml/dispatches \
+            -d '{"ref":"main", "inputs": {"reason": "Project Item Change in '${{ github.repository }}'"}}'
