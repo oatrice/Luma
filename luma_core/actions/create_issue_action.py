@@ -4,6 +4,7 @@ Action: Create Issue with Cross-Repo Link Support
 สร้าง Issue พร้อมรองรับการเชื่อมโยงข้าม Repository (Luma <-> Zenith)
 """
 
+import json
 import re
 import subprocess
 from typing import List, Dict, Optional, Tuple
@@ -54,7 +55,7 @@ def detect_zenith_issues_from_text(text: str) -> List[CrossRepoLink]:
     for match in re.finditer(pattern2, text):
         issue_num = int(match.group(1))
         # เช็คว่ายังไม่มีใน list
-        if not any(l.issue_number == issue_num for l in links):
+        if not any(link.issue_number == issue_num for link in links):
             links.append(CrossRepoLink(
                 repo="oatrice/Zenith",
                 issue_number=issue_num,
@@ -87,7 +88,7 @@ def detect_zenith_issues_from_branch(branch_name: str) -> List[CrossRepoLink]:
     for pattern in patterns:
         for match in re.finditer(pattern, branch_name, re.IGNORECASE):
             issue_num = int(match.group(1))
-            if not any(l.issue_number == issue_num for l in links):
+            if not any(link.issue_number == issue_num for link in links):
                 links.append(CrossRepoLink(
                     repo="oatrice/Zenith",
                     issue_number=issue_num,
@@ -226,7 +227,7 @@ def create_github_issue(
         
         return issue
     except json.JSONDecodeError:
-        print(f"❌ Failed to parse issue creation response")
+        print("❌ Failed to parse issue creation response")
         return None
 
 

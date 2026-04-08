@@ -8,7 +8,6 @@ from .issue_actions import (
     bootstrap_issue
 )
 from .create_issue_action import (
-    action_create_issue,
     action_create_issue_headless,
     CrossRepoLink,
     detect_zenith_issues_from_text,

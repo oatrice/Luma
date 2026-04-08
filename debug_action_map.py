@@ -11,7 +11,7 @@ empty_map = {}
 result = empty_map.get("select_issue")
 print(f"   {{}}.get('select_issue') = {result}")
 print(f"   'if not result' would be: {not result}")
-print(f"   => This triggers 'Unknown action' warning!")
+print("   => This triggers 'Unknown action' warning!")
 
 # Test 2: Dict with None value
 print()
@@ -21,7 +21,7 @@ none_map = {"select_issue": None}
 result = none_map.get("select_issue")
 print(f"   {{'select_issue': None}}.get('select_issue') = {result}")
 print(f"   'if not result' would be: {not result}")
-print(f"   => This also triggers 'Unknown action' warning!")
+print("   => This also triggers 'Unknown action' warning!")
 
 # Test 3: Dict with empty string value
 print()
@@ -31,7 +31,7 @@ empty_str_map = {"select_issue": ""}
 result = empty_str_map.get("select_issue")
 print(f"   {{'select_issue': ''}}.get('select_issue') = '{result}'")
 print(f"   'if not result' would be: {not result}")
-print(f"   => This also triggers 'Unknown action' warning!")
+print("   => This also triggers 'Unknown action' warning!")
 
 # Test 4: Check actual Luma workflow from PROJECTS
 print()
