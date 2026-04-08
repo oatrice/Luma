@@ -242,6 +242,42 @@ def fetch_kanban_cards(
     return cards
 
 
+def add_issue_to_project(
+    project_number: int,
+    issue_url: str,
+    owner: str = "oatrice"
+) -> Optional[str]:
+    """
+    เพิ่ม Issue เข้า GitHub Project Kanban
+    
+    Args:
+        project_number: Project number (e.g., 5 for Luma)
+        issue_url: URL ของ issue (e.g., "https://github.com/oatrice/Luma/issues/50")
+        owner: GitHub username or org
+        
+    Returns:
+        item_id ของ project item ที่เพิ่มเข้าไป หรือ None ถ้า fail
+    """
+    args = [
+        "project", "item-add", str(project_number),
+        "--owner", owner,
+        "--url", issue_url,
+        "--format", "json"
+    ]
+    
+    output = run_gh_command(args, timeout=30)
+    
+    if not output:
+        return None
+    
+    try:
+        data = json.loads(output)
+        return data.get("id")
+    except json.JSONDecodeError:
+        print("❌ Failed to parse project item-add response")
+        return None
+
+
 def get_project_field_schema(project_id: str) -> Optional[Dict]:
     """
     Get project field schema (Status field options)
