@@ -233,15 +233,15 @@
       "post_story_point": null,
       "estimated_mandays": 0.5,
       "start_datetime": "2026-04-06T19:31:29",
-      "actual_mandays": null,
+      "actual_mandays": 1.5,
       "due_date": null,
-      "actual_completion_date": null,
+      "actual_completion_date": "2026-04-08T12:39:27",
       "effort_level": "Low",
       "notes": null,
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.884473",
-      "updated_at": "2026-04-06T20:19:16.591792"
+      "updated_at": "2026-04-08T12:39:27.529046"
     },
     "oatrice/Luma#42": {
       "issue_key": "oatrice/Luma#42",
@@ -255,15 +255,15 @@
       "post_story_point": null,
       "estimated_mandays": 0.5,
       "start_datetime": "2026-04-06T19:31:29",
-      "actual_mandays": null,
+      "actual_mandays": 1.5,
       "due_date": null,
-      "actual_completion_date": null,
+      "actual_completion_date": "2026-04-08T12:39:27",
       "effort_level": "Low",
       "notes": null,
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.891266",
-      "updated_at": "2026-04-06T20:19:16.592861"
+      "updated_at": "2026-04-08T12:39:27.531874"
     },
     "oatrice/Luma#41": {
       "issue_key": "oatrice/Luma#41",
@@ -277,15 +277,15 @@
       "post_story_point": null,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-04-06T19:31:29",
-      "actual_mandays": null,
+      "actual_mandays": 1.5,
       "due_date": null,
-      "actual_completion_date": null,
+      "actual_completion_date": "2026-04-08T12:39:27",
       "effort_level": "Low",
       "notes": null,
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.891630",
-      "updated_at": "2026-04-06T20:19:16.593556"
+      "updated_at": "2026-04-08T12:39:27.532560"
     }
   }
 }
