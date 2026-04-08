@@ -1,0 +1,8 @@
+- [ ] Define shared color constants in `ReportsScreen.kt` (`Gray400`, `Gray700`, `PIE_COLORS`)
+- [ ] Implement `rememberAxisLabelComponent` and `rememberAxisLineComponent` helpers
+- [ ] Update `Trend Chart` axis styling
+- [ ] Update `Income Breakdown` chart axis styling
+- [ ] Update `Expense Breakdown` chart axis styling
+- [ ] Update `Comparison Chart` axis styling
+- [ ] Update `DistributionSection` (Pie Chart) to use `PIE_COLORS`
+- [ ] Final verification of all charts
