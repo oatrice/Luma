@@ -4,8 +4,9 @@ from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState
 from luma_core.config import PROJECTS
 from luma_core.issue_metrics import _humanize_feature_slug
+from luma_core.tools import resolve_project_target_dir
 from .utils import (
-    sync_kanban_on_action, 
+    sync_kanban_on_action,
     _add_new_project
 )
 
@@ -92,7 +93,7 @@ def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False
                                     f"   🔗 Selected: {sessions[idx]['session_id'][:12]}..."
                                 )
                                 synced_antigravity = AntigravityBrain.sync_to_repo(
-                                    project["path"],
+                                    resolve_project_target_dir(project["path"]),
                                     state.active_issue.number,
                                     session_path=selected_path,
                                 )
@@ -102,7 +103,7 @@ def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False
                             pass
                 else:
                     synced_antigravity = AntigravityBrain.sync_to_repo(
-                        project["path"],
+                        resolve_project_target_dir(project["path"]),
                         state.active_issue.number,
                         session_path=selected_path,
                     )
@@ -165,7 +166,7 @@ def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False
                                     f"   🔗 Selected: {gemini_sessions[idx]['session_id'][:12]}..."
                                 )
                                 synced_gemini = GeminiCLIBrain.sync_to_repo(
-                                    project["path"],
+                                    resolve_project_target_dir(project["path"]),
                                     state.active_issue.number,
                                     session_path=selected_path,
                                 )
@@ -174,7 +175,7 @@ def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False
                             pass
                 else:
                     synced_gemini = GeminiCLIBrain.sync_to_repo(
-                        project["path"],
+                        resolve_project_target_dir(project["path"]),
                         state.active_issue.number,
                         session_path=selected_path,
                     )
@@ -354,7 +355,7 @@ def action_archive_artifacts(state: LumaState, project: dict, headless: bool = F
 
     # Determine Feature Directory
     # Strategy: Try to find existing dir matching issue number
-    features_root = os.path.join(project["path"], "docs", "features")
+    features_root = os.path.join(resolve_project_target_dir(project["path"]), "docs", "features")
     if not os.path.exists(features_root):
         os.makedirs(features_root)
 
@@ -390,7 +391,7 @@ def action_archive_artifacts(state: LumaState, project: dict, headless: bool = F
     # Only archive locally generated planning/documentation artifacts.
     # AI Brain artifacts (task.md, walkthrough.md, etc.) are handled by ai_brain_sync.py
     # and placed in the ai_brain/ subdirectory.
-    search_dirs = [project["path"]]
+    search_dirs = [resolve_project_target_dir(project["path"])]
 
     artifacts = ["analysis.md", "spec.md", "plan.md", "sbe.md", "code_review.md"]
     # Also support platform specific variations like plan_android.md
@@ -444,13 +445,13 @@ def action_archive_artifacts(state: LumaState, project: dict, headless: bool = F
 
         # Sync Antigravity
         antigravity_files = AntigravityBrain.sync_to_repo(
-            project["path"], issue_num_int
+            resolve_project_target_dir(project["path"]), issue_num_int
         )
         if antigravity_files:
             print(f"✅ Synced {len(antigravity_files)} Antigravity artifacts.")
 
         # Sync Gemini CLI
-        gemini_files = GeminiCLIBrain.sync_to_repo(project["path"], issue_num_int)
+        gemini_files = GeminiCLIBrain.sync_to_repo(resolve_project_target_dir(project["path"]), issue_num_int)
         if gemini_files:
             print(f"✅ Synced {len(gemini_files)} Gemini CLI artifacts.")
 

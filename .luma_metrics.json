@@ -286,6 +286,28 @@
       "gh_mandays": null,
       "created_at": "2026-04-06T19:31:29.891630",
       "updated_at": "2026-04-08T12:39:27.532560"
+    },
+    "oatrice/Luma#53": {
+      "issue_key": "oatrice/Luma#53",
+      "issue_number": 53,
+      "issue_title": "Luma doesn't detect git worktree - spec/plan files go to original repo instead of worktree",
+      "issue_url": "https://github.com/oatrice/Luma/issues/53",
+      "repository": "oatrice/Luma",
+      "project_name": "Luma",
+      "issue_status": null,
+      "estimate_points": null,
+      "post_story_point": null,
+      "estimated_mandays": null,
+      "start_datetime": null,
+      "actual_mandays": 0.0,
+      "due_date": null,
+      "actual_completion_date": "2026-04-08T17:40:29",
+      "effort_level": null,
+      "notes": null,
+      "gh_closed_at": null,
+      "gh_mandays": null,
+      "created_at": "2026-04-08T17:40:29.269438",
+      "updated_at": "2026-04-08T17:40:29.271187"
     }
   }
 }

@@ -13,6 +13,7 @@ import argparse
 import platform
 import subprocess
 from contextlib import redirect_stdout
+from typing import Optional
 
 # Import first so Python 3.9 importlib metadata compatibility is installed
 # before other project modules import third-party dependencies.
@@ -295,10 +296,40 @@ def build_metadata_payload() -> dict:
 def check_luma_outdated():
     """Check if the current running Luma is outdated compared to the code on disk."""
     current_disk_info = get_project_git_info(LUMA_ROOT)
-    
+
     if STARTUP_GIT_INFO["hash"] != current_disk_info["hash"]:
         return True, current_disk_info
     return False, None
+
+
+def _detect_repo_and_kanban(project_path: str) -> tuple[Optional[str], Optional[int], Optional[str]]:
+    """
+    Detect GitHub repo and kanban info from project path.
+
+    Returns:
+        Tuple of (detected_repo, kanban_number, kanban_id)
+    """
+    detected_repo = None
+    try:
+        res = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=project_path, capture_output=True, text=True
+        )
+        if res.returncode == 0:
+            remote = res.stdout.strip()
+            if "github.com" in remote:
+                path_part = remote.split("github.com")[-1].lstrip(":").lstrip("/")
+                detected_repo = path_part.replace(".git", "")
+    except Exception:
+        pass
+
+    # Lookup kanban info from canonical mapping if repo detected
+    kanban_info = CANONICAL_KANBAN_BY_REPO.get(detected_repo, {})
+    return (
+        detected_repo,
+        kanban_info.get("kanban_number"),
+        kanban_info.get("kanban_id")
+    )
 
 
 def build_menu_title(is_outdated: bool, pending_summary: str = "") -> str:
@@ -668,11 +699,13 @@ def run_interactive(args) -> int:
     if args.project and os.path.isdir(args.project):
         project_key = "dynamic"
         project_path = os.path.abspath(args.project)
+        detected_repo, kanban_number, kanban_id = _detect_repo_and_kanban(project_path)
         project = {
             "name": os.path.basename(project_path) or "Current Project",
             "path": project_path,
-            "repo": None,
-            "kanban_number": None
+            "repo": detected_repo,
+            "kanban_number": kanban_number,
+            "kanban_id": kanban_id
         }
     else:
         project_key = resolve_project_key(
@@ -684,11 +717,13 @@ def run_interactive(args) -> int:
         # Handle dynamic project (unknown directory not in PROJECTS)
         if project_key == "dynamic":
             project_path = os.path.abspath(args.project) if args.project else current_cwd
+            detected_repo, kanban_number, kanban_id = _detect_repo_and_kanban(project_path)
             project = {
                 "name": os.path.basename(project_path) or "Current Project",
                 "path": project_path,
-                "repo": None,
-                "kanban_number": None
+                "repo": detected_repo,
+                "kanban_number": kanban_number,
+                "kanban_id": kanban_id
             }
         else:
             project = PROJECTS[project_key]
