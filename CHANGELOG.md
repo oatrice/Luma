@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.14.0] - 2026-04-08
+
+### Added
+- **Headless CLI:** Expanded the headless contract to support guided workflows, issue selection (mirroring interactive menus), and programmatic issue bootstrapping.
+- **GitHub Projects:** Implemented automatic addition of new issues to GitHub Projects, including Kanban mapping integration for the Zenith repository.
+- **Workflow:** Enabled forced Pull Request creation across all development phases.
+- **Documentation:** Added a manual verification guide for headless synchronization.
+
+### Changed
+- **Core:** Enhanced project key resolution using path detection logic for more accurate project mapping.
+- **Stability:** Improved dynamic project support and overall stability of headless execution paths.
+
+### Fixed
+- **Output:** Standardized `IssueData` fields and suppressed unnecessary stdout to prevent JSON pollution in headless mode.
+- **Branch Management:** Added validation and auto-repair mechanisms for invalid branch states.
+
 ## [1.13.0] - 2026-04-03
 
 ### Added
