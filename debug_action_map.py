@@ -4,6 +4,8 @@
 import sys
 sys.path.insert(0, '/Users/oatrice/.windsurf/worktrees/Luma/Luma-869eb936')
 
+from luma_core.config import PROJECTS
+
 # Test 1: Empty dict causes "Unknown action"
 print("=" * 60)
 print("TEST 1: Empty action_status_map dict")
@@ -37,7 +39,6 @@ print("   => This also triggers 'Unknown action' warning!")
 print()
 print("=" * 60)
 print("TEST 4: Check actual Luma project from PROJECTS dict")
-from luma_core.config import PROJECTS
 luma_project = PROJECTS.get("12")  # Luma is key "12"
 if luma_project:
     sw = luma_project.get("status_workflow", {})
