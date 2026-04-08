@@ -43,7 +43,11 @@ from luma_core.tools import (
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONTRACT_VERSION = "2.0"
+<<<<<<< HEAD
 SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap", "create_issue", "auto_workflow")
+=======
+SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_issue", "create_pr")
+>>>>>>> 586cb8c (✨ feat(cross-repo): Add cross-repository issue linking)
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
 
@@ -137,6 +141,34 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Optional caller identifier for headless telemetry",
+    )
+    # Create Issue specific args
+    parser.add_argument(
+        "--issue-title",
+        type=str,
+        default=None,
+        help="Issue title (for create_issue action)",
+    )
+    parser.add_argument(
+        "--issue-body",
+        type=str,
+        default=None,
+        help="Issue body markdown (for create_issue action)",
+    )
+    parser.add_argument(
+        "--issue-labels",
+        type=str,
+        nargs="+",
+        default=[],
+        help="Labels to add (for create_issue action)",
+    )
+    parser.add_argument(
+        "--related",
+        type=str,
+        nargs="+",
+        default=[],
+        dest="related_links",
+        help="Cross-repo links (e.g., oatrice/Zenith#19)",
     )
     return parser
 
@@ -370,6 +402,21 @@ def _resolve_headless_action(args, action_name: str):
             auto_approve=True,
             force=args.force
         )
+    
+    if action_name == "create_issue":
+        # Parse headless args for create_issue
+        headless_args = {
+            "title": getattr(args, "issue_title", ""),
+            "body": getattr(args, "issue_body", ""),
+            "labels": getattr(args, "issue_labels", []),
+            "related_links": getattr(args, "related_links", []),
+        }
+        return lambda state, project: actions.action_create_issue(
+            state,
+            project,
+            headless=True,
+            headless_args=headless_args,
+        )
 
     if action_name == "bootstrap":
         if not args.issue:
@@ -528,6 +575,7 @@ MENU_ACTIONS = {
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
     "+": {"label": "➕ Add Issue (to session)",     "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
     "-": {"label": "➖ Remove Issue (from session)", "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
+    "N": {"label": "🆕 Create New Issue",           "valid_phases": "ALL"},
     "3": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "4": {"label": "📝 Generate Spec + SBE",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
@@ -717,6 +765,12 @@ def run_interactive(args) -> int:
         elif choice == "-":
             if actions.action_remove_issue(state, project):
                 save_state(state, project["path"])
+        
+        elif choice.upper() == "N":
+            # Create New Issue with cross-repo link support
+            if actions.action_create_issue(state, project, headless=False):
+                # No state change needed for creating issue
+                pass
         
         elif choice == "3":
             run_with_notify("Refine Issue", project["name"], actions.action_refine_issue, state, project)

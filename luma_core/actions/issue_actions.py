@@ -16,6 +16,10 @@ from .utils import (
 from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
 from luma_core.github_client import create_issue
 from luma_core.github_project import add_issue_to_project
+from .create_issue_action import (
+    detect_zenith_issues_from_text,
+    detect_zenith_issues_from_branch,
+)
 
 def action_create_issue(state: LumaState, project: dict, title: str = None, body: str = None, headless: bool = False) -> dict:
     """Create a new GitHub issue (First-class action)"""
@@ -160,9 +164,40 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
                 selected_cards.append(selectable_issues[idx])
             else:
                 print(f"❌ Invalid index: {idx + 1}")
-        
         if not selected_cards:
             return False
+        
+        # Detect cross-repo links from selected issue bodies
+        cross_repo_links = []
+        for card in selected_cards:
+            if card.body:
+                cross_repo_links.extend(detect_zenith_issues_from_text(card.body))
+        
+        # Remove duplicates
+        seen = set()
+        unique_links = []
+        for link in cross_repo_links:
+            key = f"{link.repo}#{link.issue_number}"
+            if key not in seen:
+                unique_links.append(link)
+                seen.add(key)
+        
+        if unique_links:
+            print(f"\n🔗 Cross-Repo Links Detected ({len(unique_links)}):")
+            for link in unique_links:
+                print(f"   • {link.repo}#{link.issue_number} → {link.url}")
+            
+            # Store in state for later PR creation
+            state.context["cross_repo_links"] = [
+                {
+                    "repo": link.repo,
+                    "issue_number": link.issue_number,
+                    "url": link.url,
+                    "relationship": link.relationship,
+                }
+                for link in unique_links
+            ]
+            print("   💡 Links will be auto-included when creating PR")
             
         return _start_issues(state, selected_cards, project)
     except (ValueError, IndexError):
