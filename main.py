@@ -21,7 +21,7 @@ from luma_core.importlib_compat import ensure_importlib_metadata_compat
 import luma_core.ui as ui
 import luma_core.actions as actions
 import luma_core.usage_tracker as usage_tracker
-from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow
+from luma_core.config import PROJECTS, detect_project_key_for_path, get_status_workflow, CANONICAL_KANBAN_BY_REPO
 from luma_core.doc_updates import pending_doc_update_summary, refresh_pending_doc_updates
 from luma_core.notifier import notify_task_complete
 
@@ -451,11 +451,15 @@ def run_headless(args) -> int:
             except Exception:
                 pass
 
+            # Lookup kanban info from canonical mapping if repo detected
+            kanban_info = CANONICAL_KANBAN_BY_REPO.get(detected_repo, {})
+            
             project = {
                 "name": os.path.basename(project_path) or "Current Project",
                 "path": project_path,
                 "repo": detected_repo,
-                "kanban_number": None 
+                "kanban_number": kanban_info.get("kanban_number"),
+                "kanban_id": kanban_info.get("kanban_id")
             }
         else:
             project = PROJECTS[project_key]
