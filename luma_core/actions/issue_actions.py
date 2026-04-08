@@ -293,7 +293,9 @@ def action_list_active_issues(project: dict):
     """List all active issues (Backlog, Ready, In Progress)"""
     print(f"\n📋 Fetching Active Issues for {project['name']}...")
     workflow = get_status_workflow(project)
-    board_priority = _status_priority(workflow.get("board_order", []))
+    # Use active_sort_order for display order of active issues
+    active_sort_order = workflow.get("active_sort_order", workflow.get("board_order", []))
+    status_priority = _status_priority(active_sort_order)
 
     cards = fetch_kanban_cards(project["kanban_number"])
 
@@ -304,9 +306,9 @@ def action_list_active_issues(project: dict):
     active_statuses = {_status_key(status) for status in workflow.get("active_statuses", [])}
     if active_statuses:
         active_cards = [c for c in cards if _status_key(c.status) in active_statuses]
-        # Sort by board priority then by issue number
+        # Sort by active status priority then by issue number
         active_cards.sort(
-            key=lambda c: (board_priority.get(_status_key(c.status), 999), c.issue_number)
+            key=lambda c: (status_priority.get(_status_key(c.status), 999), c.issue_number)
         )
         for card in active_cards:
             print(f"  #{card.issue_number}: {card.title[:65]} ({card.status})")
