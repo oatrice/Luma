@@ -32,6 +32,86 @@ def get_project_git_info(project_path: str) -> dict:
         return {"hash": "unknown", "date": "unknown"}
 
 
+def repair_invalid_branch(state, project_path: str) -> bool:
+    """
+    Detects if state.active_branch is invalid (e.g., '1', 'True', 'None', 'HEAD')
+    and attempts to repair it by querying git directly.
+    Returns True if repaired or already valid, False if repair failed.
+    """
+    if not state:
+        return False
+
+    val = state.active_branch
+
+    # Strip ANSI escape codes (terminal color/formatting codes like \x1b[31m)
+    # The raw value may have corrupted escape sequences like \x1b\x1b11
+    import re
+    val_str = str(val) if val is not None else ""
+
+    # Strip all ESC characters (\x1b) and CSI sequences (\x9b)
+    cleaned_val = val_str.replace('\x1b', '').replace('\x9b', '')
+    # Also strip any remaining ANSI CSI sequences [0;31m etc
+    ansi_csi = re.compile(r'\[[0-9;]*[mKHJ]')
+    cleaned_val = ansi_csi.sub('', cleaned_val).strip()
+
+    # Aggressive check: if it looks like a number, a boolean, or is too short/reserved
+    # Also check if it's all digits (like '1', '11', '123') which are likely corrupted
+    is_in_invalid_list = cleaned_val in ["1", "0", "True", "False", "None", "", "HEAD"]
+    is_all_digits = cleaned_val.isdigit()  # Catch '1', '11', '123', etc.
+    is_not_string = not isinstance(val, str)
+    is_too_short = len(cleaned_val) < 2
+
+    is_invalid = is_in_invalid_list or is_all_digits or is_not_string or is_too_short
+
+    if not is_invalid:
+        # Also clean the value in state if it had ANSI codes but is otherwise valid
+        if cleaned_val != str(val).strip():
+            state.active_branch = cleaned_val
+        return True
+
+    print(f"🔍 [REPAIR] Invalid branch detected: '{cleaned_val}' (type: {type(val).__name__})")
+    try:
+        import subprocess
+        # Try to get the actual branch name from Git
+        detected = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=project_path,
+            text=True
+        ).strip()
+
+        if detected and detected != "HEAD":
+            print(f"✅ [REPAIR] Fixed: '{cleaned_val}' -> '{detected}'")
+            state.active_branch = detected
+
+            # Notify via Akasa MCP
+            try:
+                from .notifier import notify_task_complete
+                notify_task_complete(
+                    project="Luma System",
+                    task="Branch Repair",
+                    status="success",
+                    message=f"🛠️ Auto-repaired invalid branch state: '{cleaned_val}' -> '{detected}'"
+                )
+            except Exception:
+                pass
+
+            return True
+        else:
+            # Fallback: find the first local branch that isn't main/master/develop
+            print("⚠️ [REPAIR] Git returned 'HEAD'. Searching local branches...")
+            branches = subprocess.check_output(["git", "branch", "--list"], cwd=project_path, text=True)
+            for line in branches.splitlines():
+                br = line.replace("*", "").strip()
+                if br and br not in ["main", "master", "develop"]:
+                    state.active_branch = br
+                    print(f"✅ [REPAIR] Fallback fixed: Use '{br}'")
+                    return True
+    except Exception as e:
+        print(f"❌ [REPAIR] Failed: {e}")
+
+    return False
+
+
 def suggest_version_from_git(target_dir: str = DEFAULT_TARGET_DIR) -> Optional[str]:
     """
     Analyzes git commit messages and diff to suggest the next version.

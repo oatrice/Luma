@@ -45,6 +45,8 @@ class LumaState:
     started_at: Optional[str] = None
     checklist: Dict[str, bool] = field(default_factory=dict)
     context: Dict[str, Any] = field(default_factory=dict)
+    checkpoint_data: Dict[str, Any] = field(default_factory=dict)
+    last_headless_action: Optional[str] = None
     pr_url: Optional[str] = None
     pr_number: Optional[int] = None
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -65,7 +67,7 @@ class LumaState:
 # =============================================================================
 
 VALID_TRANSITIONS = {
-    WorkflowPhase.IDLE: [WorkflowPhase.SELECTING],
+    WorkflowPhase.IDLE: [WorkflowPhase.SELECTING, WorkflowPhase.CODING],
     WorkflowPhase.SELECTING: [WorkflowPhase.IDLE, WorkflowPhase.CODING],
     WorkflowPhase.CODING: [WorkflowPhase.IDLE, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],  # Allow switching issues while coding
     WorkflowPhase.REVIEWING: [WorkflowPhase.PREFLIGHT, WorkflowPhase.CODING],
@@ -75,6 +77,7 @@ VALID_TRANSITIONS = {
 
 TRANSITION_REQUIREMENTS = {
     (WorkflowPhase.SELECTING, WorkflowPhase.CODING): ["active_issues", "active_branch"],
+    (WorkflowPhase.IDLE, WorkflowPhase.CODING): ["active_issues", "active_branch"],
     (WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING): ["pr_url"],
 }
 

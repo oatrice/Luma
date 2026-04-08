@@ -1,9 +1,11 @@
 from .issue_actions import (
+    action_create_issue,
     action_select_issue,
     action_add_issue,
     action_remove_issue,
     action_view_kanban,
-    action_list_active_issues
+    action_list_active_issues,
+    bootstrap_issue
 )
 from .plan_actions import (
     action_refine_issue,
@@ -49,11 +51,13 @@ from luma_core.config import PROJECTS
 from luma_core.issue_metrics import sync_github_metrics_for_project
 
 __all__ = [
+    "action_create_issue",
     "action_select_issue",
     "action_add_issue",
     "action_remove_issue",
     "action_view_kanban",
     "action_list_active_issues",
+    "bootstrap_issue",
     "action_refine_issue",
     "action_generate_sbe",
     "action_generate_draft",

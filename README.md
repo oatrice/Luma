@@ -173,7 +173,7 @@ Successful output is emitted on `stdout` as JSON:
     "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
     "dirty": true,
     "contract_version": "2.0",
-    "supported_actions": ["code_review"],
+    "supported_actions": ["code_review", "guided_workflow", "create_issue", "select_issue"],
     "python_version": "3.9.6"
   }
 }
@@ -231,3 +231,6 @@ Contract guarantees:
 - [x] **Headless CLI Logging**: Action-level logging for headless CLI executions, directing diagnostics to stderr. 🆕
 - [x] **Reviewing Phase**: Dedicated state for AI code review with direct PR creation support. 🆕
 - [x] **Portable dotfiles bootstrap**: Template for creating portable dotfiles with AI integration. 🆕
+- [x] **Expanded Headless Contract**: Support for guided workflow, issue creation, and issue selection. 🆕
+- [x] **Dynamic Project Resolution**: Enhanced project key detection via path logic. 🆕
+- [x] **Auto-Project Integration**: New issues are automatically added to the configured GitHub Project. 🆕

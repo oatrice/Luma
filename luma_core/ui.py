@@ -9,7 +9,12 @@ try:
 except ImportError:
     tty = None
     termios = None
-from simple_term_menu import TerminalMenu
+
+try:
+    from simple_term_menu import TerminalMenu
+except ImportError:
+    TerminalMenu = None
+
 from luma_core.doc_updates import get_pending_doc_updates, pending_doc_update_summary
 from luma_core.state_manager import LumaState, get_phase_display, get_next_step_recommendation
 # Constants
@@ -201,6 +206,11 @@ def select_menu_option(state: LumaState, actions: dict = None, title: str = "�
     if actions is None:
         print("⚠️ No actions provided to menu.")
         return "0"
+
+    # Fallback if dependency is missing (Headless environments)
+    if TerminalMenu is None:
+        display_menu(state, actions)
+        return safe_input(f"\n{title}\n👉 Select: ").strip()
 
     # Prepare menu items
     menu_items = []
