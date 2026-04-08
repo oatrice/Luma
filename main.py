@@ -478,8 +478,8 @@ def run_headless(args) -> int:
         usage_tracker.set_action(action_name)
         usage_tracker.set_context(state, project)
 
-        print(f"DEBUG: Executing action '{action_name}' with project: {project['name']} at {project['path']}")
         with redirect_stdout(sys.stderr):
+            print(f"DEBUG: Executing action '{action_name}' with project: {project['name']} at {project['path']}")
             action_runner = _resolve_headless_action(args, action_name)
             result = action_runner(state, project)
 
