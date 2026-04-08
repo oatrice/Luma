@@ -71,7 +71,7 @@ class TestActionCreateIssue(unittest.TestCase):
         existing_body = "Something interesting.\n\n## Related: #10"
         
         with patch("subprocess.run", return_value=mock_run) as mocked_subprocess:
-            result = action_create_issue(state, project, title="Title", body=existing_body, headless=True)
+            _ = action_create_issue(state, project, title="Title", body=existing_body, headless=True)
             
         args, _ = mocked_subprocess.call_args
         cmd = args[0]

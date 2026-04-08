@@ -5,7 +5,7 @@ import subprocess
 import datetime
 import luma_core.ui as ui
 from luma_core.ui import safe_input
-from luma_core.state_manager import LumaState
+from luma_core.state_manager import LumaState, WorkflowPhase
 from luma_core.config import PROJECTS
 from .utils import (
     get_git_changed_files,
@@ -671,8 +671,6 @@ def action_update_roadmap(state: LumaState, project: dict, headless: bool = Fals
             except json.JSONDecodeError as e:
                 if not headless:
                     print(f"   ⚠️ Failed to parse gh output for issue #{issue_id}: {e}")
-
-        import subprocess
 
         try:
             fallback_cmd = ["gh", "issue", "view", issue_id, "--json", "number,title,state,url"]
