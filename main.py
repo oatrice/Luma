@@ -43,11 +43,6 @@ from luma_core.tools import (
 GLOBAL_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".luma_global.json")
 LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONTRACT_VERSION = "2.0"
-<<<<<<< HEAD
-SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap", "create_issue", "auto_workflow")
-=======
-SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_issue", "create_pr")
->>>>>>> 586cb8c (✨ feat(cross-repo): Add cross-repository issue linking)
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
 
 
