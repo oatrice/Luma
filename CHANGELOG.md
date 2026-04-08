@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.15.0] - 2026-04-08
+
+### Added
+- **Worktree Orchestration:** Implemented a multi-agent worktree orchestration system, enabling Luma to manage and coordinate complex tasks across multiple Git worktrees simultaneously.
+- **Git Detection:** Added automatic GitHub repository and Kanban board detection to improve project mapping and synchronization.
+- **Documentation:** Introduced `WORKTREE_ORCHESTRATION_DESIGN.md` detailing the architectural design for multi-agent workflows.
+
+### Changed
+- **Core:** Enhanced planning and administrative actions to support worktree-aware operations.
+- **Testing:** Added a comprehensive test suite for Git worktree detection and state validation.
+
 ## [1.14.0] - 2026-04-08
 
 ### Added

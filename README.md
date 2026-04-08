@@ -37,10 +37,11 @@ flowchart TB
 
 ### Core Components:
 - **State Manager:** Tracks project status (Idle, Coding, PR Pending) via `.luma_state.json`.
-- **GitHub Project Sync:** Deep integration with GitHub Projects (Kanban).
+- **GitHub Project Sync:** Deep integration with GitHub Projects (Kanban) with automatic repository and Kanban detection. 🆕
 - **Pre-flight Checker:** Enforces definition of done (Tests, Lint, etc.) before PR.
 - **CI Checker:** Runs CI checks (linting, testing) as a background process. 🆕
 - **Project Context:** Provides LLM agents with context from across multiple specified repositories. 🆕
+- **Worktree Orchestrator:** Multi-agent support for Git worktrees, enabling isolated development environments. 🆕
 - **SBE Generator:** AI-powered Specification by Example for pre-coding phase.
 - **Smart Fallback:** Error Classification, Rate Limit circumvention, specific per-model timeouts, and fallback index reset on provider change.
 - **Modular Codebase:** Clean separation of concerns (`ui.py`, `actions/`, `config.py`).
@@ -234,3 +235,5 @@ Contract guarantees:
 - [x] **Expanded Headless Contract**: Support for guided workflow, issue creation, and issue selection. 🆕
 - [x] **Dynamic Project Resolution**: Enhanced project key detection via path logic. 🆕
 - [x] **Auto-Project Integration**: New issues are automatically added to the configured GitHub Project. 🆕
+- [x] **Worktree Orchestration**: Multi-agent support for Git worktrees. 🆕
+- [x] **Automatic Detection**: Automatic GitHub repository and Kanban board discovery. 🆕

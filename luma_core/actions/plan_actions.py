@@ -1,6 +1,7 @@
 import os
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState
+from luma_core.tools import resolve_project_target_dir
 from .utils import (
     generate_draft_code_review
 )
@@ -34,7 +35,7 @@ def action_refine_issue(state: LumaState, project: dict):
             "number": combined_number,
             "body": combined_body,
         },
-        "target_dir": project["path"],
+        "target_dir": resolve_project_target_dir(project["path"]),
         "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 
@@ -83,7 +84,7 @@ def action_generate_sbe(state: LumaState, project: dict):
             "url": getattr(first_issue, "html_url", ""),
             "repository": getattr(first_issue, "repository", ""),
         },
-        "target_dir": project["path"],
+        "target_dir": resolve_project_target_dir(project["path"]),
     }
 
     print("\n🤖 Invoking SBE Agent (Integration -> Spec Agent)...")
@@ -116,7 +117,7 @@ def action_generate_draft(state: LumaState, project: dict):
     print("\n📊 Generating Draft Code Review...")
 
     try:
-        output_path = generate_draft_code_review(project["path"])
+        output_path = generate_draft_code_review(resolve_project_target_dir(project["path"]))
         print(f"\n✅ Draft saved to: {output_path}")
         print("   💡 This file can be used for PR creation and code review.")
         print("   📋 Publisher Agent will automatically use this file if present.")
@@ -167,7 +168,7 @@ def action_generate_spec(state: LumaState, project: dict):
             "url": getattr(first_issue, "html_url", ""),
             "repository": getattr(first_issue, "repository", ""),
         },
-        "target_dir": project["path"],
+        "target_dir": resolve_project_target_dir(project["path"]),
         "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 
@@ -180,7 +181,7 @@ def action_generate_spec(state: LumaState, project: dict):
         print(f"   📂 Feature Directory: {result['feature_dir']}")
 
         # Determine relative path for display
-        os.path.relpath(result["feature_dir"], project["path"])
+        os.path.relpath(result["feature_dir"], resolve_project_target_dir(project["path"]))
         # Store in state for Plan Agent to use immediately
         state.context["last_feature_dir"] = result["feature_dir"]
         print("   💡 Tip: Now you can generate the Plan (Menu Option 'P').")
@@ -202,7 +203,7 @@ def action_generate_plan(state: LumaState, project: dict):
     if not feature_dir:
         # Simple heuristic: Look for valid feature dirs in docs/features
         # and ask user to pick
-        features_root = os.path.join(project["path"], "docs", "features")
+        features_root = os.path.join(resolve_project_target_dir(project["path"]), "docs", "features")
         if not os.path.exists(features_root):
             print("❌ No features directory found.")
             return
@@ -239,8 +240,8 @@ def action_generate_plan(state: LumaState, project: dict):
 
     # Create State
     plan_state = {
-        "feature_dir": feature_dir, 
-        "target_dir": project["path"],
+        "feature_dir": feature_dir,
+        "target_dir": resolve_project_target_dir(project["path"]),
         "target_planning_repos": state.context.get("target_planning_repos", []),
     }
 

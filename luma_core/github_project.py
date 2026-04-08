@@ -180,21 +180,25 @@ def run_gh_graphql(query: str, variables: Dict[str, str] = None) -> Optional[Dic
 # =============================================================================
 
 def fetch_kanban_cards(
-    project_number: int,
+    project_number: Optional[int],
     owner: str = "oatrice",
     status_filter: Optional[str] = None
 ) -> List[KanbanCard]:
     """
     ดึงการ์ดจาก GitHub Project Kanban
-    
+
     Args:
-        project_number: Project number (e.g., 7 for JarWise)
+        project_number: Project number (e.g., 7 for JarWise), or None if not configured
         owner: GitHub username or org
         status_filter: Optional status to filter (e.g., "Ready", "In Progress")
-        
+
     Returns:
         List of KanbanCard objects
     """
+    if project_number is None:
+        print("⚠️  No Kanban project configured for this repository.")
+        return []
+
     args = [
         "project", "item-list", str(project_number),
         "--owner", owner,

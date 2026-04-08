@@ -1,4 +1,4 @@
-name: Add Cerebro Issues To Project 12
+name: Add Cerebro Issues To Project 11
 
 on:
   issues:
@@ -14,4 +14,4 @@ jobs:
         uses: actions/add-to-project@v1.0.2
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
-          project-url: https://github.com/users/oatrice/projects/12
+          project-url: https://github.com/users/oatrice/projects/11
