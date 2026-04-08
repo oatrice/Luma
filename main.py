@@ -681,7 +681,17 @@ def run_interactive(args) -> int:
             current_cwd,
             cli_project_explicit=args.project is not None,
         )
-        project = PROJECTS[project_key]
+        # Handle dynamic project (unknown directory not in PROJECTS)
+        if project_key == "dynamic":
+            project_path = os.path.abspath(args.project) if args.project else current_cwd
+            project = {
+                "name": os.path.basename(project_path) or "Current Project",
+                "path": project_path,
+                "repo": None,
+                "kanban_number": None
+            }
+        else:
+            project = PROJECTS[project_key]
     
     # Save initial mapping if not exists
     if current_cwd not in project_map or project_map[current_cwd] != project_key:
