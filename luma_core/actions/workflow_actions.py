@@ -27,6 +27,7 @@ from .create_issue_action import (
     detect_zenith_issues_from_branch,
     CrossRepoLink,
 )
+from luma_core.tools import resolve_project_target_dir
 import sys
 import os
 import json
@@ -202,10 +203,16 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         # Simple check: Is current branch == active_branch?
         import subprocess
 
+        # Resolve worktree path if running from a git worktree
+        config_path = proj["path"]
+        target_dir = resolve_project_target_dir(config_path)
+        if target_dir != config_path:
+            print(f"   🌿 Worktree detected: Using {target_dir} instead of {config_path}")
+
         try:
             br_res = subprocess.run(
                 ["git", "branch", "--show-current"],
-                cwd=proj["path"],
+                cwd=target_dir,
                 capture_output=True,
                 text=True,
             )
@@ -219,7 +226,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             # Check for commits ahead of main
             commits_res = subprocess.run(
                 ["git", "rev-list", "--count", "origin/main..HEAD"],
-                cwd=proj["path"],
+                cwd=target_dir,
                 capture_output=True,
                 text=True,
             )
@@ -253,7 +260,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                 # 1. Create docs/screenshots/issue-N/ in target repo
                 issue_id = state.active_issue.number
                 target_sc_dir = os.path.join(
-                    proj["path"], "docs", "screenshots", f"issue-{issue_id}"
+                    target_dir, "docs", "screenshots", f"issue-{issue_id}"
                 )
                 os.makedirs(target_sc_dir, exist_ok=True)
 
@@ -292,11 +299,11 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                 # 2. Git Add the screenshots
                 if git_add_files:
                     subprocess.run(
-                        ["git", "add"] + git_add_files, cwd=proj["path"], check=False
+                        ["git", "add"] + git_add_files, cwd=target_dir, check=False
                     )
                     subprocess.run(
                         ["git", "commit", "-m", "docs: add screenshots"],
-                        cwd=proj["path"],
+                        cwd=target_dir,
                         check=False,
                         capture_output=True,
                     )
@@ -311,16 +318,16 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             print("   🔄 Syncing AI Agent Brain Artifacts...")
             brain_session = state.context.get("selected_brain_session")
             synced_docs = AntigravityBrain.sync_to_repo(
-                proj["path"], state.active_issue.number, session_path=brain_session
+                target_dir, state.active_issue.number, session_path=brain_session
             )
 
             if synced_docs:
                 subprocess.run(
-                    ["git", "add"] + synced_docs, cwd=proj["path"], check=False
+                    ["git", "add"] + synced_docs, cwd=target_dir, check=False
                 )
                 subprocess.run(
                     ["git", "commit", "-m", "docs: sync AI brain artifacts"],
-                    cwd=proj["path"],
+                    cwd=target_dir,
                     check=False,
                     capture_output=True,
                 )
@@ -424,7 +431,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             },
             "repo": proj["repo"],
             "issue_source_repo": project["repo"],
-            "target_dir": proj["path"],
+            "target_dir": target_dir,
             "test_suggestions": "",
             "auto_approve": auto_approve,
         }

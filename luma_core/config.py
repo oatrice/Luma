@@ -27,6 +27,26 @@ AGENT_CLI = os.getenv("AGENT_CLI", "gemini_cli")
 FALLBACK_ACTIVE_INDEX = 0
 FALLBACK_LAST_RESET = 0.0
 
+# LLM Timeout and Retry Configuration
+# Scale factor for model timeouts (e.g., 0.5 = half the default timeout)
+_LLM_TIMEOUT_SCALE_STR = os.getenv("LUMA_LLM_TIMEOUT_SCALE", "1.0")
+try:
+    LUMA_LLM_TIMEOUT_SCALE = float(_LLM_TIMEOUT_SCALE_STR)
+    LUMA_LLM_TIMEOUT_SCALE = max(0.1, min(2.0, LUMA_LLM_TIMEOUT_SCALE))
+except ValueError:
+    LUMA_LLM_TIMEOUT_SCALE = 1.0
+
+# Maximum retry attempts per LLM call (default: use credential pool size)
+_MAX_RETRIES_STR = os.getenv("LUMA_MAX_LLM_RETRIES", "")
+try:
+    LUMA_MAX_LLM_RETRIES = int(_MAX_RETRIES_STR) if _MAX_RETRIES_STR.strip() else None
+except ValueError:
+    LUMA_MAX_LLM_RETRIES = None
+
+# Export prompts mode - saves prompts to files instead of calling LLM
+_LUMA_EXPORT_PROMPTS = os.getenv("LUMA_EXPORT_PROMPTS", "").lower()
+LUMA_EXPORT_PROMPTS = _LUMA_EXPORT_PROMPTS in ("true", "1", "yes", "on")
+
 # Gemini CLI Model Selection
 AVAILABLE_GEMINI_CLI_MODELS = [
     "gemini-3-flash-preview",
