@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.16.0] - 2026-04-09
+
+### Changed
+- **Core:** Improved path resolution logic for Git worktrees, enhancing reliability when operating within multiple worktrees.
+
+### Removed
+- **Code Review:** Discontinued the automatic creation of temporary code review prompt text files.
+
 ## [1.15.0] - 2026-04-08
 
 ### Added
