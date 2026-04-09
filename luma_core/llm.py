@@ -12,14 +12,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import Field
 
-from . import config
-from . import usage_tracker
-from .error_classifier import classify_error, ErrorType, is_retryable
-from .credential_manager import (
-    CredentialManager,
-    CredentialType,
-    AllCredentialsExhaustedError,
-)
+from luma_core import config
+from luma_core import usage_tracker
+from luma_core.credential_manager import CredentialManager, AllCredentialsExhaustedError, CredentialType
+from luma_core.error_classifier import classify_error, ErrorType, is_retryable
+
+# Import new timeout/retry configuration
+LUMA_LLM_TIMEOUT_SCALE = getattr(config, "LUMA_LLM_TIMEOUT_SCALE", 1.0)
+LUMA_MAX_LLM_RETRIES = getattr(config, "LUMA_MAX_LLM_RETRIES", None)
+LUMA_EXPORT_PROMPTS = getattr(config, "LUMA_EXPORT_PROMPTS", False)
 
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
@@ -149,12 +150,18 @@ class GeminiCLIModel(BaseChatModel):
         # ──────────────────────────────────────────────────────────────────────
 
         num_creds = len(cred_manager.pool) if cred_manager else 1
-        max_retries = max(2, num_creds)
+        # Respect LUMA_MAX_LLM_RETRIES if set, otherwise use credential pool size
+        if LUMA_MAX_LLM_RETRIES is not None:
+            max_retries = max(1, LUMA_MAX_LLM_RETRIES)
+        else:
+            max_retries = max(2, num_creds)
 
         process: Optional[subprocess.Popen] = None
         output: str = "Error: No attempts were made."
         for attempt in range(max_retries):
-            model_timeout = MODEL_TIMEOUTS.get(self.model, 120)
+            base_timeout = MODEL_TIMEOUTS.get(self.model, 120)
+            # Apply timeout scale with minimum of 10 seconds
+            model_timeout = max(10, int(base_timeout * LUMA_LLM_TIMEOUT_SCALE))
             try:
                 subprocess_env = dict(os.environ)
                 # ── Build env with active credential ────────────────────────
@@ -586,6 +593,15 @@ def get_llm(temperature=0.7, purpose="general"):
     if not models:
         raise ValueError("No valid LLM providers could be initialized.")
 
+    # If export mode is enabled, wrap the primary model with PromptExportModel
+    if LUMA_EXPORT_PROMPTS:
+        wrapped_model_name = getattr(models[0], "model", None)
+        if wrapped_model_name:
+            wrapped_model_name = getattr(wrapped_model_name, "model", "unknown")
+        else:
+            wrapped_model_name = getattr(models[0], "model", "unknown")
+        return PromptExportModel(wrapped_model_name=wrapped_model_name or "unknown")
+
     if len(models) > 1:
         return FallbackModel(models=models)
 
@@ -677,3 +693,77 @@ class TrackedModel(BaseChatModel):
                 call_id=call_id, chain_index=0, chain_length=1,
             )
             raise
+
+
+class PromptExportModel(BaseChatModel):
+    """Exports prompts to .md files instead of calling LLM.
+
+    Useful when LLM calls are timing out - export prompts, use external AI,
+    then paste responses back.
+    """
+
+    wrapped_model_name: str = Field(default="unknown")
+    export_dir: str = Field(default=".luma/prompts")
+
+    @property
+    def _llm_type(self) -> str:
+        return f"prompt-export:{self.wrapped_model_name}"
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Export prompt to file and return placeholder response."""
+        # Flatten messages to prompt text
+        prompt_text = _flatten_messages_to_prompt(messages)
+
+        # Create export directory
+        export_path = os.path.join(os.getcwd(), self.export_dir)
+        os.makedirs(export_path, exist_ok=True)
+
+        # Generate unique filename with timestamp
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        short_id = uuid.uuid4().hex[:8]
+        filename = f"prompt_{timestamp}_{short_id}.md"
+        filepath = os.path.join(export_path, filename)
+
+        # Write prompt to markdown file
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("# Prompt Export\n\n")
+            f.write(f"**Model**: {self.wrapped_model_name}\n\n")
+            f.write(f"**Timestamp**: {datetime.now(timezone.utc).isoformat()}\n\n")
+            f.write("---\n\n")
+            f.write(prompt_text)
+            f.write("\n\n---\n\n")
+            f.write("# Instructions\n\n")
+            f.write("1. Copy the prompt above and use it with your external AI\n")
+            f.write(f"2. Paste the AI's response into a new file: `{filepath}.response.md`\n")
+            f.write("3. Re-run Luma to load the response automatically\n")
+
+        # Check if response file exists
+        response_filepath = f"{filepath}.response.md"
+        if os.path.exists(response_filepath):
+            with open(response_filepath, "r", encoding="utf-8") as f:
+                response_content = f.read().strip()
+            print(f"📥 Loaded response from {response_filepath}")
+            # Clean up response file after reading
+            try:
+                os.remove(response_filepath)
+            except OSError:
+                pass
+            message = AIMessage(content=response_content)
+        else:
+            print(f"💾 [PROMPT EXPORTED] Prompt saved to: {filepath}")
+            print(f"   Use external AI with this prompt, then paste response to: {response_filepath}")
+            placeholder = (
+                f"[PROMPT EXPORTED] Your prompt was saved to: {filepath}\n\n"
+                f"Paste the AI response into: {response_filepath}\n"
+                f"Then re-run to load the response."
+            )
+            message = AIMessage(content=placeholder)
+
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
