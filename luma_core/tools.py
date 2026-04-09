@@ -706,28 +706,33 @@ def generate_test_suggestions(target_dir: str = DEFAULT_TARGET_DIR):
 def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_lines: int = 500) -> str:
     """
     Generate a draft_code_review.md file with full context for PR/review.
-    
+
     Creates a reusable markdown file containing:
     - Commit history
     - File stats
     - Full diff (truncated to max_diff_lines)
     - Line of code changes summary
-    
+
     This file can be used by:
     - Publisher Agent for PR body
     - Code Review Agent
     - External tools/AI assistants
-    
+
     Args:
-        target_dir: Project directory
+        target_dir: Project directory (will be resolved for worktree)
         max_diff_lines: Maximum lines of diff to include
-        
+
     Returns:
         Path to the generated draft_code_review.md file
     """
     import datetime
-    
-    output_path = os.path.join(target_dir, "draft_code_review.md")
+
+    # Resolve worktree path if running from a git worktree
+    resolved_dir = resolve_project_target_dir(target_dir)
+    if resolved_dir != target_dir:
+        print(f"   🌿 Worktree detected: Using {resolved_dir} instead of {target_dir}")
+
+    output_path = os.path.join(resolved_dir, "draft_code_review.md")
     
     print("📊 Generating Draft Code Review...")
     
@@ -735,59 +740,59 @@ def generate_draft_code_review(target_dir: str = DEFAULT_TARGET_DIR, max_diff_li
     try:
         branch_res = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=target_dir, capture_output=True, text=True
+            cwd=resolved_dir, capture_output=True, text=True
         )
         current_branch = branch_res.stdout.strip() or "unknown"
     except Exception:
         current_branch = "unknown"
-    
+
     # 2. Get base branch (main or master)
     base_branch = "main"
     try:
         check_main = subprocess.run(
             ["git", "rev-parse", "--verify", "origin/main"],
-            cwd=target_dir, capture_output=True, text=True
+            cwd=resolved_dir, capture_output=True, text=True
         )
         if check_main.returncode != 0:
             base_branch = "master"
     except Exception:
         pass
-    
+
     # 3. Commit log
     try:
         commits_res = subprocess.run(
             ["git", "log", f"origin/{base_branch}..HEAD", "--oneline", "--no-merges"],
-            cwd=target_dir, capture_output=True, text=True
+            cwd=resolved_dir, capture_output=True, text=True
         )
         commits = commits_res.stdout.strip() or "No commits yet"
     except Exception:
         commits = "Failed to get commits"
-    
+
     # 4. Diff stats (--stat)
     try:
         stat_res = subprocess.run(
             ["git", "diff", "--stat", f"origin/{base_branch}..HEAD"],
-            cwd=target_dir, capture_output=True, text=True
+            cwd=resolved_dir, capture_output=True, text=True
         )
         diff_stat = stat_res.stdout.strip() or "No changes"
     except Exception:
         diff_stat = "Failed to get stats"
-    
+
     # 5. Line changes summary (insertions/deletions)
     try:
         shortstat_res = subprocess.run(
             ["git", "diff", "--shortstat", f"origin/{base_branch}..HEAD"],
-            cwd=target_dir, capture_output=True, text=True
+            cwd=resolved_dir, capture_output=True, text=True
         )
         line_changes = shortstat_res.stdout.strip() or "No line changes"
     except Exception:
         line_changes = "Failed to get line counts"
-    
+
     # 6. Full diff (truncated)
     try:
         diff_res = subprocess.run(
             ["git", "diff", f"origin/{base_branch}..HEAD"],
-            cwd=target_dir, capture_output=True, text=True
+            cwd=resolved_dir, capture_output=True, text=True
         )
         full_diff = diff_res.stdout
         
