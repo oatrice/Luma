@@ -7,6 +7,7 @@ import luma_core.ui as ui
 from luma_core.ui import safe_input
 from luma_core.state_manager import LumaState, WorkflowPhase
 from luma_core.config import PROJECTS
+from luma_core.tools import resolve_project_target_dir
 from .utils import (
     get_git_changed_files,
     _build_code_review_followup_prompt,
@@ -130,9 +131,13 @@ def action_code_review(state: LumaState, project: dict, headless: bool = False):
 
     for proj in target_projects:
         print(f"\n🚀 Reviewing {proj['name']}...")
-        target_dir = proj["path"]
+        # Resolve worktree path if running from a git worktree
+        config_path = proj["path"]
+        target_dir = resolve_project_target_dir(config_path)
+        if target_dir != config_path:
+            print(f"   🌿 Worktree detected: Using {target_dir} instead of {config_path}")
         repo_result = {
-            "name": proj["name"],
+            "name": proj['name'],
             "path": target_dir,
             "changed_files": [],
         }
@@ -264,15 +269,6 @@ def action_code_review(state: LumaState, project: dict, headless: bool = False):
             print("=" * 60)
             print(prompt_text)
             print("=" * 60)
-
-            prompt_path = os.path.join(target_dir, "code_review_prompt.txt")
-            try:
-                with open(prompt_path, "w", encoding="utf-8") as f:
-                    f.write(prompt_text)
-                print(f"\n   📝 Prompt saved to: {prompt_path}")
-                repo_result["prompt_path"] = prompt_path
-            except Exception as e:
-                print(f"\n   ⚠️ Failed to save prompt: {e}")
 
             print("\n" + "🧪" * 10 + " ต้อง RE-MANUAL VERIFY อย่างไร " + "🧪" * 10)
             review_results.append(repo_result)
