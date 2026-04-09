@@ -111,7 +111,7 @@ class TestPromptExportMode:
 
         with patch("luma_core.config.LLM_PROVIDER", "gemini-cli"):
             with patch("luma_core.llm.LUMA_EXPORT_PROMPTS", True):
-                llm = get_llm()
+                get_llm()
 
         mock_export_class.assert_called_once()
 
@@ -124,7 +124,7 @@ class TestPromptExportMode:
                 model = PromptExportModel(wrapped_model_name="gemini-2.5-pro")
                 messages = [HumanMessage(content="Test prompt content")]
 
-                result = model.invoke(messages)
+                model.invoke(messages)
 
                 # Check that a .md file was created in the prompts directory
                 prompts_dir = os.path.join(tmpdir, ".luma/prompts")
