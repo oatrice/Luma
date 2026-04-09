@@ -24,6 +24,10 @@
 | `resolve_project_target_dir()` | Function ที่ตรวจสอบว่าอยู่ใน worktree หรือไม่ และคืนค่า path ที่ถูกต้อง |
 | `target_dir` | Path ที่ใช้จริงหลังจาก resolve worktree |
 | `is_retryable` | Function ที่ตรวจสอบว่า error type ควร retry หรือไม่ |
+| `LUMA_LLM_TIMEOUT_SCALE` | Environment variable สำหรับปรับ timeout (เช่น 0.5 = ครึ่งเวลา) |
+| `LUMA_MAX_LLM_RETRIES` | Environment variable สำหรับจำกัดจำนวน retry |
+| `LUMA_EXPORT_PROMPTS` | Environment variable สำหรับเปิด prompt export mode |
+| `PromptExportModel` | Class ที่บันทึก prompt เป็นไฟล์ .md แทนการเรียก LLM |
 
 ---
 
@@ -37,6 +41,15 @@
 
 ### BR-59-1: Import Completeness
 > ทุก function ที่ถูกใช้ใน module ต้องถูก import อย่างถูกต้อง
+
+### BR-59-2: Configurable LLM Timeout
+> Timeout ของ LLM calls ต้องสามารถปรับได้ผ่าน `LUMA_LLM_TIMEOUT_SCALE` โดยมี minimum 10 วินาที
+
+### BR-59-3: Configurable LLM Retries
+> จำนวน retry attempts ต้องสามารถจำกัดได้ผ่าน `LUMA_MAX_LLM_RETRIES`
+
+### BR-59-4: Prompt Export Mode
+> เมื่อเปิด `LUMA_EXPORT_PROMPTS` ระบบต้องบันทึก prompt เป็นไฟล์ .md และ load response จาก `.response.md` เมื่อมีไฟล์นั้นอยู่
 
 ---
 
@@ -99,6 +112,10 @@ Then ระบบต้องเรียกใช้ `is_retryable()` ได้
 | AC-58-2 | PR ถูกสร้างจาก worktree ไม่ใช่ main repo | ✅ Pass |
 | AC-58-3 | Git operations ทั้งหมดทำงานบน worktree path | ✅ Pass |
 | AC-59-1 | ไม่มี NameError 'is_retryable' เมื่อ LLM fallback | ✅ Pass |
+| AC-59-2 | `LUMA_LLM_TIMEOUT_SCALE` ปรับ timeout ได้ถูกต้อง (min 10s) | ✅ Pass |
+| AC-59-3 | `LUMA_MAX_LLM_RETRIES` จำกัด retry ได้ถูกต้อง | ✅ Pass |
+| AC-59-4 | `LUMA_EXPORT_PROMPTS` บันทึก prompt เป็นไฟล์ .md | ✅ Pass |
+| AC-59-5 | `PromptExportModel` load response จาก `.response.md` ได้ถูกต้อง | ✅ Pass |
 
 ---
 

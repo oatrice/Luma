@@ -8,13 +8,13 @@
 
 | รายการ | รายละเอียด |
 |--------|-----------|
-| **Feature Name** | Fix workflow_actions.py PR path issue & Add LLM timeout controls and prompt export mode |
+| **Feature Name** | Fix workflow_actions.py PR path issue & Add LLM timeout controls and prompt export mode (Issue #58, #59) |
 | **Date** | April 9, 2026 |
 | **Analyst** | Senior Technical Analyst |
 | **Priority** | 🔴 High |
 | **Status** | ✅ Complete |
 | **Issue Number** | 58-59 |
-| **Issue URL** | N/A |
+| **Issue URL** | https://github.com/oatrice/Luma/issues/58, https://github.com/oatrice/Luma/issues/59 |
 
 ---
 
@@ -269,8 +269,12 @@ No changes are proposed to the existing authentication or authorization mechanis
 ### 9.2 Implementation Notes
 
 1.  **Issue #58 Fix**: แก้ไข `workflow_actions.py` ให้ใช้ `resolve_project_target_dir()` เหมือนกับ `quality_actions.py` ที่แก้ไขใน Issue #56 ก่อนหน้านี้
-2.  **Issue #59 Fix**: เพิ่ม missing import `is_retryable` ใน `llm.py` ที่ถูกใช้ใน fallback model chain แต่ไม่ได้ import
-3.  **Testing**: แนะนำให้รันทดสอบ PR creation จาก worktree เพื่อยืนยันว่าแก้ไขทำงานถูกต้อง
+2.  **Issue #59 - Part 1**: เพิ่ม missing import `is_retryable` และ `CredentialType` ใน `llm.py` ที่ถูกใช้ใน fallback model chain
+3.  **Issue #59 - Part 2**: Implement ฟีเจอร์ LLM timeout controls:
+    - `LUMA_LLM_TIMEOUT_SCALE`: ปรับ timeout ตาม model (min 10s)
+    - `LUMA_MAX_LLM_RETRIES`: จำกัดจำนวน retry attempts
+    - `LUMA_EXPORT_PROMPTS`: Export prompt เป็นไฟล์ .md แทนการเรียก LLM
+4.  **Testing**: เพิ่ม `tests/test_llm_timeout_config.py` กับ 10 test cases สำหรับฟีเจอร์ใหม่ทั้งหมด
 
 ### 9.3 Next Steps
 
