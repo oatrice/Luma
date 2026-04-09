@@ -745,7 +745,7 @@ def action_guided_workflow(state: LumaState, project: dict, headless: bool = Fal
         save_state(state, project["path"])
     
         if not headless:
-            print("\n   " + "🛠️" * 5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️" * 5)
+            print("\n   " + "🛠️" * 5 + " ต้อง Manual verify step, scenario อย่างไรบ้าง แต่ละตอบโจทย์ issue ไหนบ้าง " + "🛠️" * 5)
 
     _emit_headless_state("step_3_coding")
 

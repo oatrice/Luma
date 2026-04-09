@@ -3135,7 +3135,7 @@ def action_guided_workflow(state: LumaState, project: dict):
         print("\n⏳ Pausing workflow. Come back when you're done!")
         return
 
-    print("\n   " + "🛠️" * 5 + " ต้อง Manual verify อย่างไรบ้าง " + "🛠️" * 5)
+    print("\n   " + "🛠️" * 5 + " ต้อง Manual verify step, scenario อย่างไรบ้าง แต่ละตอบโจทย์ issue ไหนบ้าง " + "🛠️" * 5)
 
     # 4. Review & Docs & Roadmap
     print("\n🔹 Step 4: Quality, Documentation & Roadmap")
