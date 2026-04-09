@@ -296,15 +296,39 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         )
         suggestions = [f"feat/{issue_nums}-{slug}"]
 
+    # Get current branch for option 0
+    import subprocess
+    current_branch = ""
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=project["path"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            current_branch = result.stdout.strip()
+    except Exception:
+        pass
+
     print("\n🌿 Suggested branches:")
+    print("  [0] 🔀 ใช้ branch ปัจจุบัน" + (f" ({current_branch})" if current_branch else ""))
     for i, name in enumerate(suggestions, 1):
         print(f"  [{i}] {name}")
 
-    choice = ui.safe_input("Select [1-3] or type custom name: ").strip()
+    choice = ui.safe_input("Select [0-3] or type custom name: ").strip()
 
+    use_current_branch = False
     branch_name = suggestions[0]  # Default
 
-    if choice.isdigit():
+    if choice == "0":
+        # Use current branch
+        if current_branch:
+            branch_name = current_branch
+            use_current_branch = True
+        else:
+            print("⚠️ Cannot detect current branch, using default suggestion.")
+    elif choice.isdigit():
         idx = int(choice) - 1
         if 0 <= idx < len(suggestions):
             branch_name = suggestions[idx]
@@ -330,66 +354,67 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             print(f"   🎯 #{c.issue_number}: {c.title[:50]}")
         print(f"🌿 Branch: {branch_name}")
 
-        # Actually create the branch in Git
-        import subprocess
-
-        try:
-            print("🔄 Creating git branch...")
-            result = subprocess.run(
-                ["git", "checkout", "-b", branch_name],
-                cwd=project["path"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                print(f"✅ Branch '{branch_name}' created and checked out.")
-            else:
-                switch_result = subprocess.run(
-                    ["git", "checkout", branch_name],
+        # Actually create the branch in Git (skip if using current branch)
+        if use_current_branch:
+            print(f"✅ Using current branch '{branch_name}' (no branch switch needed).")
+        else:
+            try:
+                print("🔄 Creating git branch...")
+                result = subprocess.run(
+                    ["git", "checkout", "-b", branch_name],
                     cwd=project["path"],
                     capture_output=True,
                     text=True,
                 )
-                if switch_result.returncode == 0:
-                    print(f"✅ Switched to existing branch '{branch_name}'.")
+                if result.returncode == 0:
+                    print(f"✅ Branch '{branch_name}' created and checked out.")
                 else:
-                    print(f"⚠️ Git error: {result.stderr.strip()}")
+                    switch_result = subprocess.run(
+                        ["git", "checkout", branch_name],
+                        cwd=project["path"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if switch_result.returncode == 0:
+                        print(f"✅ Switched to existing branch '{branch_name}'.")
+                    else:
+                        print(f"⚠️ Git error: {result.stderr.strip()}")
 
-            # Create branches in sibling repos
-            if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
-                from luma_core.config import PROJECTS
-                import os
+                # Create branches in sibling repos
+                if project.get("type") == "monorepo_root" and project.get("sibling_repos"):
+                    from luma_core.config import PROJECTS
+                    import os
 
-                print("\n🔄 Creating branches in sibling repos...")
-                for sibling_key in project.get("sibling_repos", []):
-                    sibling = PROJECTS.get(sibling_key)
-                    if sibling and os.path.exists(sibling["path"]):
-                        sib_result = subprocess.run(
-                            ["git", "checkout", "-b", branch_name],
-                            cwd=sibling["path"],
-                            capture_output=True,
-                            text=True,
-                        )
-                        if sib_result.returncode == 0:
-                            print(f"   ✅ {sibling['name']}: Branch created")
-                        else:
-                            switch_sib = subprocess.run(
-                                ["git", "checkout", branch_name],
+                    print("\n🔄 Creating branches in sibling repos...")
+                    for sibling_key in project.get("sibling_repos", []):
+                        sibling = PROJECTS.get(sibling_key)
+                        if sibling and os.path.exists(sibling["path"]):
+                            sib_result = subprocess.run(
+                                ["git", "checkout", "-b", branch_name],
                                 cwd=sibling["path"],
                                 capture_output=True,
                                 text=True,
                             )
-                            if switch_sib.returncode == 0:
-                                print(
-                                    f"   ✅ {sibling['name']}: Switched to existing branch"
-                                )
+                            if sib_result.returncode == 0:
+                                print(f"   ✅ {sibling['name']}: Branch created")
                             else:
-                                print(
-                                    f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}"
+                                switch_sib = subprocess.run(
+                                    ["git", "checkout", branch_name],
+                                    cwd=sibling["path"],
+                                    capture_output=True,
+                                    text=True,
                                 )
+                                if switch_sib.returncode == 0:
+                                    print(
+                                        f"   ✅ {sibling['name']}: Switched to existing branch"
+                                    )
+                                else:
+                                    print(
+                                        f"   ⚠️ {sibling['name']}: {sib_result.stderr.strip()}"
+                                    )
 
-        except Exception as e:
-            print(f"⚠️ Failed to create branch: {e}")
+            except Exception as e:
+                print(f"⚠️ Failed to create branch: {e}")
 
         # Sync Kanban for all issues
         for i, card in enumerate(cards):

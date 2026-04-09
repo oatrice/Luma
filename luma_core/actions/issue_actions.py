@@ -21,8 +21,13 @@ from .create_issue_action import (
     detect_zenith_issues_from_branch,
 )
 
-def action_create_issue(state: LumaState, project: dict, title: str = None, body: str = None, headless: bool = False) -> dict:
+def action_create_issue(state: LumaState, project: dict, title: str = None, body: str = None, headless: bool = False, headless_args: dict = None) -> dict:
     """Create a new GitHub issue (First-class action)"""
+    # Handle headless_args if provided
+    if headless_args:
+        title = title or headless_args.get("title", "")
+        body = body or headless_args.get("body", "")
+
     if not headless:
         print("\n➕ Create New GitHub Issue")
         if not title:
