@@ -115,8 +115,7 @@ class TestPromptExportMode:
 
         mock_export_class.assert_called_once()
 
-    @patch("os.makedirs")
-    def test_prompt_export_model_saves_to_file(self, mock_makedirs):
+    def test_prompt_export_model_saves_to_file(self):
         """PromptExportModel should save prompt to .luma/prompts/ directory."""
         from luma_core.llm import PromptExportModel
 
@@ -127,8 +126,6 @@ class TestPromptExportMode:
 
                 result = model.invoke(messages)
 
-                # Should create directory
-                mock_makedirs.assert_called_once()
                 # Check that a .md file was created in the prompts directory
                 prompts_dir = os.path.join(tmpdir, ".luma/prompts")
                 assert os.path.exists(prompts_dir)

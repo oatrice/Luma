@@ -14,8 +14,8 @@ from pydantic import Field
 
 from luma_core import config
 from luma_core import usage_tracker
-from luma_core.credential_manager import CredentialManager, AllCredentialsExhaustedError
-from luma_core.error_classifier import classify_error, ErrorType
+from luma_core.credential_manager import CredentialManager, AllCredentialsExhaustedError, CredentialType
+from luma_core.error_classifier import classify_error, ErrorType, is_retryable
 
 # Import new timeout/retry configuration
 LUMA_LLM_TIMEOUT_SCALE = getattr(config, "LUMA_LLM_TIMEOUT_SCALE", 1.0)
