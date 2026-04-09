@@ -732,16 +732,16 @@ class PromptExportModel(BaseChatModel):
 
         # Write prompt to markdown file
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(f"# Prompt Export\n\n")
+            f.write("# Prompt Export\n\n")
             f.write(f"**Model**: {self.wrapped_model_name}\n\n")
             f.write(f"**Timestamp**: {datetime.now(timezone.utc).isoformat()}\n\n")
-            f.write(f"---\n\n")
+            f.write("---\n\n")
             f.write(prompt_text)
-            f.write(f"\n\n---\n\n")
-            f.write(f"# Instructions\n\n")
-            f.write(f"1. Copy the prompt above and use it with your external AI\n")
+            f.write("\n\n---\n\n")
+            f.write("# Instructions\n\n")
+            f.write("1. Copy the prompt above and use it with your external AI\n")
             f.write(f"2. Paste the AI's response into a new file: `{filepath}.response.md`\n")
-            f.write(f"3. Re-run Luma to load the response automatically\n")
+            f.write("3. Re-run Luma to load the response automatically\n")
 
         # Check if response file exists
         response_filepath = f"{filepath}.response.md"

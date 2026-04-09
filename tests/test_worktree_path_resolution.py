@@ -137,7 +137,7 @@ class TestIsGitWorktree:
                 result = is_git_worktree(worktree_path)
                 worktree_root = get_git_worktree_path(worktree_path)
                 # Either is_git_worktree returns True OR get_git_worktree_path returns a path
-                assert result is True or worktree_root is not None, f"Expected worktree detection to work"
+                assert result is True or worktree_root is not None, "Expected worktree detection to work"
             finally:
                 # Cleanup
                 subprocess.run(["git", "worktree", "remove", "-f", worktree_path], cwd=main_repo, capture_output=True)
