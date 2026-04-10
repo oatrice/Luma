@@ -33,11 +33,16 @@ def _card(number, title, status="Ready", url=None):
     )
 
 
-def test_new_issue_not_in_roadmap_is_appended(tmp_path):
+def test_new_issue_not_in_roadmap_is_appended(tmp_path, monkeypatch):
     """🟥 RED → OPEN issue not in Roadmap.md should be appended"""
     project, roadmap_path = _make_project(
         tmp_path,
         "# Roadmap\n\n## Current\n\n- Existing item\n",
+    )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
     )
 
     cards = [_card(55, "Brand New Feature", status="Ready")]
@@ -68,11 +73,16 @@ def test_existing_issue_in_roadmap_is_skipped(tmp_path):
     assert roadmap_path.read_text(encoding="utf-8") == original
 
 
-def test_multiple_new_issues_all_appended(tmp_path):
+def test_multiple_new_issues_all_appended(tmp_path, monkeypatch):
     """🟥 RED → Multiple new issues should all be appended"""
     project, roadmap_path = _make_project(
         tmp_path,
         "# Roadmap\n\n## Current\n",
+    )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
     )
 
     cards = [
@@ -87,7 +97,7 @@ def test_multiple_new_issues_all_appended(tmp_path):
     assert "### Issue #101 - Feature Beta" in updated
 
 
-def test_mixed_existing_and_new(tmp_path):
+def test_mixed_existing_and_new(tmp_path, monkeypatch):
     """🟥 RED → Only NEW issues are appended, existing ones skipped"""
     project, roadmap_path = _make_project(
         tmp_path,
@@ -96,6 +106,11 @@ def test_mixed_existing_and_new(tmp_path):
             "### Issue #20 - Old feature\n"
             "- **Status:** 🟡 **In Progress**\n"
         ),
+    )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
     )
 
     cards = [

@@ -186,10 +186,11 @@ class TestResolveProjectTargetDir:
         current_dir = "/current/working/dir"
 
         with patch("os.getcwd", return_value=current_dir):
-            with patch("luma_core.tools.is_git_worktree") as mock_is_worktree:
-                mock_is_worktree.return_value = False
-                resolve_project_target_dir(project_path)
-                mock_is_worktree.assert_called_once_with(current_dir)
+            with patch("luma_core.tools.get_git_toplevel_path") as mock_get_toplevel:
+                mock_get_toplevel.return_value = None  # Not in a git repo
+                result = resolve_project_target_dir(project_path)
+                mock_get_toplevel.assert_called_once_with(current_dir)
+                assert result == project_path
 
 
 class TestIntegrationWithPlanActions:
