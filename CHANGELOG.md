@@ -305,7 +305,7 @@
 - **[Changelog Automation]** Auto-generate changelog entries from commits
 - **[Documentation Review]** Automated documentation reviewer agent
 
-## [0.1.0] - 2025-12
+## [0.0.1] - 2025-12
 
 ### Added
 - **[Core]** Initial multi-agent system with Coder, Reviewer, Tester, and Publisher agents
