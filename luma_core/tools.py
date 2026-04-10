@@ -81,13 +81,49 @@ def is_git_worktree(cwd: str = None) -> bool:
         return False
 
 
+def get_main_repo_name_from_worktree(cwd: str = None) -> Optional[str]:
+    """
+    Get the original repository name when inside a git worktree.
+
+    Returns the folder name of the main repository (first worktree entry),
+    or None if not in a worktree or if detection fails.
+
+    Example:
+        - Worktree path: /Users/oatrice/Software-projects/Luma-worktrees/luma1
+        - Main repo path: /Users/oatrice/Software-projects/Luma
+        - Returns: "Luma"
+    """
+    import subprocess
+    work_dir = cwd or os.getcwd()
+
+    # Check if we're in a worktree first
+    if not is_git_worktree(work_dir):
+        return None
+
+    try:
+        # Get the main worktree path (first entry in git worktree list)
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=work_dir, capture_output=True, text=True, check=True
+        )
+        # Parse the first "worktree <path>" line
+        for line in result.stdout.strip().split("\n"):
+            if line.startswith("worktree "):
+                main_path = line.replace("worktree ", "").strip()
+                # Get the folder name (last part of path)
+                return os.path.basename(main_path)
+    except Exception:
+        pass
+    return None
+
+
 def resolve_project_target_dir(project_path: str, cwd: str = None) -> str:
     """
     Resolves the effective target directory for operations, prioritizing the active Git repository root.
 
     If the current working directory (or provided `cwd`) is within a Git repository
     (either a main repository or a worktree), this function returns the toplevel
-    path of that active Git context.
+    path of the active Git context.
 
     If not within a Git repository, it falls back to the provided `project_path`.
 
