@@ -3,7 +3,7 @@ from unittest.mock import patch, mock_open
 from luma_core.actions import action_settings
 
 @patch("luma_core.config.save_fallback_index")
-@patch("luma_core.ui.safe_input", side_effect=["1", "2", "5"]) # 1: Change LLM, 2: OpenRouter, 5: Back
+@patch("luma_core.actions.admin_actions.safe_input", side_effect=["1", "2", "5"]) # 1: Change LLM, 2: OpenRouter, 5: Back
 @patch("builtins.print")
 def test_action_settings_change_llm_provider(mock_print, mock_safe_input, mock_save_fallback_index):
     mock_file_content = "{}"
@@ -17,7 +17,7 @@ def test_action_settings_change_llm_provider(mock_print, mock_safe_input, mock_s
             saved_config = json.loads(written_data)
             assert saved_config["LLM_PROVIDER"] == "openrouter"
 
-@patch("luma_core.ui.safe_input", side_effect=["2", "1", "5"]) # 2: Change CLI, 1: Gemini CLI, 5: Back
+@patch("luma_core.actions.admin_actions.safe_input", side_effect=["2", "1", "5"]) # 2: Change CLI, 1: Gemini CLI, 5: Back
 @patch("builtins.print")
 def test_action_settings_change_agent_cli(mock_print, mock_safe_input):
     mock_file_content = "{}"
@@ -32,7 +32,7 @@ def test_action_settings_change_agent_cli(mock_print, mock_safe_input):
 
 
 @patch("luma_core.config.save_fallback_index")
-@patch("luma_core.ui.safe_input", side_effect=["1", "4", "5"])  # 1: Change LLM, 4: Codex CLI, 5: Back
+@patch("luma_core.actions.admin_actions.safe_input", side_effect=["1", "4", "5"])  # 1: Change LLM, 4: Codex CLI, 5: Back
 @patch("builtins.print")
 def test_action_settings_change_llm_provider_to_codex_cli(
     mock_print,
@@ -52,7 +52,7 @@ def test_action_settings_change_llm_provider_to_codex_cli(
 
 @patch("os.getcwd", return_value="/tmp/zenith")
 @patch("luma_core.config.save_fallback_index")
-@patch("luma_core.ui.safe_input", side_effect=["1", "4", "5"])  # 1: Change LLM, 4: Codex CLI, 5: Back
+@patch("luma_core.actions.admin_actions.safe_input", side_effect=["1", "4", "5"])  # 1: Change LLM, 4: Codex CLI, 5: Back
 @patch("builtins.print")
 def test_action_settings_resets_fallback_index_when_llm_provider_changes(
     mock_print,
