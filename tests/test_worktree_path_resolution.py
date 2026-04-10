@@ -96,9 +96,11 @@ class TestWorktreePathResolution:
             subprocess.run(["git", "init"], cwd=main_repo, capture_output=True)
 
             # Test: When not in worktree, should return original project path
+            # Use realpath to handle macOS /private/var vs /var symlink
+            import os
             with patch("os.getcwd", return_value=main_repo):
                 result = resolve_project_target_dir(main_repo)
-                assert result == main_repo, f"Expected {main_repo}, got {result}"
+                assert os.path.realpath(result) == os.path.realpath(main_repo), f"Expected {main_repo}, got {result}"
 
 
 class TestIsGitWorktree:

@@ -285,20 +285,20 @@
 - **[AI Prompts]** Improved README AI prompts to prevent hallucination and maintain content structure
 - **[Config]** Added `version_file` configuration per project for precise version management
 
-## [0.4.0] - 2026-01-18
+## [0.3.2] - 2026-01-18
 
 ### Added
 - **[Multi-Repo PR]** Create Pull Requests across multiple JarWise repositories (Root, Android, Web)
 - **[Multi-Repo Docs]** Update documentation across multiple repos with AI assistance
 - **[Commit Check]** Verify unpushed commits before PR creation
 
-## [0.3.0] - 2025-12-28
+## [0.2.2] - 2025-12-28
 
 ### Added
 - **[Version Badges]** Automatically update README version badges
 - **[AI Version Suggestion]** Semantic version bump suggestions based on commit types
 
-## [0.2.0] - 2025-12-27
+## [0.1.1] - 2025-12-27
 
 ### Added
 - **[LLM-Powered PR]** AI-generated Pull Request titles and descriptions
