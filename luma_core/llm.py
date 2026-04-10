@@ -20,7 +20,7 @@ from luma_core.error_classifier import classify_error, ErrorType, is_retryable
 # Import new timeout/retry configuration
 LUMA_LLM_TIMEOUT_SCALE = getattr(config, "LUMA_LLM_TIMEOUT_SCALE", 1.0)
 LUMA_MAX_LLM_RETRIES = getattr(config, "LUMA_MAX_LLM_RETRIES", None)
-LUMA_EXPORT_PROMPTS = getattr(config, "LUMA_EXPORT_PROMPTS", False)
+LUMA_EXPORT_PROMPTS = getattr(config, "LUMA_EXPORT_PROMPTS", None)  # None = auto-export on error
 
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
@@ -645,6 +645,217 @@ def _mask_account(account):
     return account
 
 
+def _scrub_sensitive_data(prompt: str) -> str:
+    """
+    Scrub sensitive data from prompt before exporting.
+    
+    Removes API keys, tokens, and other sensitive information.
+    """
+    import re
+
+    scrubbed = prompt
+
+    # Google API keys (AIza...)
+    scrubbed = re.sub(
+        r'AIza[\w-]{35,}',
+        '[REDACTED_API_KEY]',
+        scrubbed
+    )
+
+    # OpenAI API keys (sk-...)
+    scrubbed = re.sub(
+        r'sk-[\w-]{40,}',
+        '[REDACTED_API_KEY]',
+        scrubbed
+    )
+
+    # Bearer tokens
+    scrubbed = re.sub(
+        r'Bearer\s+[\w-]+',
+        'Bearer [REDACTED_TOKEN]',
+        scrubbed
+    )
+
+    return scrubbed
+
+
+def _resolve_feature_directory() -> Optional[str]:
+    """
+    Resolve the feature directory from .luma_state.json context.
+    
+    Returns the path to the active feature directory or None if not found.
+    """
+    try:
+        # First try to load state from current directory
+        from luma_core.state_manager import load_state
+
+        state = load_state(os.getcwd())
+        if state and state.context:
+            # Try to get last_feature_dir from context
+            feature_dir = state.context.get("last_feature_dir")
+            if feature_dir and os.path.exists(feature_dir):
+                return feature_dir
+
+        # Fallback: try to find feature directory by walking up from current dir
+        current_dir = os.getcwd()
+        features_pattern = os.path.join("docs", "features")
+
+        if features_pattern in current_dir:
+            # Extract the feature directory path up to the feature folder
+            parts = current_dir.split(features_pattern)
+            if len(parts) > 1:
+                # Reconstruct the feature directory path
+                # Example: current_dir = /repo/docs/features/1_issue-test/subdir
+                # features_pattern = docs/features
+                # base_path_with_pattern = /repo/docs/features
+                # remainder_path = 1_issue-test/subdir
+                # feature_subdir_name = 1_issue-test
+                base_path_with_pattern = parts[0] + features_pattern
+                remainder_path = parts[1].strip(os.sep)  # Remove leading/trailing slashes
+                if remainder_path:  # Ensure there's a feature subdirectory
+                    feature_subdir_name = remainder_path.split(os.sep, 1)[0]
+                    return os.path.join(base_path_with_pattern, feature_subdir_name)
+
+    except Exception:
+        pass
+
+    return None
+
+
+def _should_export_on_error() -> bool:
+    """
+    Determine if we should export prompt on LLM error.
+
+    Returns True unless LUMA_EXPORT_PROMPTS is explicitly set to False.
+    None (not set) means auto-enable on errors.
+    True means always export.
+    False means never export.
+    """
+    # Check if explicitly disabled
+    if LUMA_EXPORT_PROMPTS is False:
+        return False
+
+    # None (not set) or True means export on error
+    return True
+
+
+def _export_failed_prompt_to_file(
+    prompt: str,
+    error_message: str,
+    model_name: str,
+    feature_dir: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Export failed LLM prompt to a markdown file.
+    
+    Args:
+        prompt: The prompt that failed
+        error_message: The error message from the failed LLM call
+        model_name: Name of the model that was used
+        feature_dir: Optional path to feature directory (auto-resolved if None)
+    
+    Returns:
+        Path to the exported file or None if export failed
+    """
+    # Resolve feature directory if not provided
+    if feature_dir is None:
+        feature_dir = _resolve_feature_directory()
+
+    if feature_dir is None:
+        # Fallback to creating a directory in current working directory
+        feature_dir = os.path.join(os.getcwd(), ".luma", "failed_prompts")
+
+    # Create ai_brain subdirectory
+    ai_brain_dir = os.path.join(feature_dir, "ai_brain")
+    os.makedirs(ai_brain_dir, exist_ok=True)
+
+    # Generate timestamp in human-readable format: YYYYMMDD_HHMMSS
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"luma_failed_prompt_{timestamp}.md"
+    filepath = os.path.join(ai_brain_dir, filename)
+
+    # Get phase, action, sub-action from context
+    phase = "unknown"
+    action = None
+    sub_action = None
+    active_issue = None
+
+    try:
+        from luma_core.state_manager import load_state, WorkflowPhase
+
+        state = load_state(os.getcwd())
+        if state:
+            if state.phase:
+                phase = state.phase.value if hasattr(state.phase, 'value') else str(state.phase)
+            if state.active_issues and len(state.active_issues) > 0:
+                issue = state.active_issues[0]
+                active_issue = f"#{issue.number} - {issue.title}"
+    except Exception:
+        pass
+
+    try:
+        action = usage_tracker.get_current_action()
+        sub_action = usage_tracker.get_current_sub_action()
+    except Exception:
+        pass
+
+    # Scrub sensitive data from prompt
+    scrubbed_prompt = _scrub_sensitive_data(prompt)
+
+    # Build markdown content
+    content_lines = [
+        "# Failed LLM Prompt",
+        "",
+        f"**Timestamp:** {timestamp}",
+        f"**Phase:** {phase}",
+    ]
+
+    if action:
+        content_lines.append(f"**Action:** {action}")
+
+    if sub_action:
+        content_lines.append(f"**Sub-Action:** {sub_action}")
+
+    if active_issue:
+        content_lines.append(f"**Issue:** {active_issue}")
+
+    content_lines.extend([
+        f"**Model:** {model_name}",
+        f"**Error:** {error_message}",
+        "",
+        "---",
+        "",
+        "## Prompt Content",
+        "",
+        scrubbed_prompt,
+        "",
+        "---",
+        "",
+        "## Error Details",
+        "",
+        "```",
+        error_message,
+        "```",
+        "",
+    ])
+
+    content = "\n".join(content_lines)
+
+    try:
+        # Write to file
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        # Print user-facing message
+        print(f"❌ Gemini CLI failed after retries. Exporting prompt to {filepath} for external AI.")
+
+        return filepath
+
+    except Exception as e:
+        print(f"⚠️ Failed to export prompt to file: {e}")
+        return None
+
+
 class TrackedModel(BaseChatModel):
     model: BaseChatModel
 
@@ -692,6 +903,20 @@ class TrackedModel(BaseChatModel):
                 error=str(e), error_type=classify_error(str(e)).value,
                 call_id=call_id, chain_index=0, chain_length=1,
             )
+
+            # Export failed prompt to file if enabled
+            if _should_export_on_error():
+                try:
+                    prompt_text = _flatten_messages_to_prompt(messages)
+                    _export_failed_prompt_to_file(
+                        prompt=prompt_text,
+                        error_message=str(e),
+                        model_name=model_name or "unknown",
+                    )
+                except Exception as export_error:
+                    # Don't let export failure mask the original error
+                    print(f"⚠️ Failed to export prompt: {export_error}")
+
             raise
 
 

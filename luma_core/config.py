@@ -44,8 +44,14 @@ except ValueError:
     LUMA_MAX_LLM_RETRIES = None
 
 # Export prompts mode - saves prompts to files instead of calling LLM
+# None = not explicitly set (will auto-export on LLM errors)
+# True = always export prompts
+# False = never export prompts
 _LUMA_EXPORT_PROMPTS = os.getenv("LUMA_EXPORT_PROMPTS", "").lower()
-LUMA_EXPORT_PROMPTS = _LUMA_EXPORT_PROMPTS in ("true", "1", "yes", "on")
+if _LUMA_EXPORT_PROMPTS == "":
+    LUMA_EXPORT_PROMPTS = None  # Default: auto-enable on LLM errors
+else:
+    LUMA_EXPORT_PROMPTS = _LUMA_EXPORT_PROMPTS in ("true", "1", "yes", "on")
 
 # Gemini CLI Model Selection
 AVAILABLE_GEMINI_CLI_MODELS = [
