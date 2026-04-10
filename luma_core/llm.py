@@ -833,9 +833,9 @@ def _export_failed_prompt_to_file(
         "",
         "## Error Details",
         "",
-        f"```",
+        "```",
         error_message,
-        f"```",
+        "```",
         "",
     ])
 
