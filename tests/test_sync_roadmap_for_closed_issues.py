@@ -32,6 +32,11 @@ def test_sync_roadmap_updates_existing_issue_to_done(monkeypatch, tmp_path):
             "- **Status:** 🟡 **In Progress**\n"
         ),
     )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
+    )
 
     monkeypatch.setattr(
         "luma_core.actions.quality_actions.run_gh_command",
@@ -53,6 +58,11 @@ def test_sync_roadmap_appends_missing_closed_issue(monkeypatch, tmp_path):
     project, roadmap_path = _make_project(
         tmp_path,
         "# Roadmap\n\n## Current\n\n- Existing item\n",
+    )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
     )
 
     monkeypatch.setattr(
