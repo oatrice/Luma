@@ -49,7 +49,7 @@ def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False
     try:
         from luma_core.ai_brain_sync import AntigravityBrain, GeminiCLIBrain
 
-        sessions = AntigravityBrain.get_all_sessions()
+        sessions = AntigravityBrain.get_all_sessions(project.get("path"))
         if sessions:
             # Preview latest session
             latest = sessions[0]
@@ -123,7 +123,7 @@ def action_sync_ai_brain(state: LumaState, project: dict, headless: bool = False
         if not headless:
             print("\n   🔍 Checking Gemini CLI session artifacts...")
 
-        gemini_sessions = GeminiCLIBrain.get_all_sessions()
+        gemini_sessions = GeminiCLIBrain.get_all_sessions(project.get("path"))
         if gemini_sessions:
             latest = gemini_sessions[0]
             if not headless:
