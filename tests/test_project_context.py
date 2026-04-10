@@ -1,6 +1,10 @@
 """
 Tests for project_context.py — TDD Red Phase
 """
+import os
+from pathlib import Path
+
+import pytest
 
 
 class TestLoadProjectContext:
@@ -29,7 +33,12 @@ class TestLoadProjectContext:
         """Should extract content from README.md."""
         readme = tmp_path / "README.md"
         readme.write_text(
-            "# My Project\n\n## Tech Stack\n- **Framework**: Gin\n- **Language**: Go\n",
+            """# My Project
+
+## Tech Stack
+- **Framework**: Gin
+- **Language**: Go
+""",
             encoding="utf-8",
         )
 
@@ -43,7 +52,11 @@ class TestLoadProjectContext:
         """Should extract content from AGENTS.md when present."""
         agents_md = tmp_path / "AGENTS.md"
         agents_md.write_text(
-            "# AGENTS.md\n\n## Repo Map\n- Backend: oatrice/TheMiddleWay-Backend\n",
+            """# AGENTS.md
+
+## Repo Map
+- Backend: oatrice/TheMiddleWay-Backend
+""",
             encoding="utf-8",
         )
 
@@ -57,7 +70,10 @@ class TestLoadProjectContext:
         """Should read GEMINI.md if AGENTS.md is absent."""
         gemini_md = tmp_path / "GEMINI.md"
         gemini_md.write_text(
-            "# GEMINI.md\n\nProject Name: `The Middle Way`\n",
+            """# GEMINI.md
+
+Project Name: `The Middle Way`
+""",
             encoding="utf-8",
         )
 
@@ -142,3 +158,6 @@ class TestBuildContextBlock:
         )
 
         assert "Tech Stack" in result or "PROJECT CONTEXT" in result
+
+
+

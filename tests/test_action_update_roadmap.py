@@ -38,6 +38,11 @@ def test_action_update_roadmap_appends_missing_github_issue(monkeypatch, tmp_pat
             }
         ),
     )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
+    )
 
     with patch(
         "luma_core.actions.quality_actions.ui.safe_input",
@@ -65,6 +70,11 @@ def test_action_update_roadmap_updates_existing_and_missing_issues_together(monk
             "### Issue #12 - Existing roadmap item\n"
             "- **Status:** 🔴 **Blocked**\n"
         ),
+    )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
     )
 
     def fake_run_gh_command(args, timeout=15):
@@ -112,6 +122,11 @@ def test_action_update_roadmap_auto_sync_closed_issues(monkeypatch, tmp_path):
             "- **Status:** 🟡 **In Progress**\n"
         ),
     )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
+    )
 
     monkeypatch.setattr(
         "luma_core.actions.quality_actions.run_gh_command",
@@ -144,6 +159,11 @@ def test_action_update_roadmap_done_saves_post_story_point(monkeypatch, tmp_path
             "### Issue #42 - Feature X\n"
             "- **Status:** 🟡 **In Progress**\n"
         ),
+    )
+    # Mock resolve_project_target_dir to return project path directly (avoid CI worktree redirect)
+    monkeypatch.setattr(
+        "luma_core.actions.quality_actions.resolve_project_target_dir",
+        lambda path: path,
     )
 
     save_issue_metrics(

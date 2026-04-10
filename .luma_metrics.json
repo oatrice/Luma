@@ -7,7 +7,7 @@
       "issue_title": "Feature tracking estimate points mandays and effort",
       "issue_url": "https://github.com/oatrice/Luma/issues/9",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 3.0,
@@ -21,7 +21,7 @@
       "gh_closed_at": "2026-03-25T02:07:07Z",
       "gh_mandays": 5.5,
       "created_at": "2026-03-18T23:51:15Z",
-      "updated_at": "2026-04-03T21:15:49.359935"
+      "updated_at": "2026-04-10T10:37:50.155937"
     },
     "oatrice/Luma#13": {
       "issue_key": "oatrice/Luma#13",
@@ -29,7 +29,7 @@
       "issue_title": "Rotate google account auth keys for luma cli",
       "issue_url": "https://github.com/oatrice/Luma/issues/13",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 5.0,
@@ -43,7 +43,7 @@
       "gh_closed_at": "2026-03-31T02:16:26Z",
       "gh_mandays": 6.0,
       "created_at": "2026-03-24T17:18:28Z",
-      "updated_at": "2026-04-03T21:15:49.359974"
+      "updated_at": "2026-04-10T10:37:50.155979"
     },
     "oatrice/Luma#20": {
       "issue_key": "oatrice/Luma#20",
@@ -51,7 +51,7 @@
       "issue_title": "Add post story point field to luma metricsjson and issuemetricsrecord",
       "issue_url": "https://github.com/oatrice/Luma/issues/20",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 5.0,
@@ -65,7 +65,7 @@
       "gh_closed_at": "2026-03-31T08:56:37Z",
       "gh_mandays": 0.5,
       "created_at": "2026-03-31T02:24:24Z",
-      "updated_at": "2026-04-03T21:15:49.358783"
+      "updated_at": "2026-04-10T10:37:50.154904"
     },
     "oatrice/Luma#16": {
       "issue_key": "oatrice/Luma#16",
@@ -73,7 +73,7 @@
       "issue_title": "Feature เพมการเชอมตอกบ provider codex cli",
       "issue_url": "https://github.com/oatrice/Luma/issues/16",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 5.0,
@@ -87,7 +87,7 @@
       "gh_closed_at": "2026-04-01T17:16:42Z",
       "gh_mandays": 1.5,
       "created_at": "2026-03-29T14:30:19Z",
-      "updated_at": "2026-04-03T21:15:49.359652"
+      "updated_at": "2026-04-10T10:37:50.155254"
     },
     "oatrice/Luma#27": {
       "issue_key": "oatrice/Luma#27",
@@ -95,7 +95,7 @@
       "issue_title": "Add a headless cli contract for external callers auto action json",
       "issue_url": "https://github.com/oatrice/Luma/issues/27",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
       "post_story_point": 13.0,
@@ -109,7 +109,7 @@
       "gh_closed_at": "2026-04-02T02:33:45Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-01T15:39:30Z",
-      "updated_at": "2026-04-03T21:15:49.359698"
+      "updated_at": "2026-04-10T10:37:50.155304"
     },
     "oatrice/Luma#32": {
       "issue_key": "oatrice/Luma#32",
@@ -117,7 +117,7 @@
       "issue_title": "Cli contract add a machine readable metadata endpoint for external consumers cli contract guarantee json only stdout in headless mode under real subprocess startup",
       "issue_url": "https://github.com/oatrice/Luma/issues/32",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 21.0,
@@ -131,7 +131,7 @@
       "gh_closed_at": "2026-04-02T11:52:57Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-02T08:25:00Z",
-      "updated_at": "2026-04-03T21:15:49.359745"
+      "updated_at": "2026-04-10T10:37:50.155353"
     },
     "oatrice/Luma#33": {
       "issue_key": "oatrice/Luma#33",
@@ -139,7 +139,7 @@
       "issue_title": "Cli contract add a machine readable metadata endpoint for external consumers cli contract guarantee json only stdout in headless mode under real subprocess startup",
       "issue_url": "https://github.com/oatrice/Luma/issues/33",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 21.0,
@@ -153,7 +153,7 @@
       "gh_closed_at": "2026-04-02T11:52:58Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-02T08:25:21Z",
-      "updated_at": "2026-04-03T21:15:49.359793"
+      "updated_at": "2026-04-10T10:37:50.155399"
     },
     "oatrice/Luma#29": {
       "issue_key": "oatrice/Luma#29",
@@ -161,7 +161,7 @@
       "issue_title": "Add action level logging for headless cli executions",
       "issue_url": "https://github.com/oatrice/Luma/issues/29",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 21.0,
@@ -175,7 +175,7 @@
       "gh_closed_at": "2026-04-03T06:54:36Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-02T01:45:23Z",
-      "updated_at": "2026-04-03T21:21:19.547355"
+      "updated_at": "2026-04-10T10:37:50.155441"
     },
     "oatrice/Luma#35": {
       "issue_key": "oatrice/Luma#35",
@@ -183,7 +183,7 @@
       "issue_title": "Guided planning can fail on multi issue runs due to overlong feature dirs and sticky llm fallback",
       "issue_url": "https://github.com/oatrice/Luma/issues/35",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 3,
       "post_story_point": 21.0,
@@ -197,7 +197,7 @@
       "gh_closed_at": "2026-04-03T09:15:42Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-03T03:05:38Z",
-      "updated_at": "2026-04-03T21:21:16.168023"
+      "updated_at": "2026-04-10T10:37:50.155483"
     },
     "oatrice/Luma#39": {
       "issue_key": "oatrice/Luma#39",
@@ -205,7 +205,7 @@
       "issue_title": "Create portable dotfiles bootstrap shared ai memory glo 3ceed8bb",
       "issue_url": "https://github.com/oatrice/Luma/issues/39",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 3,
       "post_story_point": 5.0,
@@ -219,7 +219,7 @@
       "gh_closed_at": "2026-04-03T14:15:44Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-03T09:57:52Z",
-      "updated_at": "2026-04-03T21:21:14.476637"
+      "updated_at": "2026-04-10T10:37:50.155527"
     },
     "oatrice/Luma#40": {
       "issue_key": "oatrice/Luma#40",
@@ -227,7 +227,7 @@
       "issue_title": "Add headless select issue action that mirrors menu 000930f1",
       "issue_url": "https://github.com/oatrice/Luma/issues/40",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
       "post_story_point": 13.0,
@@ -241,7 +241,7 @@
       "gh_closed_at": "2026-04-08T06:07:18Z",
       "gh_mandays": 1.5,
       "created_at": "2026-04-03T10:10:52Z",
-      "updated_at": "2026-04-09T15:51:22.400334"
+      "updated_at": "2026-04-10T10:37:50.155570"
     },
     "oatrice/Luma#42": {
       "issue_key": "oatrice/Luma#42",
@@ -249,7 +249,7 @@
       "issue_title": "Add headless select issue action that mirrors menu 000930f1",
       "issue_url": "https://github.com/oatrice/Luma/issues/42",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
       "post_story_point": 13.0,
@@ -263,7 +263,7 @@
       "gh_closed_at": "2026-04-08T06:07:18Z",
       "gh_mandays": 1.5,
       "created_at": "2026-04-03T10:10:56Z",
-      "updated_at": "2026-04-09T15:51:20.829503"
+      "updated_at": "2026-04-10T10:37:50.155611"
     },
     "oatrice/Luma#41": {
       "issue_key": "oatrice/Luma#41",
@@ -271,7 +271,7 @@
       "issue_title": "Add headless select issue action that mirrors menu 000930f1",
       "issue_url": "https://github.com/oatrice/Luma/issues/41",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 13.0,
@@ -285,7 +285,7 @@
       "gh_closed_at": "2026-04-08T06:07:19Z",
       "gh_mandays": 1.5,
       "created_at": "2026-04-03T10:10:54Z",
-      "updated_at": "2026-04-09T15:51:20.358013"
+      "updated_at": "2026-04-10T10:37:50.155652"
     },
     "oatrice/Luma#53": {
       "issue_key": "oatrice/Luma#53",
@@ -315,7 +315,7 @@
       "issue_title": "Remove code review prompt txt file creation quality 8e6e483d",
       "issue_url": "https://github.com/oatrice/Luma/issues/55",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
       "post_story_point": 21.0,
@@ -329,7 +329,7 @@
       "gh_closed_at": "2026-04-09T09:15:00Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-09T08:49:50Z",
-      "updated_at": "2026-04-09T17:27:02.723373"
+      "updated_at": "2026-04-10T10:37:50.155693"
     },
     "oatrice/Luma#56": {
       "issue_key": "oatrice/Luma#56",
@@ -337,7 +337,7 @@
       "issue_title": "Remove code review prompt txt file creation quality 8e6e483d",
       "issue_url": "https://github.com/oatrice/Luma/issues/56",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 21.0,
@@ -351,7 +351,7 @@
       "gh_closed_at": "2026-04-09T10:12:51Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-09T08:55:41Z",
-      "updated_at": "2026-04-09T17:27:02.032022"
+      "updated_at": "2026-04-10T10:37:50.155735"
     },
     "oatrice/Luma#58": {
       "issue_key": "oatrice/Luma#58",
@@ -359,7 +359,7 @@
       "issue_title": "Fix workflow actions py aich project path chak b02a74d3",
       "issue_url": "https://github.com/oatrice/Luma/issues/58",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
       "post_story_point": 21.0,
@@ -373,7 +373,7 @@
       "gh_closed_at": "2026-04-09T12:07:29Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-09T10:33:11Z",
-      "updated_at": "2026-04-09T19:09:52.050693"
+      "updated_at": "2026-04-10T10:37:50.155776"
     },
     "oatrice/Luma#59": {
       "issue_key": "oatrice/Luma#59",
@@ -381,7 +381,7 @@
       "issue_title": "Fix workflow actions py aich project path chak b02a74d3",
       "issue_url": "https://github.com/oatrice/Luma/issues/59",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
       "post_story_point": 21.0,
@@ -395,7 +395,7 @@
       "gh_closed_at": "2026-04-09T12:07:30Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-09T10:37:00Z",
-      "updated_at": "2026-04-09T19:09:44.990239"
+      "updated_at": "2026-04-10T10:37:50.155816"
     },
     "oatrice/Luma#62": {
       "issue_key": "oatrice/Luma#62",
@@ -403,7 +403,7 @@
       "issue_title": "Feat add option use current branch when selecting 8feb3dbf",
       "issue_url": "https://github.com/oatrice/Luma/issues/62",
       "repository": "oatrice/Luma",
-      "project_name": "Luma",
+      "project_name": "clone",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
       "post_story_point": 21.0,
@@ -417,29 +417,73 @@
       "gh_closed_at": "2026-04-09T13:00:54Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-09T12:34:05Z",
-      "updated_at": "2026-04-09T20:12:35.563910"
+      "updated_at": "2026-04-10T10:37:50.155858"
     },
     "oatrice/Luma#67": {
       "issue_key": "oatrice/Luma#67",
       "issue_number": 67,
-      "issue_title": "Restore: Auto-export failed prompt when LLM fails with human-readable timestamp",
+      "issue_title": "Restore auto export failed prompt when llm fails d7ca3cb6",
       "issue_url": "https://github.com/oatrice/Luma/issues/67",
+      "repository": "oatrice/Luma",
+      "project_name": "clone",
+      "issue_status": "✅ Complete",
+      "estimate_points": 1,
+      "post_story_point": 21.0,
+      "estimated_mandays": 0.5,
+      "start_datetime": "2026-04-09T14:11:48",
+      "actual_mandays": 0.5,
+      "due_date": "2026-04-11T23:59:59",
+      "actual_completion_date": "2026-04-10T03:37:40",
+      "effort_level": "Low",
+      "notes": null,
+      "gh_closed_at": "2026-04-10T03:37:40Z",
+      "gh_mandays": 0.5,
+      "created_at": "2026-04-09T14:09:29Z",
+      "updated_at": "2026-04-10T10:38:27.062194"
+    },
+    "oatrice/Luma#64": {
+      "issue_key": "oatrice/Luma#64",
+      "issue_number": 64,
+      "issue_title": "Fix worktree support for Select Issue action (menu [2])",
+      "issue_url": "https://github.com/oatrice/Luma/issues/64",
+      "repository": "oatrice/Luma",
+      "project_name": "clone",
+      "issue_status": null,
+      "estimate_points": 2,
+      "post_story_point": null,
+      "estimated_mandays": 1.0,
+      "start_datetime": "2026-04-10T10:51:56",
+      "actual_mandays": 0.5,
+      "due_date": null,
+      "actual_completion_date": "2026-04-10T16:05:51",
+      "effort_level": "Low",
+      "notes": null,
+      "gh_closed_at": null,
+      "gh_mandays": null,
+      "created_at": "2026-04-10T10:51:56.627677",
+      "updated_at": "2026-04-10T16:05:51.809678"
+    },
+    "oatrice/Luma#70": {
+      "issue_key": "oatrice/Luma#70",
+      "issue_number": 70,
+      "issue_title": "Code Review ไม่รองรับ worktree path - อ่าน change จาก main repo แทน",
+      "issue_url": "https://github.com/oatrice/Luma/issues/70",
       "repository": "oatrice/Luma",
       "project_name": "clone",
       "issue_status": null,
       "estimate_points": 1,
       "post_story_point": null,
       "estimated_mandays": 0.5,
-      "start_datetime": "2026-04-09T22:32:47",
+      "start_datetime": "2026-04-10T10:51:56",
       "actual_mandays": 0.5,
       "due_date": null,
-      "actual_completion_date": "2026-04-10T10:29:25",
+      "actual_completion_date": "2026-04-10T16:05:51",
       "effort_level": "Low",
       "notes": null,
       "gh_closed_at": null,
       "gh_mandays": null,
-      "created_at": "2026-04-09T22:32:47.185713",
-      "updated_at": "2026-04-10T10:29:25.793886"
+      "created_at": "2026-04-10T10:51:56.630050",
+      "updated_at": "2026-04-10T16:05:51.813897"
     }
   }
 }

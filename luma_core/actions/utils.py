@@ -40,6 +40,7 @@ from luma_core.state_manager import (
 from luma_core.tools import (
     generate_draft_code_review,
     get_git_changed_files,
+    resolve_project_target_dir,
     update_multi_repo_docs,
 )
 
@@ -141,6 +142,10 @@ def _build_code_review_followup_prompt(multi_repo: bool = False) -> str:
 
 def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     """Start working on one or more issues"""
+    # Resolve worktree path if running from a git worktree
+    target_dir = resolve_project_target_dir(project["path"])
+    if target_dir != project["path"]:
+        print(f"   🌿 Worktree detected: Using {target_dir} instead of {project['path']}")
 
     # Check if ALL these issues are already active (re-selecting same set)
     active_nums = (
@@ -160,7 +165,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         try:
             result = subprocess.run(
                 ["git", "checkout", state.active_branch],
-                cwd=project["path"],
+                cwd=target_dir,
                 capture_output=True,
                 text=True,
             )
@@ -169,7 +174,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
             else:
                 create_result = subprocess.run(
                     ["git", "checkout", "-b", state.active_branch],
-                    cwd=project["path"],
+                    cwd=target_dir,
                     capture_output=True,
                     text=True,
                 )
@@ -236,7 +241,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     # Show Context
     print("\n🧠 Loading Project Context...")
     try:
-        summarizer = ContextSummarizer(project["path"])
+        summarizer = ContextSummarizer(target_dir)
         reminders = summarizer.summarize_rules()
         if reminders:
             print("\n📝 Project Reminders & Rules:")
@@ -302,7 +307,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     try:
         result = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=project["path"],
+            cwd=target_dir,
             capture_output=True,
             text=True,
         )
@@ -362,7 +367,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 print("🔄 Creating git branch...")
                 result = subprocess.run(
                     ["git", "checkout", "-b", branch_name],
-                    cwd=project["path"],
+                    cwd=target_dir,
                     capture_output=True,
                     text=True,
                 )
@@ -371,7 +376,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 else:
                     switch_result = subprocess.run(
                         ["git", "checkout", branch_name],
-                        cwd=project["path"],
+                        cwd=target_dir,
                         capture_output=True,
                         text=True,
                     )
@@ -442,6 +447,11 @@ def _start_issues_headless(
     from luma_core.state_manager import IssueData, transition_to, WorkflowPhase
     from luma_core.context_summarizer import ContextSummarizer
     
+    # Resolve worktree path if running from a git worktree
+    target_dir = resolve_project_target_dir(project["path"])
+    if target_dir != project["path"]:
+        print(f"   🌿 Worktree detected: Using {target_dir} instead of {project['path']}")
+    
     issues = [
         IssueData(
             number=c.issue_number,
@@ -458,7 +468,7 @@ def _start_issues_headless(
 
     # Show Context (Log only)
     try:
-        summarizer = ContextSummarizer(project["path"])
+        summarizer = ContextSummarizer(target_dir)
         reminders = summarizer.summarize_rules()
         if reminders:
             print("\n📝 Project Reminders & Rules loaded.")
@@ -505,7 +515,7 @@ def _start_issues_headless(
             print("🔄 Creating git branch...")
             result = subprocess.run(
                 ["git", "checkout", "-b", branch_name],
-                cwd=project["path"],
+                cwd=target_dir,
                 capture_output=True,
                 text=True,
             )
@@ -514,7 +524,7 @@ def _start_issues_headless(
             else:
                 switch_result = subprocess.run(
                     ["git", "checkout", branch_name],
-                    cwd=project["path"],
+                    cwd=target_dir,
                     capture_output=True,
                     text=True,
                 )
@@ -541,7 +551,7 @@ def _start_issues_headless(
                 sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
         
         # Explicit save with debug
-        print(f"DEBUG: Saving state to {project['path']}")
+        print(f"DEBUG: Saving state to {project['path']} (worktree: {target_dir})")
         save_state(state, project["path"])
         
         return True
