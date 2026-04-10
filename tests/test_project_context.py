@@ -1,6 +1,10 @@
 """
 Tests for project_context.py — TDD Red Phase
 """
+import os
+from pathlib import Path
+
+import pytest
 
 
 class TestLoadProjectContext:
@@ -29,7 +33,12 @@ class TestLoadProjectContext:
         """Should extract content from README.md."""
         readme = tmp_path / "README.md"
         readme.write_text(
-            "# My Project\n\n## Tech Stack\n- **Framework**: Gin\n- **Language**: Go\n",
+            "# My Project
+
+## Tech Stack
+- **Framework**: Gin
+- **Language**: Go
+",
             encoding="utf-8",
         )
 
@@ -43,7 +52,11 @@ class TestLoadProjectContext:
         """Should extract content from AGENTS.md when present."""
         agents_md = tmp_path / "AGENTS.md"
         agents_md.write_text(
-            "# AGENTS.md\n\n## Repo Map\n- Backend: oatrice/TheMiddleWay-Backend\n",
+            "# AGENTS.md
+
+## Repo Map
+- Backend: oatrice/TheMiddleWay-Backend
+",
             encoding="utf-8",
         )
 
@@ -57,7 +70,10 @@ class TestLoadProjectContext:
         """Should read GEMINI.md if AGENTS.md is absent."""
         gemini_md = tmp_path / "GEMINI.md"
         gemini_md.write_text(
-            "# GEMINI.md\n\nProject Name: `The Middle Way`\n",
+            "# GEMINI.md
+
+Project Name: `The Middle Way`
+",
             encoding="utf-8",
         )
 
@@ -82,7 +98,8 @@ class TestLoadProjectContext:
     def test_truncates_very_long_readme(self, tmp_path):
         """Should truncate README to avoid overwhelming the LLM context."""
         readme = tmp_path / "README.md"
-        readme.write_text("# Big Readme\n" + "x" * 20000, encoding="utf-8")
+        readme.write_text("# Big Readme
+" + "x" * 20000, encoding="utf-8")
 
         from luma_core.project_context import load_project_context
 
@@ -142,3 +159,81 @@ class TestBuildContextBlock:
         )
 
         assert "Tech Stack" in result or "PROJECT CONTEXT" in result
+
+
+class TestGetProjectRootDir:
+    """Tests for get_project_root_dir function."""
+
+    @pytest.fixture
+    def setup_git_repo(self, tmp_path):
+        """Fixture to set up a basic Git repository."""
+        repo_path = tmp_path / "main_repo"
+        repo_path.mkdir()
+        os.chdir(repo_path)
+        os.system("git init -b main > /dev/null 2>&1")
+        (repo_path / "file.txt").write_text("content")
+        os.system("git add . > /dev/null 2>&1")
+        os.system("git commit -m 'Initial commit' > /dev/null 2>&1")
+        return repo_path
+
+    @pytest.fixture
+    def setup_git_worktree(self, setup_git_repo, tmp_path):
+        """Fixture to set up a Git worktree."""
+        main_repo_path = setup_git_repo
+        worktree_path = tmp_path / "worktree_repo"
+        os.chdir(main_repo_path)
+        os.system(f"git worktree add {worktree_path} feature-branch > /dev/null 2>&1")
+        os.chdir(worktree_path)
+        return worktree_path
+
+    def test_returns_main_repo_root_from_main_repo(self, setup_git_repo):
+        """Should return the main repository root when called from main repo."""
+        from luma_core.project_context import get_project_root_dir
+        assert get_project_root_dir() == setup_git_repo
+
+    def test_returns_main_repo_root_from_nested_dir_in_main_repo(self, setup_git_repo):
+        """Should return the main repository root when called from a nested directory."""
+        from luma_core.project_context import get_project_root_dir
+        nested_path = setup_git_repo / "nested"
+        nested_path.mkdir()
+        os.chdir(nested_path)
+        assert get_project_root_dir() == setup_git_repo
+
+    def test_returns_worktree_root_from_worktree(self, setup_git_worktree):
+        """Should return the worktree root when called from a worktree."""
+        from luma_core.project_context import get_project_root_dir
+        assert get_project_root_dir() == setup_git_worktree
+
+    def test_returns_worktree_root_from_nested_dir_in_worktree(self, setup_git_worktree):
+        """Should return the worktree root when called from a nested directory in a worktree."""
+        from luma_core.project_context import get_project_root_dir
+        nested_path = setup_git_worktree / "nested"
+        nested_path.mkdir()
+        os.chdir(nested_path)
+        assert get_project_root_dir() == setup_git_worktree
+
+    def test_returns_current_path_if_not_git_repo(self, tmp_path):
+        """Should return the current working directory if not a Git repository."""
+        from luma_core.project_context import get_project_root_dir
+        non_git_path = tmp_path / "non_git_dir"
+        non_git_path.mkdir()
+        os.chdir(non_git_path)
+        assert get_project_root_dir() == non_git_path
+
+    def test_get_project_root_dir_explicit_path_non_git(self, tmp_path):
+        """Should return the explicit path if it's not a git repo."""
+        from luma_core.project_context import get_project_root_dir
+        explicit_path = tmp_path / "some_dir"
+        explicit_path.mkdir()
+        assert get_project_root_dir(explicit_path) == explicit_path
+
+    def test_get_project_root_dir_explicit_path_main_repo(self, setup_git_repo):
+        """Should return the main repo root when explicit path is main repo."""
+        from luma_core.project_context import get_project_root_dir
+        assert get_project_root_dir(setup_git_repo) == setup_git_repo
+
+    def test_get_project_root_dir_explicit_path_worktree(self, setup_git_worktree):
+        """Should return the worktree root when explicit path is worktree."""
+        from luma_core.project_context import get_project_root_dir
+        assert get_project_root_dir(setup_git_worktree) == setup_git_worktree
+
