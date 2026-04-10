@@ -1,0 +1,852 @@
+{
+  "_comment": "Luma Projects Configuration - Edit via Settings menu or manually",
+  "version": "1.0",
+  "projects": {
+    "1": {
+      "name": "JarWise-Root",
+      "path": "/Users/oatrice/Software-projects/JarWise",
+      "repo": "oatrice/JarWise-Root",
+      "kanban_number": 7,
+      "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+      "type": "monorepo_root",
+      "sibling_repos": [
+        "2",
+        "3",
+        "4"
+      ],
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "2": {
+      "name": "JarWise (Web)",
+      "path": "/Users/oatrice/Software-projects/JarWise/Web",
+      "repo": "oatrice/JarWise-Web",
+      "kanban_number": 7,
+      "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "3": {
+      "name": "JarWise (Backend)",
+      "path": "/Users/oatrice/Software-projects/JarWise/backend",
+      "repo": "oatrice/JarWise-Backend",
+      "kanban_number": 7,
+      "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "4": {
+      "name": "JarWise (Android)",
+      "path": "/Users/oatrice/Software-projects/JarWise/Android",
+      "repo": "oatrice/JarWise-Android",
+      "kanban_number": 7,
+      "kanban_id": "PVT_kwHOATfKEM4BMuLi",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "5": {
+      "name": "Tetris Battle",
+      "path": "/Users/oatrice/Software-projects/Tetris-Battle",
+      "repo": "oatrice/Tetris-Battle",
+      "kanban_number": 6,
+      "kanban_id": "PVT_kwHOATfKEM4BKZK5",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "6": {
+      "name": "TheMiddleWay-Root",
+      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata",
+      "repo": "oatrice/TheMiddleWay-Metadata",
+      "kanban_number": 8,
+      "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+      "type": "monorepo_root",
+      "sibling_repos": [
+        "7",
+        "8",
+        "9",
+        "10"
+      ],
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "7": {
+      "name": "TheMiddleWay (Web)",
+      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Web",
+      "repo": "oatrice/TheMiddleWay-Web",
+      "kanban_number": 8,
+      "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "8": {
+      "name": "TheMiddleWay (Android)",
+      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Android",
+      "repo": "oatrice/TheMiddleWay-Android",
+      "kanban_number": 8,
+      "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "9": {
+      "name": "TheMiddleWay (iOS)",
+      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/iOS",
+      "repo": "oatrice/TheMiddleWay-IOS",
+      "kanban_number": 8,
+      "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "10": {
+      "name": "TheMiddleWay (Backend)",
+      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Backend",
+      "repo": "oatrice/TheMiddleWay-Backend",
+      "kanban_number": 8,
+      "kanban_id": "PVT_kwHOATfKEM4BOWVD",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "11": {
+      "name": "Akasa",
+      "path": "/Users/oatrice/Software-projects/Akasa",
+      "repo": "oatrice/Akasa",
+      "kanban_number": 9,
+      "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "12": {
+      "name": "Luma",
+      "path": "/Users/oatrice/Software-projects/Luma",
+      "repo": "oatrice/Luma",
+      "kanban_number": 5,
+      "kanban_id": "PVT_kwHOATfKEM4BKOOI",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "In Progress",
+          "In Review",
+          "Done"
+        ],
+        "done_statuses": [
+          "Done"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "13": {
+      "name": "Cerebro",
+      "path": "/Users/oatrice/Software-projects/Cerebro",
+      "repo": "oatrice/Cerebro",
+      "kanban_number": 12,
+      "kanban_id": "PVT_kwHOATfKEM4BTlFw",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    },
+    "14": {
+      "name": "Cerebro (worktree)",
+      "path": "/Users/oatrice/Software-projects/Cerebro-worktrees/cerebro1",
+      "repo": "oatrice/Cerebro",
+      "kanban_number": 12,
+      "kanban_id": "PVT_kwHOATfKEM4BTlFw",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
+    }
+  }
+}
