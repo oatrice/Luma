@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 1.6.0  
+> **Version:** 0.19.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -170,7 +170,7 @@ Successful output is emitted on `stdout` as JSON:
   "status": "success",
   "mode": "metadata",
   "result": {
-    "version": "1.6.0",
+    "version": "0.19.0",
     "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
     "dirty": true,
     "contract_version": "2.0",
@@ -238,3 +238,6 @@ Contract guarantees:
 - [x] **Auto-Project Integration**: New issues are automatically added to the configured GitHub Project. 🆕
 - [x] **Worktree Orchestration**: Multi-agent support for Git worktrees. 🆕
 - [x] **Automatic Detection**: Automatic GitHub repository and Kanban board discovery. 🆕
+- [x] **Project Management**: Centralized project configuration via `.luma/projects.json`. 🆕
+- [x] **Project-Aware AI Brain Sync**: AI brain sessions filtered by current project context. 🆕
+- [x] **Enhanced Header UX**: CLI header displays folder path, GitHub Project info, and worktree detection. 🆕

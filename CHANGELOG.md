@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.19.0] - 2026-04-10
+
+### Added
+- **Projects:** Introduced centralized project management via `.luma/projects.json` with full project configuration support.
+- **UI/UX:** Enhanced Luma CLI header to display folder path, GitHub Project number, and worktree detection with `(worktree)` suffix.
+- **AI Brain Sync:** Implemented project-aware filtering for AI brain sessions, showing only relevant sessions for the current project.
+- **Menu:** Reorganized menu actions for improved accessibility - "Auto Full Workflow" (A) and "View Kanban Status" (K) now appear in top positions.
+- **Documentation:** Added comprehensive feature documentation for Issues #74, #72, #71, #60 including spec, plan, analysis, and SBE.
+- **Tests:** Added full test suite for header enhancement features and project-aware synchronization.
+
+### Changed
+- **Config:** Migrated project configuration from legacy format to new JSON-based project management system.
+- **Version:** Standardized all version references to pre-release `0.x.x` format across VERSION file and CHANGELOG.
+- **Admin Actions:** Enhanced AI brain synchronization to filter sessions by project context for cleaner output.
+
+### Removed
+- **Prompts:** Cleaned up obsolete prompt files from `.luma/prompts/` directory.
+
+
 ## [0.18.0] - 2026-04-10
 
 ### Added
