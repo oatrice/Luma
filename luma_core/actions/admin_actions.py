@@ -229,7 +229,7 @@ def action_switch_project(state: LumaState) -> str:
     return None
 
 def action_settings():
-    """Settings menu to configure LLM Provider, Agent CLI, and Gemini CLI Model"""
+    """Settings menu to configure LLM Provider, Agent CLI, Gemini CLI Model, and Export Prompts"""
     import json
     import os
 
@@ -239,6 +239,7 @@ def action_settings():
         GEMINI_CLI_MODEL,
         GLOBAL_CONFIG_FILE,
         LLM_PROVIDER,
+        LUMA_EXPORT_PROMPTS,
         normalize_llm_provider,
         save_fallback_index,
         save_gemini_cli_model,
@@ -260,15 +261,21 @@ def action_settings():
     original_llm = current_llm
     current_cli = current_config.get("AGENT_CLI", AGENT_CLI)
     current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
+    # Get export prompts from config, or use current module default (True)
+    current_export = current_config.get("LUMA_EXPORT_PROMPTS")
+    if current_export is None:
+        current_export = LUMA_EXPORT_PROMPTS if LUMA_EXPORT_PROMPTS is not None else True
 
     while True:
+        export_status = "✅ ON (Export prompts to files)" if current_export else "❌ OFF (Call LLM directly)"
         print("\nCurrent Configuration:")
         print(f"  [1] LLM Provider:      {current_llm}")
         print(f"  [2] Agent CLI:         {current_cli}")
         print(f"  [3] Gemini CLI Model:  {current_model}")
-        print("  [4] 🔙 Back")
+        print(f"  [4] Export Prompts:    {export_status}")
+        print("  [5] 🔙 Back")
 
-        choice = safe_input("\nSelect setting to change [1-4]: ")
+        choice = safe_input("\nSelect setting to change [1-5]: ")
 
         if choice == "1":
             print("\nSelect LLM Provider:")
@@ -316,7 +323,12 @@ def action_settings():
             except ValueError:
                 print("❌ Invalid option")
 
-        elif choice == "4" or choice == "":
+        elif choice == "4":
+            current_export = not current_export
+            status_msg = "ENABLED" if current_export else "DISABLED"
+            print(f"\n  🔄 Export Prompts {status_msg}")
+
+        elif choice == "5" or choice == "":
             break
         else:
             print("❌ Invalid option")
@@ -324,6 +336,7 @@ def action_settings():
     # Save back to config
     current_config["LLM_PROVIDER"] = current_llm
     current_config["AGENT_CLI"] = current_cli
+    current_config["LUMA_EXPORT_PROMPTS"] = current_export
 
     try:
         with open(GLOBAL_CONFIG_FILE, "w") as f:

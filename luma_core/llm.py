@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import time
@@ -20,7 +21,23 @@ from luma_core.error_classifier import classify_error, ErrorType, is_retryable
 # Import new timeout/retry configuration
 LUMA_LLM_TIMEOUT_SCALE = getattr(config, "LUMA_LLM_TIMEOUT_SCALE", 1.0)
 LUMA_MAX_LLM_RETRIES = getattr(config, "LUMA_MAX_LLM_RETRIES", None)
-LUMA_EXPORT_PROMPTS = getattr(config, "LUMA_EXPORT_PROMPTS", None)  # None = auto-export on error
+
+# Load LUMA_EXPORT_PROMPTS from global config if available
+_GLOBAL_CONFIG_FILE = getattr(config, "GLOBAL_CONFIG_FILE", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json"))
+_LUMA_EXPORT_PROMPTS_CONFIG = None
+if os.path.exists(_GLOBAL_CONFIG_FILE):
+    try:
+        with open(_GLOBAL_CONFIG_FILE, "r") as f:
+            _cfg = json.load(f)
+            _LUMA_EXPORT_PROMPTS_CONFIG = _cfg.get("LUMA_EXPORT_PROMPTS")
+    except Exception:
+        pass
+
+# Use global config value if set, otherwise fall back to module config (True by default)
+if _LUMA_EXPORT_PROMPTS_CONFIG is not None:
+    LUMA_EXPORT_PROMPTS = _LUMA_EXPORT_PROMPTS_CONFIG
+else:
+    LUMA_EXPORT_PROMPTS = getattr(config, "LUMA_EXPORT_PROMPTS", True)
 
 # Store session metrics for Gemini CLI
 _session_gemini_cli_time = 0.0
