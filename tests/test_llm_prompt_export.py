@@ -215,6 +215,32 @@ class TestFeatureDirectoryResolution:
                 # Should fallback to a default path or return None
                 assert result is None or isinstance(result, str)
 
+    def test_fallback_extracts_feature_dir_correctly_with_subdirs(self):
+        """Test that fallback logic correctly extracts feature dir when CWD has subdirectories"""
+        # This test catches the bug where splitting by os.sep gives empty string as first element
+        from luma_core.llm import _resolve_feature_directory
+
+        with patch("luma_core.state_manager.load_state", return_value=None):
+            # Simulate being in a subdirectory of the feature folder
+            # Example: /repo/docs/features/21_issue-67_name/some/subdir
+            with patch("os.getcwd", return_value="/repo/docs/features/21_issue-67_name/some/subdir"):
+                result = _resolve_feature_directory()
+
+                # Should return the feature directory, NOT the parent docs/features
+                assert result is not None
+                assert result.endswith("21_issue-67_name")
+                assert not result.endswith("docs/features")  # This was the bug!
+
+    def test_fallback_extracts_feature_dir_from_root(self):
+        """Test fallback when CWD is directly in feature dir"""
+        from luma_core.llm import _resolve_feature_directory
+
+        with patch("luma_core.state_manager.load_state", return_value=None):
+            with patch("os.getcwd", return_value="/repo/docs/features/21_issue-67_name"):
+                result = _resolve_feature_directory()
+
+                assert result == "/repo/docs/features/21_issue-67_name"
+
 
 class TestTrackedModelIntegration:
     """Test suite for TrackedModel integration with export functionality"""

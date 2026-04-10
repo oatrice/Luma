@@ -705,8 +705,16 @@ def _resolve_feature_directory() -> Optional[str]:
             parts = current_dir.split(features_pattern)
             if len(parts) > 1:
                 # Reconstruct the feature directory path
-                feature_subdir = parts[1].split(os.sep)[0]  # Get first segment
-                return parts[0] + features_pattern + feature_subdir
+                # Example: current_dir = /repo/docs/features/1_issue-test/subdir
+                # features_pattern = docs/features
+                # base_path_with_pattern = /repo/docs/features
+                # remainder_path = 1_issue-test/subdir
+                # feature_subdir_name = 1_issue-test
+                base_path_with_pattern = parts[0] + features_pattern
+                remainder_path = parts[1].strip(os.sep)  # Remove leading/trailing slashes
+                if remainder_path:  # Ensure there's a feature subdirectory
+                    feature_subdir_name = remainder_path.split(os.sep, 1)[0]
+                    return os.path.join(base_path_with_pattern, feature_subdir_name)
 
     except Exception:
         pass
