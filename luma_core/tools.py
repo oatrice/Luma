@@ -32,12 +32,11 @@ def get_project_git_info(project_path: str) -> dict:
         return {"hash": "unknown", "date": "unknown"}
 
 
-def get_git_worktree_path(cwd: str = None) -> Optional[str]:
+def get_git_toplevel_path(cwd: str = None) -> Optional[str]:
     """
-    Detect if current directory is a git worktree and return the worktree path.
+    Returns the toplevel path of the current Git repository (main repo or worktree).
 
-    Returns the worktree toplevel path if in a worktree, otherwise None.
-    Uses 'git rev-parse --show-toplevel' to get the actual worktree root.
+    Uses 'git rev-parse --show-toplevel' to get the actual repository root.
     """
     import subprocess
     try:
@@ -84,27 +83,28 @@ def is_git_worktree(cwd: str = None) -> bool:
 
 def resolve_project_target_dir(project_path: str, cwd: str = None) -> str:
     """
-    Resolve the target directory for a project, considering git worktrees.
+    Resolves the effective target directory for operations, prioritizing the active Git repository root.
 
-    If the current working directory is a git worktree, returns the worktree path.
-    Otherwise, returns the original project path.
+    If the current working directory (or provided `cwd`) is within a Git repository
+    (either a main repository or a worktree), this function returns the toplevel
+    path of that active Git context.
 
-    This ensures that when running from a worktree, generated files (spec.md,
-    plan.md, sbe.md) go to the worktree's docs/features/ instead of the
-    original repo.
+    If not within a Git repository, it falls back to the provided `project_path`.
+
+    This ensures that Luma CLI operations (like file generation and Git commands)
+    are consistently performed relative to the correct Git repository context,
+    especially in worktree environments.
     """
     work_dir = cwd or os.getcwd()
+    git_toplevel = get_git_toplevel_path(work_dir)
 
-    # Check if we're in a worktree
-    if is_git_worktree(work_dir):
-        worktree_path = get_git_worktree_path(work_dir)
-        if worktree_path:
-            # Verify the worktree is related to the project
-            # by checking if it's under the same parent or shares git history
-            return worktree_path
-
-    # Fall back to original project path
-    return project_path
+    if git_toplevel:
+        # If we are in a Git repository (main or worktree), return its toplevel path.
+        # This will be the root of the active Git context.
+        return git_toplevel
+    else:
+        # If not in a Git repository, fall back to the provided project_path.
+        return project_path
 
 
 def repair_invalid_branch(state, project_path: str) -> bool:

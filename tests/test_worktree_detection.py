@@ -2,7 +2,7 @@
 Test suite for git worktree detection functionality.
 
 Tests the TDD cycle for:
-- get_git_worktree_path()
+- get_git_toplevel_path()
 - is_git_worktree()
 - resolve_project_target_dir()
 
@@ -19,19 +19,19 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from luma_core.tools import (
-    get_git_worktree_path,
+    get_git_toplevel_path,
     is_git_worktree,
     resolve_project_target_dir,
 )
 
 
 class TestGetGitWorktreePath:
-    """Tests for get_git_worktree_path() function."""
+    """Tests for get_git_toplevel_path() function."""
 
     def test_returns_none_for_non_git_directory(self):
         """🟥 RED: Should return None when not in a git repository."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = get_git_worktree_path(tmpdir)
+            result = get_git_toplevel_path(tmpdir)
             assert result is None, "Expected None for non-git directory"
 
     def test_returns_toplevel_for_regular_repo(self):
@@ -42,7 +42,7 @@ class TestGetGitWorktreePath:
             subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmpdir, capture_output=True)
             subprocess.run(["git", "config", "user.name", "Test"], cwd=tmpdir, capture_output=True)
 
-            result = get_git_worktree_path(tmpdir)
+            result = get_git_toplevel_path(tmpdir)
             # Normalize paths for macOS /private/var vs /var difference
             assert os.path.realpath(result) == os.path.realpath(tmpdir), f"Expected {tmpdir}, got {result}"
 
@@ -74,7 +74,7 @@ class TestGetGitWorktreePath:
                 check=True
             )
 
-            result = get_git_worktree_path(worktree_dir)
+            result = get_git_toplevel_path(worktree_dir)
             # Normalize paths for macOS /private/var vs /var difference
             assert os.path.realpath(result) == os.path.realpath(worktree_dir), f"Expected {worktree_dir}, got {result}"
 
@@ -84,7 +84,7 @@ class TestGetGitWorktreePath:
             # Mock subprocess to simulate failure
             with patch("subprocess.run") as mock_run:
                 mock_run.side_effect = subprocess.CalledProcessError(1, "git")
-                result = get_git_worktree_path(tmpdir)
+                result = get_git_toplevel_path(tmpdir)
                 assert result is None, "Expected None when git command fails"
 
 
@@ -166,7 +166,7 @@ class TestResolveProjectTargetDir:
         cwd = "/some/current/dir"
 
         with patch("luma_core.tools.is_git_worktree", return_value=True):
-            with patch("luma_core.tools.get_git_worktree_path", return_value=worktree_path):
+            with patch("luma_core.tools.get_git_toplevel_path", return_value=worktree_path):
                 result = resolve_project_target_dir(project_path, cwd)
                 assert result == worktree_path, f"Expected {worktree_path}, got {result}"
 
@@ -176,7 +176,7 @@ class TestResolveProjectTargetDir:
         cwd = "/some/current/dir"
 
         with patch("luma_core.tools.is_git_worktree", return_value=True):
-            with patch("luma_core.tools.get_git_worktree_path", return_value=None):
+            with patch("luma_core.tools.get_git_toplevel_path", return_value=None):
                 result = resolve_project_target_dir(project_path, cwd)
                 assert result == project_path, f"Expected {project_path}, got {result}"
 
@@ -186,10 +186,11 @@ class TestResolveProjectTargetDir:
         current_dir = "/current/working/dir"
 
         with patch("os.getcwd", return_value=current_dir):
-            with patch("luma_core.tools.is_git_worktree") as mock_is_worktree:
-                mock_is_worktree.return_value = False
-                resolve_project_target_dir(project_path)
-                mock_is_worktree.assert_called_once_with(current_dir)
+            with patch("luma_core.tools.get_git_toplevel_path") as mock_get_toplevel:
+                mock_get_toplevel.return_value = None  # Not in a git repo
+                result = resolve_project_target_dir(project_path)
+                mock_get_toplevel.assert_called_once_with(current_dir)
+                assert result == project_path
 
 
 class TestIntegrationWithPlanActions:

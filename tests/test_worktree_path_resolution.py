@@ -133,9 +133,9 @@ class TestIsGitWorktree:
                 # Note: is_git_worktree compares git-dir and git-common-dir
                 # In some temp dir setups on macOS, this might not work as expected
                 # So we also check that get_git_worktree_path returns a valid path
-                from luma_core.tools import get_git_worktree_path
+                from luma_core.tools import get_git_toplevel_path
                 result = is_git_worktree(worktree_path)
-                worktree_root = get_git_worktree_path(worktree_path)
+                worktree_root = get_git_toplevel_path(worktree_path)
                 # Either is_git_worktree returns True OR get_git_worktree_path returns a path
                 assert result is True or worktree_root is not None, "Expected worktree detection to work"
             finally:
@@ -155,12 +155,12 @@ class TestIsGitWorktree:
             assert result is False, f"Expected False (not worktree), got {result}"
 
 
-class TestGetGitWorktreePath:
-    """Test get_git_worktree_path function."""
+class TestGetGitToplevelPath:
+    """Test get_git_toplevel_path function."""
 
-    def test_get_git_worktree_path_returns_path_in_worktree(self):
-        """get_git_worktree_path should return worktree root path."""
-        from luma_core.tools import get_git_worktree_path
+    def test_get_git_toplevel_path_returns_path_in_worktree(self):
+        """get_git_toplevel_path should return worktree root path."""
+        from luma_core.tools import get_git_toplevel_path
 
         with tempfile.TemporaryDirectory() as main_repo:
             # Initialize main repo
@@ -183,17 +183,17 @@ class TestGetGitWorktreePath:
             )
 
             try:
-                result = get_git_worktree_path(worktree_path)
+                result = get_git_toplevel_path(worktree_path)
                 # Use realpath to handle macOS path normalization
                 assert os.path.realpath(result) == os.path.realpath(worktree_path), f"Expected {worktree_path}, got {result}"
             finally:
                 # Cleanup
                 subprocess.run(["git", "worktree", "remove", "-f", worktree_path], cwd=main_repo, capture_output=True)
 
-    def test_get_git_worktree_path_returns_none_outside_git(self):
-        """get_git_worktree_path should return None outside git repo."""
-        from luma_core.tools import get_git_worktree_path
+    def test_get_git_toplevel_path_returns_none_outside_git(self):
+        """get_git_toplevel_path should return None outside git repo."""
+        from luma_core.tools import get_git_toplevel_path
 
         with tempfile.TemporaryDirectory() as non_git_dir:
-            result = get_git_worktree_path(non_git_dir)
+            result = get_git_toplevel_path(non_git_dir)
             assert result is None, f"Expected None outside git repo, got {result}"
