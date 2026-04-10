@@ -139,7 +139,7 @@ class TestCodeReviewWorktreePath:
                                 "prompt_used": "test prompt"
                             }
                             try:
-                                result = action_code_review(state, project, headless=True)
+                                _ = action_code_review(state, project, headless=True)
                             except RuntimeError:
                                 pass
 
