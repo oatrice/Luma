@@ -145,7 +145,27 @@ def display_header(state: LumaState, project: dict):
         prefix = f"  {icon} {label}: "
         return f"{prefix}{value}"
 
-    _print_boxed_line(format_row("📂", "Project", project['name']), BOX_WIDTH)
+    # Show original project name if in worktree, with worktree indicator
+    from luma_core.tools import get_main_repo_name_from_worktree
+    main_repo_name = get_main_repo_name_from_worktree()
+    if main_repo_name:
+        project_display = f"{main_repo_name} (worktree)"
+    else:
+        project_display = project['name']
+    _print_boxed_line(format_row("📂", "Project", project_display), BOX_WIDTH)
+    
+    # Folder path (truncated if too long)
+    folder_path = project.get('path', 'N/A')
+    max_path_len = 40
+    if len(folder_path) > max_path_len:
+        folder_path = "..." + folder_path[-(max_path_len-3):]
+    _print_boxed_line(format_row("📁", "Folder ", folder_path), BOX_WIDTH)
+    
+    # GitHub Project info
+    kanban_number = project.get('kanban_number')
+    if kanban_number:
+        _print_boxed_line(format_row("🐙", "GH Proj", f"Project #{kanban_number}"), BOX_WIDTH)
+    
     _print_boxed_line(format_row("📍", "Phase  ", f"{emoji} {phase_name}"), BOX_WIDTH)
     
     if state.active_issues:
