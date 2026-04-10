@@ -17,9 +17,12 @@
 
 ## 📂 Key Components
 *   **`main.py`**: Entry point สำหรับรัน Agent หรือ Workflow หลัก
+*   **`luma_core/`**: Core modules (actions, agents, ui, config, etc.)
+*   **`scripts/`**: Development scripts (pre-commit, pre-push, install-hooks.sh)
 *   **`github_fetcher.py`**: Module สำหรับดึงข้อมูล Issues, PRs และ Project Board จาก GitHub
 *   **`debug_coder.py`**: Specialized Agent สำหรับวิเคราะห์ Error Logs และเสนอวิธีแก้
 *   **`.agent/`**: เก็บ Rules, Prompts, และ Workflows ที่ Luma ใช้ยึดถือ
+*   **`docs/`**: Documentation และ templates
 
 ## 🔗 Relationship with Other Projects
 *   **Luma** ทำหน้าที่เป็น "Developer" (ผู้สร้าง)

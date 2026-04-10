@@ -1,0 +1,64 @@
+#!/bin/bash
+# Pre-push hook for Luma
+# Runs full test suite and version checks before pushing
+
+set -e
+
+echo "🚀 Running pre-push checks..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if Python is available
+if command -v python &> /dev/null; then
+    PYTHON=python
+elif command -v python3 &> /dev/null; then
+    PYTHON=python3
+else
+    echo -e "${RED}✗ Python not found${NC}"
+    exit 1
+fi
+
+# Run ruff linting
+echo "🔧 Running ruff linting..."
+if command -v ruff &> /dev/null; then
+    if ! ruff check . --ignore E501,F401; then
+        echo -e "${RED}✗ Ruff checks failed${NC}"
+        echo "Run 'ruff check . --fix' to auto-fix issues"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Ruff checks passed${NC}"
+else
+    echo -e "${YELLOW}⚠ ruff not found, skipping linting${NC}"
+fi
+
+echo ""
+
+# Run full test suite
+echo "🧪 Running full test suite..."
+if ! $PYTHON -m pytest tests/ -v --tb=short; then
+    echo -e "${RED}✗ Tests failed${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ All tests passed${NC}"
+echo ""
+
+# Check version consistency
+echo "📋 Checking version consistency..."
+if [ -f "VERSION" ] && [ -f "CHANGELOG.md" ]; then
+    VERSION=$(cat VERSION | tr -d '[:space:]')
+    if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+        echo -e "${GREEN}✓ VERSION ($VERSION) matches CHANGELOG.md${NC}"
+    else
+        echo -e "${RED}✗ VERSION ($VERSION) not found in CHANGELOG.md${NC}"
+        exit 1
+    fi
+fi
+
+echo ""
+echo -e "${GREEN}✅ Pre-push checks passed! Pushing...${NC}"
+exit 0

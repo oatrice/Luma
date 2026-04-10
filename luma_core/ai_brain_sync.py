@@ -52,11 +52,17 @@ class AntigravityBrain:
         return valid_paths[0]
 
     @classmethod
-    def get_all_sessions(cls) -> List[Dict]:
-        """Return all valid sessions sorted by mtime (newest first), with preview."""
+    def get_all_sessions(cls, project_dir: Optional[str] = None) -> List[Dict]:
+        """Return all valid sessions sorted by mtime (newest first), with preview.
+        
+        Args:
+            project_dir: Optional project directory path to filter sessions by project name.
+                        When provided, only sessions related to the project are returned.
+        """
         if not os.path.exists(cls.DEFAULT_BRAIN_PATH):
             return []
 
+        project_name = os.path.basename(project_dir.rstrip("/")) if project_dir else None
         sessions = []
         for f in os.listdir(cls.DEFAULT_BRAIN_PATH):
             path = os.path.join(cls.DEFAULT_BRAIN_PATH, f)
@@ -68,6 +74,10 @@ class AntigravityBrain:
                         preview = tf.readline().strip()
                 except Exception:
                     preview = "(unreadable)"
+
+                # Filter by project name if specified
+                if project_name and project_name.lower() not in preview.lower():
+                    continue
 
                 sessions.append({
                     "path": path,
@@ -229,11 +239,17 @@ class GeminiCLIBrain:
         return files[0]
 
     @classmethod
-    def get_all_sessions(cls) -> List[Dict]:
-        """Return all valid sessions sorted by mtime (newest first), with preview."""
+    def get_all_sessions(cls, project_dir: Optional[str] = None) -> List[Dict]:
+        """Return all valid sessions sorted by mtime (newest first), with preview.
+        
+        Args:
+            project_dir: Optional project directory path to filter sessions by project name.
+                        When provided, only sessions related to the project are returned.
+        """
         if not os.path.exists(cls.DEFAULT_SESSION_PATH):
             return []
 
+        project_name = os.path.basename(project_dir.rstrip("/")) if project_dir else None
         sessions = []
         for f in os.listdir(cls.DEFAULT_SESSION_PATH):
             if not f.endswith(".json"):
@@ -254,6 +270,10 @@ class GeminiCLIBrain:
                             preview = str(first_msg.get("content", ""))[:100]
             except Exception:
                 preview = "(unreadable)"
+
+            # Filter by project name if specified
+            if project_name and project_name.lower() not in preview.lower():
+                continue
 
             sessions.append({
                 "path": path,
