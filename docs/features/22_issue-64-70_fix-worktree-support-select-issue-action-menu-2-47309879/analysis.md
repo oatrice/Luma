@@ -13,7 +13,7 @@
 | **Analyst** | Gemini |
 | **Priority** | 🔴 High |
 | **Status** | 📝 Draft |
-| **Issue URL** | [Issue #64](https://github.com/google/gemini-cli/issues/64), [Issue #70](https://github.com/google/gemini-cli/issues/70) |
+| **Issue URL** | [Issue #64](https://github.com/oatrice/Luma/issues/64), [Issue #70](https://github.com/oatrice/Luma/issues/70) |
 
 ---
 
@@ -250,8 +250,8 @@ Not Applicable (CLI-based feature, no specific screen/page UI changes).
 
 ### Related Documents
 
-- [GitHub Issue #64](https://github.com/google/gemini-cli/issues/64)
-- [GitHub Issue #70](https://github.com/google/gemini-cli/issues/70)
+- [GitHub Issue #64](https://github.com/oatrice/Luma/issues/64)
+- [GitHub Issue #70](https://github.com/oatrice/Luma/issues/70)
 - `luma_core/tools.py`
 - `luma_core/actions/utils.py`
 - `luma_core/actions/quality_actions.py`
