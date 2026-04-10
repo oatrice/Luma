@@ -91,13 +91,6 @@ class TestAIBrainSyncFiltering:
         from luma_core.ai_brain_sync import AntigravityBrain
         from unittest.mock import patch, mock_open
         
-        # Mock session data with different projects
-        mock_sessions = [
-            "/home/user/.gemini/antigravity/brain/session-1",
-            "/home/user/.gemini/antigravity/brain/session-2",
-            "/home/user/.gemini/antigravity/brain/session-3",
-        ]
-        
         session_contents = {
             "session-1": "Task for Luma project issue #74",
             "session-2": "Task for Cerebro project issue #60", 

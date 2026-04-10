@@ -458,7 +458,7 @@ def action_settings():
         print(f"  [2] Agent CLI:         {current_cli}")
         print(f"  [3] Gemini CLI Model:  {current_model}")
         print(f"  [4] Export Prompts:    {export_status}")
-        print(f"  [5] 🐙 Edit GitHub Project (Kanban)")
+        print("  [5] 🐙 Edit GitHub Project (Kanban)")
         print("  [6] � List GitHub Projects (from API)")
         print("  [7] �� Back")
 
