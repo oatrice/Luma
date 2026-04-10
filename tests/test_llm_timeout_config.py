@@ -169,4 +169,5 @@ class TestConfigVariables:
         """LUMA_EXPORT_PROMPTS should be defined in config module."""
         from luma_core import config
         assert hasattr(config, "LUMA_EXPORT_PROMPTS")
-        assert isinstance(config.LUMA_EXPORT_PROMPTS, bool)
+        # Can be None (default - auto-export on error) or bool when explicitly set
+        assert config.LUMA_EXPORT_PROMPTS is None or isinstance(config.LUMA_EXPORT_PROMPTS, bool)
