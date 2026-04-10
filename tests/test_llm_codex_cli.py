@@ -8,7 +8,8 @@ from luma_core.llm import CodexCLIModel, FallbackModel, GeminiCLIModel, get_llm
 
 def test_get_llm_returns_codex_cli_with_gemini_cli_fallback():
     with patch("luma_core.config.LLM_PROVIDER", "codex-cli"):
-        llm = get_llm()
+        with patch("luma_core.llm.LUMA_EXPORT_PROMPTS", False):
+            llm = get_llm()
 
     assert isinstance(llm, FallbackModel)
     assert isinstance(llm.models[0], CodexCLIModel)

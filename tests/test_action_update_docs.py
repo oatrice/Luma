@@ -19,8 +19,9 @@ def test_action_update_docs_uses_planning_repos_from_context(monkeypatch):
         "name": "Root Project",
         "type": "monorepo_root",
         "sibling_repos": ["sib1", "sib2"],
+        "path": "/tmp/root_project",
     }
-    sibling_project = {"name": "Sibling 1"}
+    sibling_project = {"name": "Sibling 1", "path": "/tmp/sibling1"}
 
     state = LumaState()
     # Mock that planning phase selected only root and sib1
@@ -55,9 +56,10 @@ def test_action_update_docs_fallback_when_no_context(monkeypatch):
         "name": "Root",
         "type": "monorepo_root",
         "sibling_repos": ["sib1", "sib2"],
+        "path": "/tmp/root",
     }
-    sibling1 = {"name": "Sib1"}
-    sibling2 = {"name": "Sib2"}
+    sibling1 = {"name": "Sib1", "path": "/tmp/sib1"}
+    sibling2 = {"name": "Sib2", "path": "/tmp/sib2"}
 
     state = LumaState()
     # No target_planning_repos in context
