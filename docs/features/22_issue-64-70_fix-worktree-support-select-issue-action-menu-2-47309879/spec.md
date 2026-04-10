@@ -1,4 +1,3 @@
-```markdown
 # Specification: Enhanced Git Worktree Support for Issue Selection and Code Review
 
 > **Status**: Proposed
