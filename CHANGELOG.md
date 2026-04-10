@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.18.0] - 2026-04-10
+
+### Added
+- **LLM:** Restored auto-export of failed prompts with human-readable timestamps.
+
+### Fixed
+- **LLM:** Resolved feature directory path correctly with subdirectories.
+
 ## [1.17.0] - 2026-04-09
 
 ### เพิ่มเติม (Added)
