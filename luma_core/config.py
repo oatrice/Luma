@@ -11,6 +11,22 @@ GLOBAL_CONFIG_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma_global.json"
 )
 
+# Projects JSON data file
+PROJECTS_JSON_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".luma", "projects.json"
+)
+
+# Default projects (fallback if JSON file doesn't exist)
+DEFAULT_PROJECTS = {
+    "12": {
+        "name": "Luma",
+        "path": "/Users/oatrice/Software-projects/Luma",
+        "repo": "oatrice/Luma",
+        "kanban_number": 5,
+        "kanban_id": "PVT_kwHOATfKEM4BKOOI",
+    }
+}
+
 
 def normalize_llm_provider(provider: str) -> str:
     """Normalize legacy provider aliases to the canonical dash-based names."""
@@ -272,6 +288,10 @@ CANONICAL_KANBAN_BY_REPO = {
         "kanban_number": 10,  # Zenith Project
         "kanban_id": None,  # TODO: lookup correct project ID if needed for status sync
     },
+    "oatrice/Cerebro": {
+        "kanban_number": None,  # TODO: Add GitHub Project number when available
+        "kanban_id": None,
+    },
     "oatrice/TheMiddleWay-Metadata": {
         "kanban_number": 8,
         "kanban_id": "PVT_kwHOATfKEM4BOWVD",
@@ -333,14 +353,32 @@ def get_status_workflow(project: dict) -> dict:
 
 
 def normalize_project_entry(project: dict) -> dict:
-    """Fill canonical Kanban metadata and workflow for known repositories."""
+    """Fill canonical Kanban metadata and workflow for known repositories.
+    
+    Applies canonical values when project has None/empty values,
+    preserving user-customized values (non-empty, different from canonical).
+    """
     normalized = dict(project)
     repo = normalized.get("repo")
     canonical = CANONICAL_KANBAN_BY_REPO.get(repo)
 
     if canonical:
-        normalized["kanban_number"] = canonical["kanban_number"]
-        normalized["kanban_id"] = canonical["kanban_id"]
+        existing_kanban = normalized.get("kanban_number")
+        existing_kanban_id = normalized.get("kanban_id")
+        canonical_number = canonical.get("kanban_number")
+        canonical_id = canonical.get("kanban_id")
+        
+        # Apply canonical number if: project has None, or canonical has value and project matches it (not user-customized)
+        if canonical_number is not None:
+            if existing_kanban is None or existing_kanban == canonical_number:
+                normalized["kanban_number"] = canonical_number
+        # If canonical is None but project has value, preserve project value (user-customized)
+        
+        # Apply canonical ID if: project has None/empty, or canonical has value and project matches it
+        if canonical_id is not None:
+            if existing_kanban_id is None or existing_kanban_id == "" or existing_kanban_id == canonical_id:
+                normalized["kanban_id"] = canonical_id
+        # If canonical is None but project has non-empty value, preserve project value
 
     normalized["status_workflow"] = get_status_workflow(normalized)
 
@@ -373,7 +411,103 @@ def detect_project_key_for_path(current_path: str, projects: dict = None):
     matches.sort(reverse=True)
     return matches[0][1]
 
-PROJECTS = {
+
+def load_projects(json_file: str = None) -> dict:
+    """Load projects from JSON file.
+    
+    Args:
+        json_file: Path to JSON file. Defaults to PROJECTS_JSON_FILE.
+        
+    Returns:
+        Dictionary of projects with runtime normalization applied.
+    """
+    json_file = json_file or PROJECTS_JSON_FILE
+    
+    if not os.path.exists(json_file):
+        # Fallback to default projects and save them
+        projects = DEFAULT_PROJECTS.copy()
+        save_projects(projects, json_file)
+        return {k: normalize_project_entry(v) for k, v in projects.items()}
+    
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            projects = data.get("projects", {})
+            # Apply normalization to each project
+            return {k: normalize_project_entry(v) for k, v in projects.items()}
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"⚠️  Error loading projects from {json_file}: {e}")
+        print("⚠️  Falling back to default projects")
+        return {k: normalize_project_entry(v) for k, v in DEFAULT_PROJECTS.items()}
+
+
+def save_projects(projects: dict, json_file: str = None) -> bool:
+    """Save projects to JSON file.
+    
+    Args:
+        projects: Dictionary of project configurations.
+        json_file: Path to JSON file. Defaults to PROJECTS_JSON_FILE.
+        
+    Returns:
+        True if saved successfully, False otherwise.
+    """
+    json_file = json_file or PROJECTS_JSON_FILE
+    
+    # Ensure .luma directory exists
+    luma_dir = os.path.dirname(json_file)
+    if not os.path.exists(luma_dir):
+        os.makedirs(luma_dir)
+    
+    data = {
+        "_comment": "Luma Projects Configuration - Edit via Settings menu or manually",
+        "version": "1.0",
+        "projects": projects
+    }
+    
+    try:
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        return True
+    except IOError as e:
+        print(f"⚠️  Error saving projects to {json_file}: {e}")
+        return False
+
+
+def update_project_kanban(project_key: str, kanban_number: int, kanban_id: str = None) -> bool:
+    """Update GitHub Project (Kanban) info for a project.
+    
+    Args:
+        project_key: The project key (e.g., "12", "13").
+        kanban_number: GitHub Project number.
+        kanban_id: Optional GitHub Project ID.
+        
+    Returns:
+        True if updated successfully, False otherwise.
+    """
+    projects = load_projects()
+    
+    if project_key not in projects:
+        print(f"❌ Project '{project_key}' not found")
+        return False
+    
+    projects[project_key]["kanban_number"] = kanban_number
+    if kanban_id:
+        projects[project_key]["kanban_id"] = kanban_id
+    
+    if save_projects(projects):
+        print(f"✅ Updated GitHub Project for '{projects[project_key]['name']}'")
+        print(f"   Kanban Number: {kanban_number}")
+        if kanban_id:
+            print(f"   Kanban ID: {kanban_id}")
+        return True
+    return False
+
+
+# Load projects from JSON (or fallback to hardcoded defaults)
+PROJECTS = load_projects()
+
+# Legacy PROJECTS definition (kept for reference, will be removed in future version)
+_PROJECTS_LEGACY = {
     "1": {
         "name": "JarWise-Root",
         "path": "/Users/oatrice/Software-projects/JarWise",
@@ -470,9 +604,7 @@ PROJECTS = {
     },
 }
 
-PROJECTS = {key: normalize_project_entry(val) for key, val in PROJECTS.items()}
-
-# --- Load Custom Projects from Global Config ---
+# --- Load Custom Projects from Global Config (Legacy support) ---
 try:
     if os.path.exists(GLOBAL_CONFIG_FILE):
         with open(GLOBAL_CONFIG_FILE, "r") as f:
