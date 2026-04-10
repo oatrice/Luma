@@ -293,10 +293,18 @@ def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = Fal
     print("\n📝 Documentation Update")
     print(f"   Project: {project['name']}")
 
+    # Resolve worktree path if running from a git worktree
+    target_dir = resolve_project_target_dir(project["path"])
+    if target_dir != project["path"]:
+        print(f"   🌿 Worktree detected: Using {target_dir} instead of {project['path']}")
+
     # 1. Determine Scope (Single vs Multi-Repo)
     # Check for explicit multi-repo flag in project config
     is_multi_repo = project.get("type") == "monorepo_root"
-    target_repos = [project]
+    
+    # Create project dict with resolved path for single repo mode
+    resolved_project = {**project, "path": target_dir}
+    target_repos = [resolved_project]
 
     if is_multi_repo:
         print("   Mode: Multi-Repo (JarWise)")
@@ -304,10 +312,15 @@ def action_update_docs(state: LumaState, project: dict, skip_confirm: bool = Fal
         target_planning_repos = state.context.get("target_planning_repos", [])
         if target_planning_repos:
             print("   ✅ Using selected repositories from Planning Phase")
-            target_repos = target_planning_repos
+            # Resolve paths for all planning repos
+            target_repos = []
+            for repo in target_planning_repos:
+                repo_target_dir = resolve_project_target_dir(repo["path"])
+                resolved_repo = {**repo, "path": repo_target_dir}
+                target_repos.append(resolved_repo)
         else:
-            # Dynamically load sibling repos
-            all_candidates = [project]
+            # Dynamically load sibling repos (start with resolved project path)
+            all_candidates = [resolved_project]
             try:
                 for sibling_key in project.get("sibling_repos", []):
                     # Ensure key is string
@@ -385,9 +398,12 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
     if not issue_numbers:
         return 0
 
+    # Resolve worktree path if running from a git worktree
+    target_dir = resolve_project_target_dir(project["path"])
+
     roadmap_paths = [
-        os.path.join(project["path"], "docs", "ROADMAP.md"),
-        os.path.join(project["path"], "ROADMAP.md"),
+        os.path.join(target_dir, "docs", "ROADMAP.md"),
+        os.path.join(target_dir, "ROADMAP.md"),
     ]
     roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
     if not roadmap_path:
@@ -520,9 +536,12 @@ def sync_roadmap_for_new_issues(project: dict, cards: list) -> int:
     if not cards:
         return 0
 
+    # Resolve worktree path if running from a git worktree
+    target_dir = resolve_project_target_dir(project["path"])
+
     roadmap_paths = [
-        os.path.join(project["path"], "docs", "ROADMAP.md"),
-        os.path.join(project["path"], "ROADMAP.md"),
+        os.path.join(target_dir, "docs", "ROADMAP.md"),
+        os.path.join(target_dir, "ROADMAP.md"),
     ]
     roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
     if not roadmap_path:
@@ -605,10 +624,15 @@ def action_update_roadmap(state: LumaState, project: dict, headless: bool = Fals
     if not headless:
         print(f"\n🗺️  Updating Roadmap for {project['name']}...")
 
+    # Resolve worktree path if running from a git worktree
+    target_dir = resolve_project_target_dir(project["path"])
+    if target_dir != project["path"]:
+        print(f"   🌿 Worktree detected: Using {target_dir} instead of {project['path']}")
+
     # Locate ROADMAP.md
     roadmap_paths = [
-        os.path.join(project["path"], "docs", "ROADMAP.md"),
-        os.path.join(project["path"], "ROADMAP.md"),
+        os.path.join(target_dir, "docs", "ROADMAP.md"),
+        os.path.join(target_dir, "ROADMAP.md"),
     ]
     roadmap_path = next((p for p in roadmap_paths if os.path.exists(p)), None)
 
