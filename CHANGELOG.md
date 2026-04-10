@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.18.0] - 2026-04-10
+## [0.18.0] - 2026-04-10
 
 ### Added
 - **LLM:** Restored auto-export of failed prompts with human-readable timestamps.
@@ -8,7 +8,7 @@
 ### Fixed
 - **LLM:** Resolved feature directory path correctly with subdirectories.
 
-## [1.17.0] - 2026-04-09
+## [0.17.0] - 2026-04-09
 
 ### เพิ่มเติม (Added)
 - **LLM:** ใช้การปรับขนาด timeout, การลองใหม่ที่กำหนดเอง และการส่งออก prompt.
@@ -22,7 +22,7 @@
 - **Documentation:** ลบเอกสารคุณสมบัติที่ซ้ำซ้อน.
 - **Documentation:** ลบแผนการดำเนินการ, งาน, และ walkthrough สำหรับ AI brain ของประเด็น #53, #55-56.
 
-## [1.16.0] - 2026-04-09
+## [0.16.0] - 2026-04-09
 
 ### Changed
 - **Core:** Improved path resolution logic for Git worktrees, enhancing reliability when operating within multiple worktrees.
@@ -30,7 +30,7 @@
 ### Removed
 - **Code Review:** Discontinued the automatic creation of temporary code review prompt text files.
 
-## [1.15.0] - 2026-04-08
+## [0.15.0] - 2026-04-08
 
 ### Added
 - **Worktree Orchestration:** Implemented a multi-agent worktree orchestration system, enabling Luma to manage and coordinate complex tasks across multiple Git worktrees simultaneously.
@@ -41,7 +41,7 @@
 - **Core:** Enhanced planning and administrative actions to support worktree-aware operations.
 - **Testing:** Added a comprehensive test suite for Git worktree detection and state validation.
 
-## [1.14.0] - 2026-04-08
+## [0.14.0] - 2026-04-08
 
 ### Added
 - **Headless CLI:** Expanded the headless contract to support guided workflows, issue selection (mirroring interactive menus), and programmatic issue bootstrapping.
@@ -57,7 +57,7 @@
 - **Output:** Standardized `IssueData` fields and suppressed unnecessary stdout to prevent JSON pollution in headless mode.
 - **Branch Management:** Added validation and auto-repair mechanisms for invalid branch states.
 
-## [1.13.0] - 2026-04-03
+## [0.13.0] - 2026-04-03
 
 ### Added
 - **Dotfiles Bootstrap:** Implemented a portable dotfiles bootstrap template, including AI dotfiles, to facilitate the management of shared AI memory configurations.
@@ -67,7 +67,7 @@
 - Updated core tools and package configurations.
 - Refined metrics tracking and agent configurations.
 
-## [1.12.0] - 2026-04-03
+## [0.12.0] - 2026-04-03
 
 ### Added
 - **Guided Planning:** Enhanced multi-issue planning with compact naming, safe directory generation, and improved circular LLM fallback.
@@ -78,23 +78,23 @@
 ### Fixed
 - **LLM:** Resolved an issue with the fallback model rotation logic.
 
-## [1.11.0] - 2026-04-03
+## [0.11.0] - 2026-04-03
 
 ### Added
 - **CLI:** Introduced action-level logging for headless CLI executions to improve debuggability.
 - **Metrics:** Added a prompt to record post-story points for actual effort tracking against initial estimates.
 
-## [1.10.0] - 2026-04-02
+## [0.10.0] - 2026-04-02
 
 ### Added
 - **CLI:** Introduced a headless metadata endpoint for programmatic interaction and ensured strict JSON output for external callers.
 
-## [1.9.0] - 2026-04-02
+## [0.9.0] - 2026-04-02
 
 ### Added
 - **CLI:** Introduced a headless CLI contract for programmatic execution, allowing external callers to interact with Luma programmatically. Updated documentation to include analysis for this new feature.
 
-## [1.8.0] - 2026-04-01
+## [0.8.0] - 2026-04-01
 
 ### Added
 - **LLM Providers:**
@@ -108,7 +108,7 @@
 - **Kanban Sync:**
     - Prevented Kanban synchronization issues caused by missing IDs.
 
-## [1.7.0] - 2026-03-31
+## [0.7.0] - 2026-03-31
 
 ### Added
 - **Metrics & Estimation:**
@@ -126,7 +126,7 @@
     - Refined workflow planning logic with improved skip detection and more robust Pull Request identification.
     - Updated the metrics summarizer and report generator to integrate and display post-implementation story point data.
 
-## [1.6.0] - 2026-03-30
+## [0.6.0] - 2026-03-30
 
 ### Added
 - **LLM & Credential Rotation System:**
@@ -160,7 +160,7 @@
     - Standardized Gemini provider naming conventions.
     - Improved GitHub metrics synchronization for reopened issues and paradoxes.
 
-## [1.5.0] - 2026-03-25
+## [0.5.2] - 2026-03-25
 
 ### Added
 - **[Metrics & Reporting]** Introduced comprehensive project and issue tracking.
@@ -184,12 +184,12 @@
 - **[Reporting]** Ensured unique filenames are generated for project reports to prevent overwrites.
 - **[Workflow]** Resolved an `UnboundLocalError` in a guided workflow test.
 
-## [1.4.1] - 2026-03-19
+## [0.4.1] - 2026-03-19
 
 ### Fixed
 - **[Config]** Resolved an issue where nested dictionary configurations were being overwritten instead of deep-merged, preventing potential data loss in project-specific settings.
 
-## [1.4.0] - 2026-03-19
+## [0.4.0] - 2026-03-19
 
 ### Added
 - **[LLM Fallback]** Smart Fallback Strategy with Rate Limit detection and per-model timeout handling in `FallbackModel`.
@@ -200,7 +200,7 @@
 - **[Models]** Reordered `AVAILABLE_GEMINI_CLI_MODELS` to prioritize `gemini-2.5-flash` for overall speed/stability.
 - **[Core]** `_add_new_project` ID generation modified to use auto-increment from existing project sequences instead of Unix epoch timestamp.
 
-## [1.3.0] - 2026-01-31
+## [0.3.1] - 2026-01-31
 
 ### Added
 - **[Spec Kit]** Adopted Spec-Driven Development (SDD) workflow.
@@ -208,7 +208,7 @@
 - **[Agents]** New `Spec Agent` (Menu: 3) and `Architect Agent` (Menu: P).
 - **[Workflow]** New flow: Issue -> **Specify** -> **Plan** -> Code.
 
-## [1.2.0] - 2026-01-31
+## [0.3.0] - 2026-01-31
 
 ### Added
 - **[Draft Code Review]** New feature to generate `draft_code_review.md` with full git diff, commits, and stats.
@@ -216,7 +216,7 @@
 - **[Publisher]** Publisher Agent now auto-detects and uses `draft_code_review.md` for richer PR context.
 - **[Tools]** `generate_draft_code_review()` function in `luma_core/tools.py`.
 
-## [1.1.0] - 2026-01-31
+## [0.2.0] - 2026-01-31
 
 ### Added
 - **[SBE]** Specification by Example (SBE) feature for pre-coding phase
@@ -230,7 +230,7 @@
 - **[Actions]** Added `action_generate_sbe()` function
 - **[Main]** Extended menu with SBE option
 
-## [1.0.0] - 2026-01-30
+## [0.1.0] - 2026-01-30
 
 ### Added
 - **[Luma V2]** Complete overhaul of the workflow engine ("Workflow Guardian")

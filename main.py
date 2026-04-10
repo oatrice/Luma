@@ -597,6 +597,9 @@ def run_headless(args) -> int:
         usage_tracker.clear_context()
 
 MENU_ACTIONS = {
+    "0": {"label": "❌ Exit",                      "valid_phases": "ALL"},
+    "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
+    "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
     "N": {"label": "🆕 Create New Issue",           "valid_phases": "ALL"},
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
@@ -611,8 +614,6 @@ MENU_ACTIONS = {
     "P": {"label": "🚀 Create/Sync PRs",           "valid_phases": "ALL"},
     "8": {"label": "🚀 Create Pull Request",       "valid_phases": "ALL"},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
-    "A": {"label": "⚡ Auto Full Workflow",         "valid_phases": "ALL"},
-    "K": {"label": "📊 View Kanban Status",        "valid_phases": "ALL"},
     "L": {"label": "📊 View Usage Log",            "valid_phases": "ALL"},
     "D": {"label": "📊 Usage & Metrics Dashboard",  "valid_phases": "ALL"},
     "T": {"label": "🧪 Test Telegram Notification", "valid_phases": "ALL"},
@@ -621,8 +622,7 @@ MENU_ACTIONS = {
     "Q": {"label": "🐙 Audit & Sync GitHub Metrics", "valid_phases": "ALL"},
     "R": {"label": "🔄 Refresh State",             "valid_phases": "ALL"},
     "S": {"label": "🔀 Switch Project",             "valid_phases": "ALL"},
-    "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"},
-    "0": {"label": "❌ Exit",                      "valid_phases": "ALL"}
+    "O": {"label": "⚙️ Settings",                  "valid_phases": "ALL"}
 }
 
 

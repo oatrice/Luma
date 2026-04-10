@@ -242,36 +242,42 @@ def test_action_sync_ai_brain_logic(mock_brain_dir, tmp_path, monkeypatch):
     import os
     from luma_core.state_manager import LumaState, IssueData
     from luma_core.actions import action_sync_ai_brain
-    
+    from luma_core.ai_brain_sync import AntigravityBrain
+
     project_dir = str(tmp_path / "repo3")
     os.makedirs(project_dir)
-    
+
     import subprocess
     class MockCompletedProcess:
         returncode = 0
         stdout = ""
         stderr = ""
-        
+
     def mock_subprocess_run(*args, **kwargs):
         return MockCompletedProcess()
-        
+
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
     monkeypatch.setattr("builtins.input", lambda _: "y")
-    
+
+    # Update mock session content to include project name for filtering
+    sess3 = os.path.join(mock_brain_dir, "2466c0f9-3333")
+    with open(os.path.join(sess3, "task.md"), "w") as f:
+        f.write("# Active Task Number 45 for repo3 project")
+
     state = LumaState(project_key="1")
     state.active_issues = [IssueData(
         number=45, title="Test", html_url="", body="", project_item_id="", project_id="", repository=""
     )]
-    
+
     project = {
         "name": "Test Project",
         "path": project_dir,
         "repo": "test/test"
     }
-    
+
     result = action_sync_ai_brain(state, project)
     assert result is True
-    
+
     target_dir = os.path.join(project_dir, "docs", "features", "45_issue-45", "ai_brain")
     assert os.path.exists(os.path.join(target_dir, "task.md"))
     assert os.path.exists(os.path.join(target_dir, "screenshot_1234.png"))
