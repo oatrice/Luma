@@ -33,12 +33,12 @@ class TestLoadProjectContext:
         """Should extract content from README.md."""
         readme = tmp_path / "README.md"
         readme.write_text(
-            "# My Project
+            """# My Project
 
 ## Tech Stack
 - **Framework**: Gin
 - **Language**: Go
-",
+""",
             encoding="utf-8",
         )
 
@@ -52,11 +52,11 @@ class TestLoadProjectContext:
         """Should extract content from AGENTS.md when present."""
         agents_md = tmp_path / "AGENTS.md"
         agents_md.write_text(
-            "# AGENTS.md
+            """# AGENTS.md
 
 ## Repo Map
 - Backend: oatrice/TheMiddleWay-Backend
-",
+""",
             encoding="utf-8",
         )
 
@@ -70,10 +70,10 @@ class TestLoadProjectContext:
         """Should read GEMINI.md if AGENTS.md is absent."""
         gemini_md = tmp_path / "GEMINI.md"
         gemini_md.write_text(
-            "# GEMINI.md
+            """# GEMINI.md
 
 Project Name: `The Middle Way`
-",
+""",
             encoding="utf-8",
         )
 
@@ -98,8 +98,7 @@ Project Name: `The Middle Way`
     def test_truncates_very_long_readme(self, tmp_path):
         """Should truncate README to avoid overwhelming the LLM context."""
         readme = tmp_path / "README.md"
-        readme.write_text("# Big Readme
-" + "x" * 20000, encoding="utf-8")
+        readme.write_text("# Big Readme\n" + "x" * 20000, encoding="utf-8")
 
         from luma_core.project_context import load_project_context
 
