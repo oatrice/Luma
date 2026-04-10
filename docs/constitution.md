@@ -32,6 +32,12 @@ This document defines the core principles, rules, and non-negotiable standards f
 4. **Implement**: Code based on Plan.
 5. **Verify**: Run tests and manual checks.
 
-## 5. Security & Safety
+## 5. Development Tools
+- **Git Hooks**: Pre-commit (lint + quick tests), Pre-push (full tests + version check)
+- **Scripts**: `scripts/pre-commit`, `scripts/pre-push`, `scripts/install-hooks.sh`
+- **Linting**: `ruff check . --ignore E501,F401`
+- **Testing**: `pytest tests/ -v`
+
+## 6. Security & Safety
 - **Secrets**: Never hardcode API keys or secrets. Use `.env`.
 - **Validation**: Validate all inputs from external sources (User, API, Git).
