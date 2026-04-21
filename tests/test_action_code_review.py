@@ -1,3 +1,6 @@
+import os
+import subprocess
+import tempfile
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -127,3 +130,75 @@ def test_action_code_review_headless_skips_generated_metrics_file(
     assert result["projects"][0]["status"] == "clean"
     assert result["projects"][0]["changed_files"] == []
     mock_reviewer_agent.assert_not_called()
+
+
+def test_action_code_review_headless_preserves_external_repo_paths_from_worktree_context():
+    """
+    🟥 RED: Headless multi-repo code review must only remap paths for the same
+    git repository family as the active worktree. External repos must keep
+    their own configured paths in the result payload.
+    """
+    from luma_core.actions import action_code_review
+
+    def init_git_repo(path: str, filename: str = "README.md"):
+        subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True, check=True)
+        with open(os.path.join(path, filename), "w", encoding="utf-8") as handle:
+            handle.write("# test\n")
+        subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=path, capture_output=True, check=True)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        luma_main = os.path.join(tmpdir, "Luma")
+        luma_worktree = os.path.join(tmpdir, "Luma-worktrees", "luma1")
+        jarwise_root = os.path.join(tmpdir, "JarWise")
+        jarwise_web = os.path.join(tmpdir, "JarWise-Web")
+
+        os.makedirs(luma_main)
+        os.makedirs(os.path.dirname(luma_worktree), exist_ok=True)
+        os.makedirs(jarwise_root)
+        os.makedirs(jarwise_web)
+
+        init_git_repo(luma_main)
+        init_git_repo(jarwise_root)
+        init_git_repo(jarwise_web)
+
+        subprocess.run(
+            ["git", "worktree", "add", "-b", "feat/headless-review", luma_worktree],
+            cwd=luma_main,
+            capture_output=True,
+            check=True,
+        )
+
+        try:
+            state = _make_state(
+                context={
+                    "target_planning_repos": [
+                        {"name": "Luma", "path": luma_main, "type": "unknown"},
+                        {"name": "JarWise-Root", "path": jarwise_root, "type": "unknown"},
+                        {"name": "JarWise-Web", "path": jarwise_web, "type": "unknown"},
+                    ]
+                }
+            )
+            project = {"name": "Luma", "path": luma_main, "type": "unknown"}
+
+            with patch("os.getcwd", return_value=luma_worktree):
+                with patch(
+                    "luma_core.actions.quality_actions.get_git_changed_files",
+                    return_value=[],
+                ):
+                    result = action_code_review(state, project, headless=True)
+
+            projects = {item["name"]: item for item in result["projects"]}
+
+            assert os.path.realpath(projects["Luma"]["path"]) == os.path.realpath(luma_worktree)
+            assert os.path.realpath(projects["JarWise-Root"]["path"]) == os.path.realpath(jarwise_root)
+            assert os.path.realpath(projects["JarWise-Web"]["path"]) == os.path.realpath(jarwise_web)
+            assert {item["status"] for item in result["projects"]} == {"clean"}
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "-f", luma_worktree],
+                cwd=luma_main,
+                capture_output=True,
+            )

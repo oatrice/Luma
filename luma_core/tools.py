@@ -117,30 +117,56 @@ def get_main_repo_name_from_worktree(cwd: str = None) -> Optional[str]:
     return None
 
 
+def get_git_common_dir(cwd: str = None) -> Optional[str]:
+    """
+    Returns the git common-dir for the repository containing `cwd`.
+
+    For a main repo and all of its worktrees, this resolves to the same common
+    `.git` directory. Unrelated repositories will have different common dirs.
+    """
+    try:
+        work_dir = cwd or os.getcwd()
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=work_dir, capture_output=True, text=True, check=True
+        )
+        common_dir = result.stdout.strip()
+        if not common_dir:
+            return None
+        if not os.path.isabs(common_dir):
+            common_dir = os.path.abspath(os.path.join(work_dir, common_dir))
+        return os.path.realpath(common_dir)
+    except Exception:
+        return None
+
+
 def resolve_project_target_dir(project_path: str, cwd: str = None) -> str:
     """
-    Resolves the effective target directory for operations, prioritizing the active Git repository root.
+    Resolves the effective target directory for operations.
 
-    If the current working directory (or provided `cwd`) is within a Git repository
-    (either a main repository or a worktree), this function returns the toplevel
-    path of the active Git context.
+    If the current working directory points at the same Git repository family as
+    `project_path` (main repo or one of its worktrees), this returns the active
+    git toplevel so commands run inside the selected worktree.
 
-    If not within a Git repository, it falls back to the provided `project_path`.
-
-    This ensures that Luma CLI operations (like file generation and Git commands)
-    are consistently performed relative to the correct Git repository context,
-    especially in worktree environments.
+    If `project_path` belongs to a different repository, the configured project
+    path is preserved. This avoids rewriting unrelated target repos to the
+    caller's own worktree when Luma is launched from inside a worktree.
     """
     work_dir = cwd or os.getcwd()
     git_toplevel = get_git_toplevel_path(work_dir)
 
-    if git_toplevel:
-        # If we are in a Git repository (main or worktree), return its toplevel path.
-        # This will be the root of the active Git context.
-        return git_toplevel
-    else:
-        # If not in a Git repository, fall back to the provided project_path.
+    if not git_toplevel:
         return project_path
+
+    active_common_dir = get_git_common_dir(work_dir)
+    project_common_dir = get_git_common_dir(project_path)
+
+    if active_common_dir and project_common_dir:
+        if os.path.realpath(active_common_dir) == os.path.realpath(project_common_dir):
+            return git_toplevel
+        return project_path
+
+    return project_path
 
 
 def repair_invalid_branch(state, project_path: str) -> bool:
