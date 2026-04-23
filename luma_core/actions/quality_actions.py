@@ -135,7 +135,11 @@ def action_code_review(state: LumaState, project: dict, headless: bool = False):
         config_path = proj["path"]
         target_dir = resolve_project_target_dir(config_path)
         if target_dir != config_path:
-            print(f"   🌿 Worktree detected: Using {target_dir} instead of {config_path}")
+            print(
+                "   🌿 Worktree detected: "
+                f"Using {target_dir} instead of {config_path} "
+                "(same git repository as the active cwd)"
+            )
         repo_result = {
             "name": proj['name'],
             "path": target_dir,

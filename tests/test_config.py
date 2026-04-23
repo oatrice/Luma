@@ -1,5 +1,7 @@
 import os
 import json
+import subprocess
+import tempfile
 import pytest
 import luma_core.config as config
 from unittest.mock import patch, mock_open
@@ -89,8 +91,19 @@ def test_config_normalizes_known_custom_project_kanban():
     result = normalize_project_entry(project_with_empty_id)
     assert result["kanban_number"] == 5
     assert result["kanban_id"] == "PVT_kwHOATfKEM4BKOOI"
-    
-    # Test 3: When project has user-customized values (different from canonical), preserve them
+
+    # Test 3: When a known repo drifts to the wrong kanban, canonical value wins
+    project_with_wrong_known_kanban = {
+        "name": "Luma",
+        "repo": "oatrice/Luma",
+        "kanban_number": 1,
+        "kanban_id": "PVT_wrong",
+    }
+    result = normalize_project_entry(project_with_wrong_known_kanban)
+    assert result["kanban_number"] == 5
+    assert result["kanban_id"] == "PVT_kwHOATfKEM4BKOOI"
+
+    # Test 4: When project has user-customized values (different from canonical), preserve them
     project_with_custom = {
         "name": "Cerebro",
         "repo": "oatrice/Cerebro",
@@ -115,6 +128,61 @@ def test_detect_project_key_for_path_prefers_most_specific_match():
     )
 
     assert detected == "12"
+
+
+def test_detect_project_key_for_path_resolves_matching_worktree_family():
+    projects = {}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        main_repo = os.path.join(tmpdir, "Luma")
+        worktree_dir = os.path.join(tmpdir, "Luma-worktrees", "luma1")
+        os.makedirs(main_repo)
+        os.makedirs(os.path.dirname(worktree_dir), exist_ok=True)
+
+        subprocess.run(["git", "init"], cwd=main_repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=main_repo,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=main_repo,
+            capture_output=True,
+            check=True,
+        )
+
+        with open(os.path.join(main_repo, "README.md"), "w", encoding="utf-8") as handle:
+            handle.write("# Luma")
+
+        subprocess.run(["git", "add", "."], cwd=main_repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=main_repo,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", "-b", "feat/test", worktree_dir],
+            cwd=main_repo,
+            capture_output=True,
+            check=True,
+        )
+
+        projects = {
+            "12": {"path": main_repo},
+        }
+
+        try:
+            detected = config.detect_project_key_for_path(worktree_dir, projects)
+            assert detected == "12"
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "-f", worktree_dir],
+                cwd=main_repo,
+                capture_output=True,
+            )
 
 
 def test_get_status_workflow_uses_luma_specific_lanes():

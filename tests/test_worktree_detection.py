@@ -165,8 +165,11 @@ class TestResolveProjectTargetDir:
         project_path = "/path/to/original/project"
         cwd = "/some/current/dir"
 
-        with patch("luma_core.tools.is_git_worktree", return_value=True):
-            with patch("luma_core.tools.get_git_toplevel_path", return_value=worktree_path):
+        with patch("luma_core.tools.get_git_toplevel_path", return_value=worktree_path):
+            with patch(
+                "luma_core.tools.get_git_common_dir",
+                side_effect=["/repos/main/.git", "/repos/main/.git"],
+            ):
                 result = resolve_project_target_dir(project_path, cwd)
                 assert result == worktree_path, f"Expected {worktree_path}, got {result}"
 
@@ -191,6 +194,45 @@ class TestResolveProjectTargetDir:
                 result = resolve_project_target_dir(project_path)
                 mock_get_toplevel.assert_called_once_with(current_dir)
                 assert result == project_path
+
+    def test_preserves_unrelated_git_repo_when_running_from_other_worktree(self):
+        """🟥 RED: Should not rewrite an unrelated repo path to the active worktree."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            main_repo = os.path.join(tmpdir, "Luma")
+            worktree_dir = os.path.join(tmpdir, "Luma-worktrees", "luma1")
+            external_repo = os.path.join(tmpdir, "JarWise")
+
+            os.makedirs(main_repo)
+            os.makedirs(os.path.dirname(worktree_dir), exist_ok=True)
+            os.makedirs(external_repo)
+
+            for repo_path in (main_repo, external_repo):
+                subprocess.run(["git", "init"], cwd=repo_path, capture_output=True, check=True)
+                subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo_path, capture_output=True, check=True)
+                subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_path, capture_output=True, check=True)
+                with open(os.path.join(repo_path, "README.md"), "w", encoding="utf-8") as handle:
+                    handle.write("# Test")
+                subprocess.run(["git", "add", "."], cwd=repo_path, capture_output=True, check=True)
+                subprocess.run(["git", "commit", "-m", "init"], cwd=repo_path, capture_output=True, check=True)
+
+            subprocess.run(
+                ["git", "worktree", "add", "-b", "feat/test", worktree_dir],
+                cwd=main_repo,
+                capture_output=True,
+                check=True,
+            )
+
+            try:
+                result = resolve_project_target_dir(external_repo, worktree_dir)
+                assert os.path.realpath(result) == os.path.realpath(external_repo), (
+                    f"Expected external repo path {external_repo}, got {result}"
+                )
+            finally:
+                subprocess.run(
+                    ["git", "worktree", "remove", "-f", worktree_dir],
+                    cwd=main_repo,
+                    capture_output=True,
+                )
 
 
 class TestIntegrationWithPlanActions:
