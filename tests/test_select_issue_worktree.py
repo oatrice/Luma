@@ -179,6 +179,65 @@ class TestSelectIssueWorktreePath:
             finally:
                 subprocess.run(["git", "worktree", "remove", "-f", worktree_path], cwd=main_repo, capture_output=True)
 
+    def test_start_issues_headless_saves_state_in_worktree_path(self):
+        """
+        When running from a worktree in headless mode,
+        state should be saved into the worktree path, not the main repository.
+        """
+        from luma_core.actions.utils import _start_issues_headless
+        from luma_core.state_manager import LumaState, WorkflowPhase
+
+        with tempfile.TemporaryDirectory() as main_repo:
+            subprocess.run(["git", "init"], cwd=main_repo, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=main_repo, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=main_repo, capture_output=True)
+
+            with open(os.path.join(main_repo, "README.md"), "w") as f:
+                f.write("# Main Repo")
+            subprocess.run(["git", "add", "."], cwd=main_repo, capture_output=True)
+            subprocess.run(["git", "commit", "-m", "init"], cwd=main_repo, capture_output=True)
+
+            worktree_path = os.path.join(main_repo, "..", "worktree_save_state")
+            worktree_path = os.path.abspath(worktree_path)
+            subprocess.run(
+                ["git", "worktree", "add", "-b", "feat/save-state", worktree_path],
+                cwd=main_repo, capture_output=True
+            )
+
+            try:
+                state = MagicMock(spec=LumaState)
+                state.phase = WorkflowPhase.IDLE
+                state.active_issues = []
+                state.active_branch = None
+                state.context = {}
+
+                card = MagicMock()
+                card.issue_number = 789
+                card.title = "Save State Issue"
+                card.body = "Test body"
+                card.url = "https://github.com/test/issues/789"
+                card.item_id = None
+                card.repository = "test/repo"
+
+                project = {"name": "TestProject", "path": main_repo, "repo": "test/repo"}
+
+                with patch("os.getcwd", return_value=worktree_path):
+                    with patch("luma_core.actions.utils.transition_to") as mock_transition:
+                        with patch("luma_core.actions.utils.save_state", return_value=True) as mock_save_state:
+                            mock_transition.return_value = (True, None)
+                            _start_issues_headless(
+                                state,
+                                [card],
+                                project,
+                                branch_name="feat/789-save-state",
+                            )
+
+                mock_save_state.assert_called_once()
+                assert os.path.realpath(mock_save_state.call_args.args[1]) == os.path.realpath(worktree_path)
+
+            finally:
+                subprocess.run(["git", "worktree", "remove", "-f", worktree_path], cwd=main_repo, capture_output=True)
+
 
 class TestSelectIssueFileGeneration:
     """Test that file generation respects worktree path."""
