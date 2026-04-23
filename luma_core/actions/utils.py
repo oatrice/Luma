@@ -140,10 +140,15 @@ def _build_code_review_followup_prompt(multi_repo: bool = False) -> str:
         "ถ้า code_review.md ไม่ make sense ให้ใช้ draft_code_review.md แทน"
     )
 
+
+def _resolve_repo_operation_dir(repo_path: str) -> str:
+    """Resolve the effective repo directory for git/file operations."""
+    return resolve_project_target_dir(repo_path)
+
 def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     """Start working on one or more issues"""
     # Resolve worktree path if running from a git worktree
-    target_dir = resolve_project_target_dir(project["path"])
+    target_dir = _resolve_repo_operation_dir(project["path"])
     if target_dir != project["path"]:
         print(f"   🌿 Worktree detected: Using {target_dir} instead of {project['path']}")
 
@@ -191,10 +196,14 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 print("🔄 Syncing sibling repos...")
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
-                    if sibling and os.path.exists(sibling["path"]):
+                    if not sibling:
+                        continue
+
+                    sibling_target_dir = _resolve_repo_operation_dir(sibling["path"])
+                    if os.path.exists(sibling_target_dir):
                         sib_result = subprocess.run(
                             ["git", "checkout", state.active_branch],
-                            cwd=sibling["path"],
+                            cwd=sibling_target_dir,
                             capture_output=True,
                             text=True,
                         )
@@ -203,7 +212,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                         else:
                             create_sib = subprocess.run(
                                 ["git", "checkout", "-b", state.active_branch],
-                                cwd=sibling["path"],
+                                cwd=sibling_target_dir,
                                 capture_output=True,
                                 text=True,
                             )
@@ -393,10 +402,14 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                     print("\n🔄 Creating branches in sibling repos...")
                     for sibling_key in project.get("sibling_repos", []):
                         sibling = PROJECTS.get(sibling_key)
-                        if sibling and os.path.exists(sibling["path"]):
+                        if not sibling:
+                            continue
+
+                        sibling_target_dir = _resolve_repo_operation_dir(sibling["path"])
+                        if os.path.exists(sibling_target_dir):
                             sib_result = subprocess.run(
                                 ["git", "checkout", "-b", branch_name],
-                                cwd=sibling["path"],
+                                cwd=sibling_target_dir,
                                 capture_output=True,
                                 text=True,
                             )
@@ -405,7 +418,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                             else:
                                 switch_sib = subprocess.run(
                                     ["git", "checkout", branch_name],
-                                    cwd=sibling["path"],
+                                    cwd=sibling_target_dir,
                                     capture_output=True,
                                     text=True,
                                 )
@@ -448,7 +461,7 @@ def _start_issues_headless(
     from luma_core.context_summarizer import ContextSummarizer
     
     # Resolve worktree path if running from a git worktree
-    target_dir = resolve_project_target_dir(project["path"])
+    target_dir = _resolve_repo_operation_dir(project["path"])
     if target_dir != project["path"]:
         print(f"   🌿 Worktree detected: Using {target_dir} instead of {project['path']}")
     
@@ -538,9 +551,13 @@ def _start_issues_headless(
                 from luma_core.config import PROJECTS
                 for sibling_key in project.get("sibling_repos", []):
                     sibling = PROJECTS.get(sibling_key)
-                    if sibling and os.path.exists(sibling["path"]):
-                        subprocess.run(["git", "checkout", "-b", branch_name], cwd=sibling["path"], capture_output=True)
-                        subprocess.run(["git", "checkout", branch_name], cwd=sibling["path"], capture_output=True)
+                    if not sibling:
+                        continue
+
+                    sibling_target_dir = _resolve_repo_operation_dir(sibling["path"])
+                    if os.path.exists(sibling_target_dir):
+                        subprocess.run(["git", "checkout", "-b", branch_name], cwd=sibling_target_dir, capture_output=True)
+                        subprocess.run(["git", "checkout", branch_name], cwd=sibling_target_dir, capture_output=True)
 
         except Exception as e:
             print(f"⚠️ Failed to create branch: {e}")
@@ -551,8 +568,8 @@ def _start_issues_headless(
                 sync_kanban_on_action("select_issue", project["kanban_id"], card.item_id)
         
         # Explicit save with debug
-        print(f"DEBUG: Saving state to {project['path']} (worktree: {target_dir})")
-        save_state(state, project["path"])
+        print(f"DEBUG: Saving state to {target_dir}")
+        save_state(state, target_dir)
         
         return True
     
