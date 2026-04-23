@@ -10,6 +10,67 @@ from .llm import get_llm
 from .config import TARGET_DIR as DEFAULT_TARGET_DIR
 
 
+def _find_git_metadata_path(path: str) -> Optional[str]:
+    """Find the nearest .git directory or file for the given path."""
+    if not path:
+        return None
+
+    current = os.path.realpath(path)
+    if os.path.isfile(current):
+        current = os.path.dirname(current)
+
+    while True:
+        git_path = os.path.join(current, ".git")
+        if os.path.isdir(git_path) or os.path.isfile(git_path):
+            return git_path
+
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def _get_git_dir_path(git_metadata_path: str) -> Optional[str]:
+    """Resolve the actual git-dir from a .git directory or indirection file."""
+    if os.path.isdir(git_metadata_path):
+        return os.path.realpath(git_metadata_path)
+
+    try:
+        with open(git_metadata_path, "r", encoding="utf-8") as handle:
+            line = handle.readline().strip()
+    except OSError:
+        return None
+
+    if not line.startswith("gitdir:"):
+        return None
+
+    git_dir = line[len("gitdir:"):].strip()
+    if not git_dir:
+        return None
+    if not os.path.isabs(git_dir):
+        git_dir = os.path.join(os.path.dirname(git_metadata_path), git_dir)
+    return os.path.realpath(git_dir)
+
+
+def _get_git_common_dir_from_git_dir(git_dir: str) -> Optional[str]:
+    """Resolve the common git dir for a repo or worktree git-dir."""
+    commondir_path = os.path.join(git_dir, "commondir")
+    if not os.path.exists(commondir_path):
+        return os.path.realpath(git_dir)
+
+    try:
+        with open(commondir_path, "r", encoding="utf-8") as handle:
+            common_dir = handle.readline().strip()
+    except OSError:
+        return os.path.realpath(git_dir)
+
+    if not common_dir:
+        return os.path.realpath(git_dir)
+    if not os.path.isabs(common_dir):
+        common_dir = os.path.join(git_dir, common_dir)
+    return os.path.realpath(common_dir)
+
+
 def get_project_git_info(project_path: str) -> dict:
     """Get the current git hash and commit date for a project."""
     import subprocess
@@ -38,9 +99,12 @@ def get_git_toplevel_path(cwd: str = None) -> Optional[str]:
 
     Uses 'git rev-parse --show-toplevel' to get the actual repository root.
     """
-    import subprocess
+    work_dir = cwd or os.getcwd()
+    git_metadata_path = _find_git_metadata_path(work_dir)
+    if git_metadata_path:
+        return os.path.dirname(git_metadata_path)
+
     try:
-        work_dir = cwd or os.getcwd()
         # Get the toplevel of the current directory (works for both regular repos and worktrees)
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -117,30 +181,64 @@ def get_main_repo_name_from_worktree(cwd: str = None) -> Optional[str]:
     return None
 
 
+def get_git_common_dir(cwd: str = None) -> Optional[str]:
+    """
+    Returns the git common-dir for the repository containing `cwd`.
+
+    For a main repo and all of its worktrees, this resolves to the same common
+    `.git` directory. Unrelated repositories will have different common dirs.
+    """
+    work_dir = cwd or os.getcwd()
+    git_metadata_path = _find_git_metadata_path(work_dir)
+    if git_metadata_path:
+        git_dir = _get_git_dir_path(git_metadata_path)
+        if git_dir:
+            common_dir = _get_git_common_dir_from_git_dir(git_dir)
+            if common_dir:
+                return common_dir
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=work_dir, capture_output=True, text=True, check=True
+        )
+        common_dir = result.stdout.strip()
+        if not common_dir:
+            return None
+        if not os.path.isabs(common_dir):
+            common_dir = os.path.abspath(os.path.join(work_dir, common_dir))
+        return os.path.realpath(common_dir)
+    except Exception:
+        return None
+
+
 def resolve_project_target_dir(project_path: str, cwd: str = None) -> str:
     """
-    Resolves the effective target directory for operations, prioritizing the active Git repository root.
+    Resolves the effective target directory for operations.
 
-    If the current working directory (or provided `cwd`) is within a Git repository
-    (either a main repository or a worktree), this function returns the toplevel
-    path of the active Git context.
+    If the current working directory points at the same Git repository family as
+    `project_path` (main repo or one of its worktrees), this returns the active
+    git toplevel so commands run inside the selected worktree.
 
-    If not within a Git repository, it falls back to the provided `project_path`.
-
-    This ensures that Luma CLI operations (like file generation and Git commands)
-    are consistently performed relative to the correct Git repository context,
-    especially in worktree environments.
+    If `project_path` belongs to a different repository, the configured project
+    path is preserved. This avoids rewriting unrelated target repos to the
+    caller's own worktree when Luma is launched from inside a worktree.
     """
     work_dir = cwd or os.getcwd()
     git_toplevel = get_git_toplevel_path(work_dir)
 
-    if git_toplevel:
-        # If we are in a Git repository (main or worktree), return its toplevel path.
-        # This will be the root of the active Git context.
-        return git_toplevel
-    else:
-        # If not in a Git repository, fall back to the provided project_path.
+    if not git_toplevel:
         return project_path
+
+    active_common_dir = get_git_common_dir(work_dir)
+    project_common_dir = get_git_common_dir(project_path)
+
+    if active_common_dir and project_common_dir:
+        if os.path.realpath(active_common_dir) == os.path.realpath(project_common_dir):
+            return git_toplevel
+        return project_path
+
+    return project_path
 
 
 def repair_invalid_branch(state, project_path: str) -> bool:

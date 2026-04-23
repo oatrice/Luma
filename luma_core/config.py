@@ -1,5 +1,6 @@
 import copy
 import os
+import subprocess
 
 from dotenv import load_dotenv
 import json
@@ -354,35 +355,69 @@ def get_status_workflow(project: dict) -> dict:
 
 def normalize_project_entry(project: dict) -> dict:
     """Fill canonical Kanban metadata and workflow for known repositories.
-    
-    Applies canonical values when project has None/empty values,
-    preserving user-customized values (non-empty, different from canonical).
+
+    Known repositories use canonical GitHub Project metadata as the source of
+    truth. Unknown repos, or repos without canonical metadata, preserve the
+    configured values.
     """
     normalized = dict(project)
     repo = normalized.get("repo")
     canonical = CANONICAL_KANBAN_BY_REPO.get(repo)
 
     if canonical:
-        existing_kanban = normalized.get("kanban_number")
-        existing_kanban_id = normalized.get("kanban_id")
         canonical_number = canonical.get("kanban_number")
         canonical_id = canonical.get("kanban_id")
-        
-        # Apply canonical number if: project has None, or canonical has value and project matches it (not user-customized)
+
+        # Known repositories should not drift to an unrelated GitHub Project.
         if canonical_number is not None:
-            if existing_kanban is None or existing_kanban == canonical_number:
-                normalized["kanban_number"] = canonical_number
-        # If canonical is None but project has value, preserve project value (user-customized)
-        
-        # Apply canonical ID if: project has None/empty, or canonical has value and project matches it
+            normalized["kanban_number"] = canonical_number
+
         if canonical_id is not None:
-            if existing_kanban_id is None or existing_kanban_id == "" or existing_kanban_id == canonical_id:
-                normalized["kanban_id"] = canonical_id
-        # If canonical is None but project has non-empty value, preserve project value
+            normalized["kanban_id"] = canonical_id
 
     normalized["status_workflow"] = get_status_workflow(normalized)
 
     return normalized
+
+
+def _get_git_common_dir(path: str):
+    """Return the normalized git common-dir for the repository containing path."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return None
+
+    common_dir = result.stdout.strip()
+    if not common_dir:
+        return None
+    if not os.path.isabs(common_dir):
+        common_dir = os.path.abspath(os.path.join(path, common_dir))
+    return os.path.realpath(common_dir)
+
+
+def _get_git_toplevel(path: str):
+    """Return the git toplevel for the repository containing path."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return None
+
+    toplevel = result.stdout.strip()
+    if not toplevel:
+        return None
+    return os.path.realpath(toplevel)
 
 
 def detect_project_key_for_path(current_path: str, projects: dict = None):
@@ -405,11 +440,36 @@ def detect_project_key_for_path(current_path: str, projects: dict = None):
         ):
             matches.append((len(resolved_project_path), key))
 
-    if not matches:
+    if matches:
+        matches.sort(reverse=True)
+        return matches[0][1]
+
+    target_common_dir = _get_git_common_dir(resolved_path)
+    if not target_common_dir:
         return None
 
-    matches.sort(reverse=True)
-    return matches[0][1]
+    repo_family_matches = []
+    for key, project in projects.items():
+        project_path = project.get("path")
+        if not project_path:
+            continue
+
+        resolved_project_path = os.path.realpath(project_path)
+        project_common_dir = _get_git_common_dir(resolved_project_path)
+        if project_common_dir != target_common_dir:
+            continue
+
+        project_toplevel = _get_git_toplevel(resolved_project_path)
+        is_repo_root_project = project_toplevel == resolved_project_path
+        repo_family_matches.append(
+            (1 if is_repo_root_project else 0, len(resolved_project_path), key)
+        )
+
+    if not repo_family_matches:
+        return None
+
+    repo_family_matches.sort(reverse=True)
+    return repo_family_matches[0][2]
 
 
 def load_projects(json_file: str = None) -> dict:

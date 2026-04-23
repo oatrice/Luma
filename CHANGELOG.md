@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.0] - 2026-04-23
+
+### Added
+- **Documentation:** Added feature analysis, plan, spec, SBE, and a manual verification guide for the worktree resolution and canonical project identity fixes.
+
+### Fixed
+- **Code Review:** Preserved real target repository paths during headless multi-repo `code_review` runs from a Luma worktree.
+- **Worktrees:** Limited worktree path remapping to repositories that belong to the same underlying git family as the active checkout.
+- **Projects:** Resolved Luma worktree selections back to the canonical Luma project identity and GitHub Project board metadata.
+
+### Removed
+- **Documentation:** Removed redundant legacy feature documentation directories and duplicate AI Brain artifacts.
+
 ## [0.19.0] - 2026-04-10
 
 ### Added
