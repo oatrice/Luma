@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.21.0] - 2026-04-24
+
+### Added
+- **CLI:** Implemented stable prefixed project selectors for reliable headless project selection by repo, path, or slug
+- **Documentation:** Added comprehensive design documents for stable CLI project selection feature
+- **Tests:** Enhanced test coverage for headless bootstrap, selector docs, and main CLI functionality
+
+### Fixed
+- **Branch Validation:** Improved branch name validation for better consistency and error handling
+- **Project Resolution:** Enhanced project selector stability to prevent cross-repo resolution conflicts
+
+### Changed
+- **Configuration:** Updated project configuration format to support stable prefixed selectors
+- **Metrics:** Integrated issue data into Luma metrics tracking
+
 ## [0.20.0] - 2026-04-23
 
 ### Added
