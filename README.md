@@ -170,7 +170,7 @@ Successful output is emitted on `stdout` as JSON:
   "status": "success",
   "mode": "metadata",
   "result": {
-    "version": "0.19.0",
+    "version": "0.21.0",
     "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
     "dirty": true,
     "contract_version": "2.0",
@@ -203,6 +203,15 @@ python main.py --auto --action code_review --json --project 12
 
 ```bash
 python main.py --headless --action code_review --json --project 12
+```
+
+Enhanced project selection with stable selectors:
+
+```bash
+# Use stable prefixed selectors for reliable project identification
+python main.py --auto --action code_review --json --project repo:luma
+python main.py --auto --action code_review --json --project path:/Users/oatrice/Software-projects/Luma-worktrees/luma1
+python main.py --auto --action code_review --json --project slug:luma-ai-architect
 ```
 
 Contract guarantees:
@@ -241,3 +250,4 @@ Contract guarantees:
 - [x] **Project Management**: Centralized project configuration via `.luma/projects.json`. 🆕
 - [x] **Project-Aware AI Brain Sync**: AI brain sessions filtered by current project context. 🆕
 - [x] **Enhanced Header UX**: CLI header displays folder path, GitHub Project info, and worktree detection. 🆕
+- [x] **Stable Project Selectors**: Reliable headless project selection using repo, path, or slug prefixes. 🆕
