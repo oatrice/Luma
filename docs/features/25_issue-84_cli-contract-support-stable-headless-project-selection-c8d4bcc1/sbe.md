@@ -19,10 +19,10 @@
 
 | action | `--project` value | current cwd | expected resolved target |
 |--------|-------------------|-------------|--------------------------|
-| `code_review` | `oatrice/Luma` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | `repo=oatrice/Luma`, `project_key=12`, `slug=luma` |
-| `code_review` | `/Users/oatrice/Software-projects/Cerebro` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | `repo=oatrice/Cerebro`, `project_key=13`, `slug=cerebro` |
-| `bootstrap` | `zenith` | `/Users/oatrice/Software-projects/Zenith` | `repo=oatrice/Zenith`, `project_key=null`, `slug=zenith` |
-| `create_issue` | `/Users/oatrice/Software-projects/Luma` | `/Users/oatrice/Software-projects/Cerebro` | `repo=oatrice/Luma`, `project_key=12`, `slug=luma` |
+| `code_review` | `repo:oatrice/Luma` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | `repo=oatrice/Luma`, `project_key=12`, `slug=luma` |
+| `code_review` | `path:/Users/oatrice/Software-projects/Cerebro` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | `repo=oatrice/Cerebro`, `project_key=13`, `slug=cerebro` |
+| `bootstrap` | `slug:zenith` | `/Users/oatrice/Software-projects/Zenith` | `repo=oatrice/Zenith`, `project_key=15`, `slug=zenith` |
+| `create_issue` | `path:/Users/oatrice/Software-projects/Luma` | `/Users/oatrice/Software-projects/Cerebro` | `repo=oatrice/Luma`, `project_key=12`, `slug=luma` |
 
 ---
 
@@ -36,10 +36,10 @@
 
 | `--project` value | expected error |
 |-------------------|----------------|
-| `backend` | `Ambiguous project selector 'backend'.` |
-| `oatrice/UnknownRepo` | `Could not resolve project selector 'oatrice/UnknownRepo'.` |
-| `/tmp/not-a-repo` | `Unknown project key or invalid path '/tmp/not-a-repo'.` |
-| `zenith` | `Could not resolve project selector 'zenith'.` เมื่อไม่มี unique local mapping |
+| `repo:oatrice/Cerebro` | `Project selector 'repo:oatrice/Cerebro' is ambiguous.` |
+| `repo:oatrice/UnknownRepo` | `Project selector 'repo:oatrice/UnknownRepo' did not match any local project.` |
+| `path:/tmp/not-a-repo` | `Project selector 'path:/tmp/not-a-repo' is invalid.` |
+| `slug:notfound` | `Project selector 'slug:notfound' did not match any local project.` |
 
 ---
 
@@ -53,8 +53,8 @@
 
 | `--project` value | stored project | current cwd | expected precedence result |
 |-------------------|----------------|-------------|----------------------------|
-| `oatrice/Zenith` | `1` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | resolve ไป `oatrice/Zenith` |
-| `/Users/oatrice/Software-projects/Cerebro` | `12` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | resolve ไป `oatrice/Cerebro` |
+| `repo:oatrice/Zenith` | `1` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | resolve ไป `oatrice/Zenith` |
+| `path:/Users/oatrice/Software-projects/Cerebro` | `12` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | resolve ไป `oatrice/Cerebro` |
 | `12` | `1` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | resolve ไป key `12` |
 | `not provided` | `13` | `/Users/oatrice/Software-projects/Luma-worktrees/luma1` | fallback ไป stored project `13` จนกว่าจะมี better explicit selector |
 
@@ -71,9 +71,9 @@
 | command shape | expected |
 |---------------|----------|
 | `--auto --action bootstrap --issue 84 --project 12 --json` | success JSON, `resolved_target.project_key="12"` |
-| `--auto --action bootstrap --issue 36 --project /Users/oatrice/Software-projects/Zenith --json` | success JSON, `resolved_target.repo="oatrice/Zenith"` |
-| `--auto --action bootstrap --issue 36 --project oatrice/Zenith --json` | success JSON พร้อม `resolved_target` หรือ explicit JSON error ถ้า local mapping ยังไม่พร้อม |
-| `--auto --action bootstrap --issue 84 --project backend --json` | JSON error, ไม่มี silent fallback ไป JarWise หรือ Luma |
+| `--auto --action bootstrap --issue 36 --project path:/Users/oatrice/Software-projects/Zenith --json` | success JSON, `resolved_target.repo="oatrice/Zenith"` |
+| `--auto --action bootstrap --issue 36 --project repo:oatrice/Zenith --json` | success JSON พร้อม `resolved_target` หรือ explicit JSON error ถ้า local mapping ยังไม่พร้อม |
+| `--auto --action bootstrap --issue 84 --project repo:oatrice/Cerebro --json` | JSON error, ไม่มี silent fallback ไป Cerebro root หรือ worktree |
 
 ---
 

@@ -49,9 +49,9 @@ As an **external system integrator (for example Zenith or Cerebro)**, I want to 
 #### Examples
 | Input | Output | Notes |
 |-------|--------|-------|
-| `--project oatrice/Luma` | `resolved_target.repo = "oatrice/Luma"` | Repo selector maps to the canonical Luma project entry. |
-| `--project /Users/oatrice/Software-projects/Cerebro` | `resolved_target.path = "/Users/oatrice/Software-projects/Cerebro"` | Path selector remains stable even if numeric keys drift. |
-| `--project zenith` | `resolved_target.slug = "zenith"` | Slug is acceptable only when it resolves uniquely. |
+| `--project repo:oatrice/Luma` | `resolved_target.repo = "oatrice/Luma"` | Repo selector maps to the canonical Luma project entry. |
+| `--project path:/Users/oatrice/Software-projects/Cerebro` | `resolved_target.path = "/Users/oatrice/Software-projects/Cerebro"` | Path selector remains stable even if numeric keys drift. |
+| `--project slug:zenith` | `resolved_target.slug = "zenith"` | Slug is acceptable only when it resolves uniquely. |
 
 ### Scenario: Explicit selector overrides fragile numeric context
 **Given** a local environment where stored project mappings or current cwd would otherwise point elsewhere.
@@ -61,8 +61,8 @@ As an **external system integrator (for example Zenith or Cerebro)**, I want to 
 #### Examples
 | Input | Output | Notes |
 |-------|--------|-------|
-| `cwd=/Users/oatrice/Software-projects/Luma-worktrees/luma1`, `stored=1`, `--project oatrice/Zenith` | `resolved_target.repo = "oatrice/Zenith"` | Explicit repo beats stored JarWise key. |
-| `cwd=/Users/oatrice/Software-projects/Luma-worktrees/luma1`, `stored=12`, `--project /Users/oatrice/Software-projects/Cerebro` | `resolved_target.repo = "oatrice/Cerebro"` | Explicit path beats current Luma cwd. |
+| `cwd=/Users/oatrice/Software-projects/Luma-worktrees/luma1`, `stored=1`, `--project repo:oatrice/Zenith` | `resolved_target.repo = "oatrice/Zenith"` | Explicit repo beats stored JarWise key. |
+| `cwd=/Users/oatrice/Software-projects/Luma-worktrees/luma1`, `stored=12`, `--project path:/Users/oatrice/Software-projects/Cerebro` | `resolved_target.repo = "oatrice/Cerebro"` | Explicit path beats current Luma cwd. |
 | `cwd=/Users/oatrice/Software-projects/Luma-worktrees/luma1`, `stored=1`, `--project 12` | `resolved_target.project_key = "12"` | Legacy numeric path still works when explicitly requested. |
 
 ### Scenario: Ambiguous or invalid selector fails without silent fallback
@@ -73,9 +73,9 @@ As an **external system integrator (for example Zenith or Cerebro)**, I want to 
 #### Examples
 | Input | Output | Notes |
 |-------|--------|-------|
-| `--project backend` | JSON error | `backend` is too ambiguous across multiple configured repos. |
-| `--project oatrice/UnknownRepo` | JSON error | Repo selector is not mapped to a known local target. |
-| `--project /tmp/not-a-repo` | JSON error | Invalid path must not silently degrade to cwd or stored project. |
+| `--project repo:oatrice/Cerebro` | JSON error | Repo selector is ambiguous across multiple local Cerebro entries. |
+| `--project repo:oatrice/UnknownRepo` | JSON error | Repo selector is not mapped to a known local target. |
+| `--project path:/tmp/not-a-repo` | JSON error | Invalid path must not silently degrade to cwd or stored project. |
 
 ### Scenario: Bootstrap remains compatible with the new resolver
 **Given** `bootstrap` already exists as a headless action.
@@ -86,8 +86,8 @@ As an **external system integrator (for example Zenith or Cerebro)**, I want to 
 | Input | Output | Notes |
 |-------|--------|-------|
 | `--action bootstrap --issue 84 --project 12 --json` | success JSON with `resolved_target.project_key = "12"` | Legacy bootstrap path remains supported. |
-| `--action bootstrap --issue 36 --project /Users/oatrice/Software-projects/Zenith --json` | success JSON with `resolved_target.repo = "oatrice/Zenith"` | Path-based bootstrap works without relying on numeric key. |
-| `--action bootstrap --issue 36 --project oatrice/Zenith --json` | success JSON with explicit `resolved_target` or JSON error if local mapping is missing | Repo selector behavior is explicit and auditable either way. |
+| `--action bootstrap --issue 36 --project path:/Users/oatrice/Software-projects/Zenith --json` | success JSON with `resolved_target.repo = "oatrice/Zenith"` | Path-based bootstrap works without relying on numeric key. |
+| `--action bootstrap --issue 36 --project repo:oatrice/Zenith --json` | success JSON with explicit `resolved_target` or JSON error if local mapping is missing | Repo selector behavior is explicit and auditable either way. |
 
 ---
 

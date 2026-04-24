@@ -23,9 +23,9 @@
 
 | Requested Selector | Legacy Numeric | Expected Resolved Target |
 |---|---|---|
-| `repo=oatrice/Zenith` | `1` | `oatrice/Zenith` |
-| `path=/Users/oatrice/Software-projects/Zenith` | `1` | `/Users/oatrice/Software-projects/Zenith` |
-| `slug=zenith` | `1` | canonical Zenith target |
+| `repo:oatrice/Zenith` | `1` | `oatrice/Zenith` |
+| `path:/Users/oatrice/Software-projects/Zenith` | `1` | `/Users/oatrice/Software-projects/Zenith` |
+| `slug:zenith` | `1` | canonical Zenith target |
 
 ## Scenario 3: Machine-readable Output Echoes Resolved Target
 
