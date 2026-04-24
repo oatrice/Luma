@@ -56,6 +56,62 @@ def _get_status_icon(status: str, workflow: dict) -> str:
             return icon
     return ""
 
+
+def _build_default_branch_name(issue_nums: str, title: str) -> str:
+    slug = title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
+    return f"feat/{issue_nums}-{slug}"
+
+
+def _is_valid_branch_name(branch_name: str) -> bool:
+    if not isinstance(branch_name, str):
+        return False
+
+    candidate = branch_name.strip()
+    invalid_branch_values = {"1", "0", "True", "False", "None", "", "HEAD"}
+    if candidate in invalid_branch_values or len(candidate) < 2:
+        return False
+
+    if any(ch.isspace() for ch in candidate):
+        return False
+
+    if any(ch in candidate for ch in '~^:?*[]\\'):
+        return False
+
+    if candidate.startswith("/") or candidate.endswith("/") or candidate.endswith("."):
+        return False
+
+    if candidate.endswith(".lock") or ".." in candidate or "@{" in candidate or "//" in candidate:
+        return False
+
+    return True
+
+
+def _normalize_branch_suggestions(
+    suggestions,
+    *,
+    issue_nums: str,
+    primary_number: int,
+    fallback_branch_name: str,
+) -> list[str]:
+    if isinstance(suggestions, str):
+        raw_suggestions = [suggestions]
+    else:
+        raw_suggestions = list(suggestions or [])
+
+    normalized = []
+    for suggestion in raw_suggestions:
+        if not isinstance(suggestion, str):
+            continue
+        candidate = suggestion.strip()
+        if not candidate:
+            continue
+        if issue_nums != str(primary_number):
+            candidate = candidate.replace(f"/{primary_number}-", f"/{issue_nums}-")
+        if _is_valid_branch_name(candidate):
+            normalized.append(candidate)
+
+    return normalized or [fallback_branch_name]
+
 def _get_selectable_cards(cards: list, project: dict, exclude_numbers: set = None) -> list:
     workflow = get_status_workflow(project)
     selectable_statuses = {
@@ -267,6 +323,8 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
     primary_body = cards[0].body or ""
     primary_number = cards[0].issue_number
 
+    fallback_branch_name = _build_default_branch_name(issue_nums, primary_title)
+
     try:
         from luma_core.agents.analyst import generate_branch_names
 
@@ -295,20 +353,15 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
                 usage_tracker.set_action(previous_action)
             usage_tracker.set_sub_action(previous_sub_action)
 
-        # Replace single issue number with multi-issue numbers in suggestions
-        if len(cards) > 1:
-            suggestions = [
-                s.replace(f"/{primary_number}-", f"/{issue_nums}-") for s in suggestions
-            ]
+        suggestions = _normalize_branch_suggestions(
+            suggestions,
+            issue_nums=issue_nums,
+            primary_number=primary_number,
+            fallback_branch_name=fallback_branch_name,
+        )
     except Exception as e:
         print(f"⚠️ AI Agent unavailable: {e}")
-        slug = (
-            primary_title.lower()
-            .replace(" ", "-")
-            .replace("[", "")
-            .replace("]", "")[:30]
-        )
-        suggestions = [f"feat/{issue_nums}-{slug}"]
+        suggestions = [fallback_branch_name]
 
     # Get current branch for option 0
     import subprocess
@@ -350,8 +403,7 @@ def _start_issues(state: LumaState, cards: list, project: dict) -> bool:
         branch_name = choice
 
     # Validate branch name to prevent corruption (e.g., "1", "True", "None")
-    invalid_branch_values = ["1", "0", "True", "False", "None", "", "HEAD"]
-    if branch_name in invalid_branch_values or len(branch_name) < 2:
+    if not _is_valid_branch_name(branch_name):
         # Fallback to first suggestion if invalid
         print(f"⚠️ Invalid branch name '{branch_name}' detected, using default suggestion.")
         branch_name = suggestions[0]
@@ -493,22 +545,25 @@ def _start_issues_headless(
     primary_body = cards[0].body or ""
     primary_number = cards[0].issue_number
 
+    fallback_branch_name = _build_default_branch_name(issue_nums, primary_title)
+
     if not branch_name:
         print("🤖 Generating smart branch names...")
         try:
             from luma_core.agents.analyst import generate_branch_names
             suggestions = generate_branch_names(primary_title, primary_body, primary_number)
-            branch_name = suggestions[0]  # Default to first suggestion
-            
-            if len(cards) > 1:
-                branch_name = branch_name.replace(f"/{primary_number}-", f"/{issue_nums}-")
+            suggestions = _normalize_branch_suggestions(
+                suggestions,
+                issue_nums=issue_nums,
+                primary_number=primary_number,
+                fallback_branch_name=fallback_branch_name,
+            )
+            branch_name = suggestions[0]  # Default to first valid suggestion
         except Exception:
-            slug = primary_title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
-            branch_name = f"feat/{issue_nums}-{slug}"
+            branch_name = fallback_branch_name
 
     # Validate branch name
-    invalid_branch_values = ["1", "0", "True", "False", "None", "", "HEAD"]
-    if branch_name in invalid_branch_values or len(branch_name) < 2:
+    if not _is_valid_branch_name(branch_name):
         print(f"❌ Invalid branch name: '{branch_name}'")
         return False
 

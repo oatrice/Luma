@@ -46,6 +46,7 @@ LUMA_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONTRACT_VERSION = "2.0"
 SUPPORTED_HEADLESS_ACTIONS = ("code_review", "create_pr", "bootstrap", "create_issue", "auto_workflow")
 STARTUP_GIT_INFO = get_project_git_info(LUMA_ROOT)
+_PAYLOAD_UNSET = object()
 
 
 class CLIError(Exception):
@@ -58,6 +59,24 @@ class CLIError(Exception):
 
 class CLIArgumentError(CLIError):
     """Raised when CLI argument validation fails."""
+
+
+class ProjectSelectorError(CLIArgumentError):
+    """Raised when a headless project selector is invalid or cannot be resolved."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str,
+        error_details: Optional[dict] = None,
+        resolved_target=None,
+        exit_code: int = 2,
+    ):
+        super().__init__(message, exit_code=exit_code)
+        self.error_code = error_code
+        self.error_details = error_details or {}
+        self.resolved_target = resolved_target
 
 
 class LumaArgumentParser(argparse.ArgumentParser):
@@ -215,14 +234,8 @@ def parse_cli_args(argv=None):
                 exit_code=2,
             )
 
-    # Validate project key only if it's not an existing absolute path
-    if args.project is not None and args.project not in PROJECTS:
-        # Check if it's a valid directory path (absolute or relative to CWD)
-        if not os.path.isdir(args.project):
-            raise CLIArgumentError(
-                f"Unknown project key or invalid path '{args.project}'.",
-                exit_code=2,
-            )
+    if args.project is not None:
+        parse_project_selector(args.project)
 
     return args
 
@@ -235,22 +248,45 @@ def emit_json(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=False))
 
 
-def build_success_payload(action_name: str, requested_project: str, result: dict) -> dict:
-    return {
+def build_success_payload(
+    action_name: str,
+    requested_project: str,
+    result,
+    resolved_target=_PAYLOAD_UNSET,
+) -> dict:
+    payload = {
         "status": "success",
         "action": action_name,
         "project": requested_project,
         "result": result,
     }
+    if resolved_target is not _PAYLOAD_UNSET:
+        payload["resolved_target"] = resolved_target
+    return payload
 
 
-def build_error_payload(action_name: str, requested_project: str, error_message: str) -> dict:
-    return {
+def build_error_payload(
+    action_name: str,
+    requested_project: str,
+    error_message: str,
+    *,
+    resolved_target=_PAYLOAD_UNSET,
+    error_code: Optional[str] = None,
+    error_details: Optional[dict] = None,
+) -> dict:
+    payload = {
         "status": "error",
         "action": action_name,
         "project": requested_project,
         "error": error_message,
     }
+    if resolved_target is not _PAYLOAD_UNSET:
+        payload["resolved_target"] = resolved_target
+    if error_code is not None:
+        payload["error_code"] = error_code
+    if error_details is not None:
+        payload["error_details"] = error_details
+    return payload
 
 
 def is_git_dirty(repo_path: str) -> bool:
@@ -332,6 +368,33 @@ def _detect_repo_and_kanban(project_path: str) -> tuple[Optional[str], Optional[
     )
 
 
+def _selector_error(
+    message: str,
+    *,
+    error_code: str,
+    selector_type: Optional[str] = None,
+    selector_input: Optional[str] = None,
+    reason: Optional[str] = None,
+    candidates: Optional[list] = None,
+    resolved_target=None,
+) -> ProjectSelectorError:
+    error_details = {}
+    if selector_type is not None:
+        error_details["selector_type"] = selector_type
+    if selector_input is not None:
+        error_details["selector_input"] = selector_input
+    if reason is not None:
+        error_details["reason"] = reason
+    if candidates is not None:
+        error_details["candidates"] = candidates
+    return ProjectSelectorError(
+        message,
+        error_code=error_code,
+        error_details=error_details,
+        resolved_target=resolved_target,
+    )
+
+
 def build_menu_title(is_outdated: bool, pending_summary: str = "") -> str:
     """Build the interactive menu title, including restart notice when needed."""
     lines = []
@@ -376,6 +439,284 @@ def save_global_config(config):
             json.dump(current_config, f, indent=2)
     except Exception as e:
         print(f"Warning: Failed to save global config: {e}")
+
+
+def parse_project_selector(raw_selector: Optional[str], projects: dict = None) -> Optional[dict]:
+    """Parse a single project selector from CLI input."""
+    if raw_selector is None:
+        return None
+
+    projects = projects or PROJECTS
+
+    if raw_selector in projects:
+        return {
+            "selector_type": "key",
+            "selector_input": raw_selector,
+            "selector_value": raw_selector,
+            "legacy": True,
+        }
+
+    if raw_selector.isdigit():
+        return {
+            "selector_type": "key",
+            "selector_input": raw_selector,
+            "selector_value": raw_selector,
+            "legacy": True,
+        }
+
+    prefix, separator, raw_value = raw_selector.partition(":")
+    if separator and prefix in {"key", "repo", "path", "slug"}:
+        if not raw_value:
+            raise _selector_error(
+                f"Project selector '{raw_selector}' is invalid.",
+                error_code="project_selector_invalid",
+                selector_type=prefix,
+                selector_input=raw_selector,
+                reason="Selector value is required.",
+                resolved_target=None,
+            )
+
+        if prefix == "path":
+            if not os.path.isabs(raw_value):
+                raise _selector_error(
+                    f"Project selector '{raw_selector}' is invalid.",
+                    error_code="project_selector_invalid",
+                    selector_type="path",
+                    selector_input=raw_selector,
+                    reason="Path selectors must use absolute paths.",
+                    resolved_target=None,
+                )
+            normalized_path = os.path.abspath(raw_value)
+            if not os.path.isdir(normalized_path):
+                raise _selector_error(
+                    f"Project selector '{raw_selector}' is invalid.",
+                    error_code="project_selector_invalid",
+                    selector_type="path",
+                    selector_input=raw_selector,
+                    reason="Path selector must point to an existing directory.",
+                    resolved_target=None,
+                )
+            selector_value = normalized_path
+        else:
+            selector_value = raw_value
+
+        return {
+            "selector_type": prefix,
+            "selector_input": raw_selector,
+            "selector_value": selector_value,
+            "legacy": False,
+        }
+
+    if os.path.isdir(raw_selector):
+        return {
+            "selector_type": "path",
+            "selector_input": raw_selector,
+            "selector_value": os.path.abspath(raw_selector),
+            "legacy": True,
+        }
+
+    raise CLIArgumentError(
+        f"Unknown project key or invalid path '{raw_selector}'.",
+        exit_code=2,
+    )
+
+
+def _serialize_project_candidate(project_key: str, project: dict) -> dict:
+    return {
+        "project_key": project_key,
+        "repo": project.get("repo"),
+        "path": project.get("path"),
+        "slug": project.get("slug"),
+    }
+
+
+def _build_resolved_target(
+    *,
+    selector_type: str,
+    selector_input: str,
+    project_key,
+    project: dict,
+    resolution_source: str,
+) -> dict:
+    return {
+        "selector_type": selector_type,
+        "selector_input": selector_input,
+        "project_key": project_key,
+        "repo": project.get("repo"),
+        "path": project.get("path"),
+        "slug": project.get("slug"),
+        "resolution_source": resolution_source,
+    }
+
+
+def _build_dynamic_project(project_path: str) -> dict:
+    normalized_path = os.path.abspath(project_path)
+    detected_repo, kanban_number, kanban_id = _detect_repo_and_kanban(normalized_path)
+    return {
+        "name": os.path.basename(normalized_path) or "Current Project",
+        "path": normalized_path,
+        "repo": detected_repo,
+        "slug": None,
+        "kanban_number": kanban_number,
+        "kanban_id": kanban_id,
+    }
+
+
+def _find_exact_project_key_for_path(project_path: str, projects: dict = None):
+    projects = projects or PROJECTS
+    normalized_path = os.path.realpath(project_path)
+    for project_key, project in projects.items():
+        configured_path = project.get("path")
+        if not configured_path:
+            continue
+        if os.path.realpath(configured_path) == normalized_path:
+            return project_key
+    return None
+
+
+def _resolve_explicit_headless_project_selector(selector: dict, projects: dict = None):
+    projects = projects or PROJECTS
+    selector_type = selector["selector_type"]
+    selector_input = selector["selector_input"]
+    selector_value = selector["selector_value"]
+
+    if selector_type == "path":
+        exact_key = _find_exact_project_key_for_path(selector_value, projects)
+        if exact_key and exact_key in projects:
+            project = projects[exact_key]
+            return (
+                exact_key,
+                project,
+                _build_resolved_target(
+                    selector_type="path",
+                    selector_input=selector_input,
+                    project_key=exact_key,
+                    project=project,
+                    resolution_source="local_registry",
+                ),
+            )
+
+        project = _build_dynamic_project(selector_value)
+        return (
+            "dynamic",
+            project,
+            _build_resolved_target(
+                selector_type="path",
+                selector_input=selector_input,
+                project_key=None,
+                project=project,
+                resolution_source="direct_path",
+            ),
+        )
+
+    matches = []
+    if selector_type == "key":
+        if selector_value in projects:
+            matches.append((selector_value, projects[selector_value]))
+    elif selector_type == "repo":
+        matches = [
+            (project_key, project)
+            for project_key, project in projects.items()
+            if project.get("repo") == selector_value
+        ]
+    elif selector_type == "slug":
+        matches = [
+            (project_key, project)
+            for project_key, project in projects.items()
+            if project.get("slug") == selector_value
+        ]
+
+    matches = sorted(matches, key=lambda item: item[0])
+
+    if not matches:
+        raise _selector_error(
+            f"Project selector '{selector_input}' did not match any local project.",
+            error_code="project_selector_not_found",
+            selector_type=selector_type,
+            selector_input=selector_input,
+            reason="No local project matched the selector.",
+            resolved_target=None,
+        )
+
+    if len(matches) > 1:
+        raise _selector_error(
+            f"Project selector '{selector_input}' is ambiguous.",
+            error_code="project_selector_ambiguous",
+            selector_type=selector_type,
+            selector_input=selector_input,
+            candidates=[
+                _serialize_project_candidate(project_key, project)
+                for project_key, project in matches
+            ],
+            resolved_target=None,
+        )
+
+    project_key, project = matches[0]
+    return (
+        project_key,
+        project,
+        _build_resolved_target(
+            selector_type=selector_type,
+            selector_input=selector_input,
+            project_key=project_key,
+            project=project,
+            resolution_source="local_registry",
+        ),
+    )
+
+
+def resolve_headless_project_target(
+    cli_project_key: str,
+    stored_project: str,
+    current_cwd: str,
+    cli_project_explicit: bool = False,
+):
+    """Resolve a headless project request to a concrete local target."""
+    if cli_project_explicit:
+        selector = parse_project_selector(cli_project_key)
+        return _resolve_explicit_headless_project_selector(selector)
+
+    if stored_project and stored_project in PROJECTS:
+        project = PROJECTS[stored_project]
+        return (
+            stored_project,
+            project,
+            _build_resolved_target(
+                selector_type="key",
+                selector_input=stored_project,
+                project_key=stored_project,
+                project=project,
+                resolution_source="stored_project",
+            ),
+        )
+
+    inferred_project = detect_project_key_for_path(current_cwd)
+    if inferred_project and inferred_project in PROJECTS:
+        project = PROJECTS[inferred_project]
+        return (
+            inferred_project,
+            project,
+            _build_resolved_target(
+                selector_type="path",
+                selector_input=os.path.abspath(current_cwd),
+                project_key=inferred_project,
+                project=project,
+                resolution_source="cwd_inference",
+            ),
+        )
+
+    project = _build_dynamic_project(current_cwd)
+    return (
+        "dynamic",
+        project,
+        _build_resolved_target(
+            selector_type="path",
+            selector_input=os.path.abspath(current_cwd),
+            project_key=None,
+            project=project,
+            resolution_source="direct_path",
+        ),
+    )
 
 
 def resolve_project_key(
@@ -492,53 +833,18 @@ def run_headless(args) -> int:
     stored_project = project_map.get(current_cwd)
     
     action_name = args.action
+    requested_project = args.project or stored_project or "1"
     exit_code = 0
     error_message = None
+    resolved_target = _PAYLOAD_UNSET
 
     try:
-        # 1. Determine Project Key
-        project_key = resolve_project_key(
+        project_key, project, resolved_target = resolve_headless_project_target(
             args.project,
             stored_project,
             current_cwd,
             cli_project_explicit=args.project is not None,
         )
-
-        # 2. Determine Project Object (Support Dynamic/CWD)
-        if project_key == "dynamic":
-            # If it's truly dynamic, we use current_cwd or explicit path
-            target_path = args.project if args.project and os.path.isdir(args.project) else current_cwd
-            project_path = os.path.abspath(target_path)
-            
-            # Detect repo automatically
-            detected_repo = None
-            try:
-                res = subprocess.run(
-                    ["git", "remote", "get-url", "origin"],
-                    cwd=project_path, capture_output=True, text=True
-                )
-                if res.returncode == 0:
-                    remote = res.stdout.strip()
-                    if "github.com" in remote:
-                        path_part = remote.split("github.com")[-1].lstrip(":").lstrip("/")
-                        detected_repo = path_part.replace(".git", "")
-            except Exception:
-                pass
-
-            # Lookup kanban info from canonical mapping if repo detected
-            kanban_info = CANONICAL_KANBAN_BY_REPO.get(detected_repo, {})
-            
-            project = {
-                "name": os.path.basename(project_path) or "Current Project",
-                "path": project_path,
-                "repo": detected_repo,
-                "kanban_number": kanban_info.get("kanban_number"),
-                "kanban_id": kanban_info.get("kanban_id")
-            }
-        else:
-            project = PROJECTS[project_key]
-            
-        requested_project = args.project or project_key
 
         state = load_state(project["path"])
         state.project_key = project_key
@@ -562,7 +868,14 @@ def run_headless(args) -> int:
             result = action_runner(state, project)
 
         if args.json:
-            emit_json(build_success_payload(action_name, requested_project, result))
+            emit_json(
+                build_success_payload(
+                    action_name,
+                    requested_project,
+                    result,
+                    resolved_target=resolved_target,
+                )
+            )
         else:
             print(f"✅ {action_name} completed for project {requested_project}")
         return 0
@@ -570,7 +883,16 @@ def run_headless(args) -> int:
         exit_code = exc.exit_code
         error_message = str(exc)
         if args.json:
-            emit_json(build_error_payload(args.action, requested_project, error_message))
+            emit_json(
+                build_error_payload(
+                    args.action,
+                    requested_project,
+                    error_message,
+                    resolved_target=getattr(exc, "resolved_target", resolved_target),
+                    error_code=getattr(exc, "error_code", None),
+                    error_details=getattr(exc, "error_details", None),
+                )
+            )
         else:
             print(error_message, file=sys.stderr)
         return exit_code
@@ -578,7 +900,14 @@ def run_headless(args) -> int:
         exit_code = 2
         error_message = str(exc)
         if args.json:
-            emit_json(build_error_payload(args.action, requested_project, error_message))
+            emit_json(
+                build_error_payload(
+                    args.action,
+                    requested_project,
+                    error_message,
+                    resolved_target=resolved_target,
+                )
+            )
         else:
             print(error_message, file=sys.stderr)
         return exit_code
@@ -1001,6 +1330,9 @@ def main(argv=None):
                     _extract_flag_value(argv, "--action"),
                     _extract_flag_value(argv, "--project") or "1",
                     str(exc),
+                    resolved_target=getattr(exc, "resolved_target", _PAYLOAD_UNSET),
+                    error_code=getattr(exc, "error_code", None),
+                    error_details=getattr(exc, "error_details", None),
                 )
             )
         else:

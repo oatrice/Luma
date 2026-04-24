@@ -679,6 +679,7 @@
       "name": "Luma",
       "path": "/Users/oatrice/Software-projects/Luma",
       "repo": "oatrice/Luma",
+      "slug": "luma",
       "kanban_number": 5,
       "kanban_id": "PVT_kwHOATfKEM4BKOOI",
       "status_workflow": {
@@ -732,6 +733,7 @@
       "name": "Cerebro",
       "path": "/Users/oatrice/Software-projects/Cerebro",
       "repo": "oatrice/Cerebro",
+      "slug": "cerebro",
       "kanban_number": 12,
       "kanban_id": "PVT_kwHOATfKEM4BTlFw",
       "status_workflow": {
@@ -792,6 +794,7 @@
       "name": "Cerebro (worktree)",
       "path": "/Users/oatrice/Software-projects/Cerebro-worktrees/cerebro1",
       "repo": "oatrice/Cerebro",
+      "slug": "cerebro1",
       "kanban_number": 12,
       "kanban_id": "PVT_kwHOATfKEM4BTlFw",
       "status_workflow": {
@@ -847,6 +850,14 @@
           "pr_merged": "Done"
         }
       }
+    },
+    "15": {
+      "name": "Zenith",
+      "path": "/Users/oatrice/Software-projects/Zenith",
+      "repo": "oatrice/Zenith",
+      "slug": "zenith",
+      "kanban_number": 10,
+      "kanban_id": null
     }
   }
 }

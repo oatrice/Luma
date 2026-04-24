@@ -23,6 +23,7 @@ DEFAULT_PROJECTS = {
         "name": "Luma",
         "path": "/Users/oatrice/Software-projects/Luma",
         "repo": "oatrice/Luma",
+        "slug": "luma",
         "kanban_number": 5,
         "kanban_id": "PVT_kwHOATfKEM4BKOOI",
     }
