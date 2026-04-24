@@ -143,7 +143,7 @@ class HeadlessPayload(TypedDict, total=False):
 
 ### Manual Verification
 - [ ] Run a headless action with `--project 12` and confirm legacy numeric behavior still works
-- [ ] Run a headless action with `--project /Users/oatrice/Software-projects/Cerebro` and confirm `resolved_target.path` matches that exact path
-- [ ] Run a headless action with `--project oatrice/Luma` and confirm `resolved_target.repo` echoes `oatrice/Luma`
-- [ ] Run a headless action with `--project backend` and confirm Luma returns a machine-readable ambiguity error instead of silently choosing a repo
+- [ ] Run a headless action with `--project path:/Users/oatrice/Software-projects/Cerebro` and confirm `resolved_target.path` matches that exact path
+- [ ] Run a headless action with `--project repo:oatrice/Luma` and confirm `resolved_target.repo` echoes `oatrice/Luma`
+- [ ] Run a headless action with `--project repo:oatrice/Cerebro` and confirm Luma returns a machine-readable ambiguity error instead of silently choosing a repo
 - [ ] Run `bootstrap` with both numeric and stable selectors and confirm branch/state behavior still works while `resolved_target` is included
