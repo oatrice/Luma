@@ -1,81 +1,83 @@
-# SBE (Specification by Example) Template
+# Specification by Example Update: Bootstrap Compatibility and Stable Selector Follow-up
 
-> 📅 Created: 2026-04-06
-> 🔗 Issue: https://github.com/oatrice/Luma/issues/40
+> อัปเดตล่าสุด: 2026-04-24
+> ใช้สำหรับอธิบายพฤติกรรมที่ควรรักษาไว้จาก `#40` และพฤติกรรมใหม่ที่ต้องได้จาก `#84`
 
----
+## Scenario 1: Existing Bootstrap Still Works with Legacy Numeric Project
 
-## Feature: Headless Issue Management & Guided Workflow Orchestration
+**Given** ผู้เรียกยังใช้ legacy numeric `--project` ที่ระบบรองรับอยู่  
+**When** เรียก headless action `bootstrap` พร้อม issue number ที่มีอยู่จริง  
+**Then** Luma ต้องยัง bootstrap branch และ transition state ได้ตามเดิม
 
-This feature expands Luma's headless CLI capabilities to include issue selection with automated branch bootstrapping, first-class GitHub issue creation, and machine-readable execution of the "Auto Full Workflow." This ensures full parity between interactive menu-driven usage and automated external callers.
+| Input | Expected Result |
+|---|---|
+| `--project 12 --action bootstrap --issue 40 --json` | success JSON |
+| `result` | action สำเร็จ |
+| side effects | state เปลี่ยนเป็น `coding`, branch ถูกสร้างหรือ switch |
 
-### Scenario: Headless Issue Selection & Branch Bootstrap - Happy Path
+## Scenario 2: Explicit Stable Selector Overrides Fragile Numeric Mapping
 
-**Given** A project with active Kanban issues and an authenticated git environment
-**When** The user executes the headless `select-issue` action with a specific issue ID
-**Then** Luma should synchronize roadmap context, create or switch to the appropriate feature branch, update the internal state to `coding` phase, and return a JSON payload.
+**Given** environment ที่ numeric project key มีโอกาส drift  
+**When** external caller ส่ง stable selector เช่น repo/path/slug อย่าง explicit  
+**Then** Luma ต้องใช้ explicit selector เป็น source of truth
 
-#### Examples
+| Requested Selector | Legacy Numeric | Expected Resolved Target |
+|---|---|---|
+| `repo=oatrice/Zenith` | `1` | `oatrice/Zenith` |
+| `path=/Users/oatrice/Software-projects/Zenith` | `1` | `/Users/oatrice/Software-projects/Zenith` |
+| `slug=zenith` | `1` | canonical Zenith target |
 
-| issue_id | issue_title                   | expected_branch                    | next_phase | status  |
-|----------|-------------------------------|------------------------------------|------------|---------|
-| 40       | Add headless select action    | feat/40-add-headless-select        | coding     | success |
-| 42       | Promote issue creation        | feat/42-promote-issue-creation     | coding     | success |
-| 41       | Machine readable workflow     | feat/41-machine-readable-workflow  | coding     | success |
+## Scenario 3: Machine-readable Output Echoes Resolved Target
 
----
+**Given** headless action ใดก็ตามที่ใช้ project resolution  
+**When** action สำเร็จและ caller ขอ JSON output  
+**Then** response ต้องระบุ target ที่ resolve ได้จริงอย่างชัดเจน
 
-### Scenario: First-Class GitHub Issue Creation - Happy Path
+| Action | Input | Expected JSON Fields |
+|---|---|---|
+| `bootstrap` | stable selector + issue | `status`, `action`, `resolved_target` |
+| `code_review` | stable selector | `status`, `action`, `resolved_target` |
 
-**Given** An authenticated GitHub session and a target repository
-**When** The user creates a new issue via the interactive menu or headless action
-**Then** A GitHub issue is created with mandatory metadata (e.g., `## Related` section) and the resulting issue URL/Number is returned.
+ตัวอย่าง field ขั้นต่ำ:
 
-#### Examples
+```json
+{
+  "status": "success",
+  "action": "bootstrap",
+  "resolved_target": {
+    "project_key": "dynamic-or-canonical",
+    "repo": "oatrice/Zenith",
+    "path": "/Users/oatrice/Software-projects/Zenith",
+    "slug": "zenith"
+  }
+}
+```
 
-| title                        | related_ref | labels           | expected_body_contains | output_format |
-|------------------------------|-------------|------------------|------------------------|---------------|
-| Implement sandbox logger     | #39         | enhancement, cli | ## Related             | JSON          |
-| Fix race condition in state  | none        | bug              | ## Related             | JSON          |
-| Add telemetry to headless    | https://... | telemetry        | ## Related             | JSON          |
+## Scenario 4: Bootstrap Compatibility Does Not Require Reopening `#40`
 
----
+**Given** `#40` ถูกปิดและมี implementation อยู่แล้ว  
+**When** เริ่มทำ `#84` เพื่อแก้ stable selector contract  
+**Then** งานควรถูกมองว่าเป็น compatibility / integration with existing bootstrap implementation ไม่ใช่การ “ทำ `#40` ใหม่”
 
-### Scenario: Resumable Headless Full Workflow - Boundary Conditions
+| Situation | Expected Tracking Decision |
+|---|---|
+| selector contract ใหม่ แต่ bootstrap logic เดิมยังใช้ได้ | ทำภายใต้ `#84` |
+| หลังทำ `#84` แล้ว bootstrap ยังมี payload gap เฉพาะตัว | เปิด follow-up issue ใหม่ |
+| ไม่มี gap ใหม่ที่แยกได้ชัด | ไม่ต้อง reopen `#40` |
 
-**Given** A previously initiated workflow that was interrupted or stopped at a checkpoint
-**When** The `full-workflow` action is called with the `--resume` flag and a state file
-**Then** Luma should bypass completed phases and resume from the next logical checkpoint, emitting structured status updates for each step.
+## Scenario 5: Interactive Constraint Parity Is Audited Explicitly
 
-#### Examples
+**Given** interactive `Select Issue` ใช้ `_get_selectable_cards(...)`  
+**When** bootstrap headless path ถูก audit ระหว่างงาน `#84`  
+**Then** ต้องตัดสินให้ชัดว่า parity ผ่านแล้วหรือยัง
 
-| last_completed_phase | resume_checkpoint | expected_next_step | exit_condition |
-|----------------------|-------------------|--------------------|----------------|
-| planning             | docs/plan.md      | coding             | wait_for_input |
-| coding               | .luma_state       | code_review        | auto_proceed   |
-| code_review          | .luma_state       | pr_creation        | success        |
-
----
-
-### Scenario: Headless Action Failure - Error Handling
-
-**Given** A headless command execution
-**When** An invalid input is provided (e.g., non-existent issue ID) or a network error occurs
-**Then** Luma must return a JSON error object with an `error_type` and non-zero exit code, preserving the machine-readable contract.
-
-#### Examples
-
-| action       | input_id | error_trigger            | expected_error_type | exit_code |
-|--------------|----------|--------------------------|---------------------|-----------|
-| select-issue | 9999     | Issue ID not found       | NOT_FOUND           | 1         |
-| create-issue | N/A      | Missing required title   | VALIDATION_ERROR    | 1         |
-| select-issue | 40       | Git branch exists (dirty)| GIT_ERROR           | 1         |
-
----
+| Headless Input | Interactive Status Rule | Expected Outcome |
+|---|---|---|
+| issue อยู่ใน allowed status | selectable | bootstrap success |
+| issue อยู่นอก allowed status | not selectable | fail explicitly or document intentional difference |
 
 ## Notes
 
-- All headless actions MUST output valid JSON to `stdout`.
-- `stderr` should be used for logs and human-readable warnings to avoid polluting JSON parsing.
-- The `## Related` section in issue creation is mandatory to maintain repository traceability.
-- Branch naming conventions must strictly follow `feat/ISSUE_NUMBER-description` or `fix/ISSUE_NUMBER-description`.
+- เอกสารนี้ตั้งใจลด ambiguity ระหว่าง “ของที่มีอยู่แล้ว” กับ “ของที่ยังควรทำต่อ”
+- `#84` ควรเป็น primary scope
+- `#40` ควรถูกใช้เป็น existing implementation baseline
