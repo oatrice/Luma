@@ -22,6 +22,25 @@ def _read_usage_events(log_path: Path):
     ]
 
 
+def _resolved_target(
+    *,
+    selector_type: str,
+    selector_input: str,
+    project_key,
+    project: dict,
+    resolution_source: str,
+):
+    return {
+        "selector_type": selector_type,
+        "selector_input": selector_input,
+        "project_key": project_key,
+        "repo": project.get("repo"),
+        "path": project.get("path"),
+        "slug": project.get("slug"),
+        "resolution_source": resolution_source,
+    }
+
+
 def test_parse_cli_args_supports_headless_flags():
     args = main.parse_cli_args(
         ["--auto", "--action", "code_review", "--json", "--project", "1"]
@@ -42,6 +61,33 @@ def test_parse_cli_args_supports_headless_alias():
     assert args.action == "code_review"
     assert args.json is True
     assert args.project == "1"
+
+
+def test_parse_cli_args_supports_stable_prefixed_project_selectors(tmp_path):
+    repo_args = main.parse_cli_args(
+        ["--auto", "--action", "code_review", "--json", "--project", "repo:oatrice/Luma"]
+    )
+    slug_args = main.parse_cli_args(
+        ["--auto", "--action", "code_review", "--json", "--project", "slug:luma"]
+    )
+    key_args = main.parse_cli_args(
+        ["--auto", "--action", "code_review", "--json", "--project", "key:12"]
+    )
+    path_args = main.parse_cli_args(
+        [
+            "--auto",
+            "--action",
+            "code_review",
+            "--json",
+            "--project",
+            f"path:{tmp_path}",
+        ]
+    )
+
+    assert repo_args.project == "repo:oatrice/Luma"
+    assert slug_args.project == "slug:luma"
+    assert key_args.project == "key:12"
+    assert path_args.project == f"path:{tmp_path}"
 
 
 def test_parse_cli_args_supports_optional_caller_identifier():
@@ -92,7 +138,12 @@ def test_ensure_importlib_metadata_compat_adds_packages_distributions():
 def test_headless_code_review_success_returns_json_only_on_stdout(
     monkeypatch, tmp_path, capsys
 ):
-    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    project = {
+        "name": "Headless Project",
+        "path": str(tmp_path),
+        "repo": "example/repo",
+        "slug": "headless-project",
+    }
     state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
     calls = {}
 
@@ -115,12 +166,17 @@ def test_headless_code_review_success_returns_json_only_on_stdout(
     payload = json.loads(captured.out)
 
     assert exit_code == 0
-    assert payload == {
-        "status": "success",
-        "action": "code_review",
-        "project": "1",
-        "result": {"summary": "review complete"},
-    }
+    assert payload["status"] == "success"
+    assert payload["action"] == "code_review"
+    assert payload["project"] == "1"
+    assert payload["resolved_target"] == _resolved_target(
+        selector_type="key",
+        selector_input="1",
+        project_key="1",
+        project=project,
+        resolution_source="local_registry",
+    )
+    assert payload["result"] == {"summary": "review complete"}
     assert "action log should go to stderr" not in captured.out
     assert "action log should go to stderr" in captured.err
     assert calls["state"] is state
@@ -131,7 +187,12 @@ def test_headless_code_review_success_returns_json_only_on_stdout(
 def test_headless_code_review_success_records_action_level_log(
     monkeypatch, tmp_path, capsys
 ):
-    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    project = {
+        "name": "Headless Project",
+        "path": str(tmp_path),
+        "repo": "example/repo",
+        "slug": "headless-project",
+    }
     state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
     log_path = tmp_path / ".luma_ai_usage.jsonl"
 
@@ -168,12 +229,17 @@ def test_headless_code_review_success_records_action_level_log(
     action_events = [event for event in events if event.get("event") == "action_run"]
 
     assert exit_code == 0
-    assert payload == {
-        "status": "success",
-        "action": "code_review",
-        "project": "1",
-        "result": {"summary": "review complete"},
-    }
+    assert payload["status"] == "success"
+    assert payload["action"] == "code_review"
+    assert payload["project"] == "1"
+    assert payload["resolved_target"] == _resolved_target(
+        selector_type="key",
+        selector_input="1",
+        project_key="1",
+        project=project,
+        resolution_source="local_registry",
+    )
+    assert payload["result"] == {"summary": "review complete"}
     assert len(action_events) == 1
     assert action_events[0]["mode"] == "headless"
     assert action_events[0]["action"] == "code_review"
@@ -190,7 +256,12 @@ def test_headless_code_review_success_records_action_level_log(
 
 
 def test_headless_invalid_action_returns_json_error(monkeypatch, tmp_path, capsys):
-    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    project = {
+        "name": "Headless Project",
+        "path": str(tmp_path),
+        "repo": "example/repo",
+        "slug": "headless-project",
+    }
     state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
 
     monkeypatch.setattr(main, "PROJECTS", {"1": project})
@@ -207,11 +278,23 @@ def test_headless_invalid_action_returns_json_error(monkeypatch, tmp_path, capsy
     assert payload["status"] == "error"
     assert payload["action"] == "invalid_action"
     assert payload["project"] == "1"
+    assert payload["resolved_target"] == _resolved_target(
+        selector_type="key",
+        selector_input="1",
+        project_key="1",
+        project=project,
+        resolution_source="local_registry",
+    )
     assert "invalid_action" in payload["error"]
 
 
 def test_headless_json_failure_returns_actionable_error(monkeypatch, tmp_path, capsys):
-    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    project = {
+        "name": "Headless Project",
+        "path": str(tmp_path),
+        "repo": "example/repo",
+        "slug": "headless-project",
+    }
     state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
 
     def fake_action(current_state, current_project, headless=False):
@@ -230,18 +313,28 @@ def test_headless_json_failure_returns_actionable_error(monkeypatch, tmp_path, c
     payload = json.loads(captured.out)
 
     assert exit_code == 2
-    assert payload == {
-        "status": "error",
-        "action": "code_review",
-        "project": "1",
-        "error": "review execution failed",
-    }
+    assert payload["status"] == "error"
+    assert payload["action"] == "code_review"
+    assert payload["project"] == "1"
+    assert payload["resolved_target"] == _resolved_target(
+        selector_type="key",
+        selector_input="1",
+        project_key="1",
+        project=project,
+        resolution_source="local_registry",
+    )
+    assert payload["error"] == "review execution failed"
     assert "debug output should stay off stdout" not in captured.out
     assert "debug output should stay off stdout" in captured.err
 
 
 def test_headless_json_failure_records_action_level_log(monkeypatch, tmp_path, capsys):
-    project = {"name": "Headless Project", "path": str(tmp_path), "repo": "example/repo"}
+    project = {
+        "name": "Headless Project",
+        "path": str(tmp_path),
+        "repo": "example/repo",
+        "slug": "headless-project",
+    }
     state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
     log_path = tmp_path / ".luma_ai_usage.jsonl"
 
@@ -269,12 +362,17 @@ def test_headless_json_failure_records_action_level_log(monkeypatch, tmp_path, c
     action_events = [event for event in events if event.get("event") == "action_run"]
 
     assert exit_code == 2
-    assert payload == {
-        "status": "error",
-        "action": "code_review",
-        "project": "1",
-        "error": "review execution failed",
-    }
+    assert payload["status"] == "error"
+    assert payload["action"] == "code_review"
+    assert payload["project"] == "1"
+    assert payload["resolved_target"] == _resolved_target(
+        selector_type="key",
+        selector_input="1",
+        project_key="1",
+        project=project,
+        resolution_source="local_registry",
+    )
+    assert payload["error"] == "review execution failed"
     assert len(action_events) == 1
     assert action_events[0]["mode"] == "headless"
     assert action_events[0]["action"] == "code_review"
@@ -364,6 +462,9 @@ def test_real_subprocess_headless_json_stdout_remains_parseable():
     assert payload["status"] == "error"
     assert payload["action"] == "invalid_action"
     assert payload["project"] == "12"
+    assert payload["resolved_target"]["selector_type"] == "key"
+    assert payload["resolved_target"]["selector_input"] == "12"
+    assert payload["resolved_target"]["project_key"] == "12"
     assert "invalid_action" in payload["error"]
 
 
@@ -374,7 +475,7 @@ def test_real_subprocess_supported_action_keeps_stdout_json_only(tmp_path):
         import main
         from luma_core.state_manager import LumaState, WorkflowPhase
 
-        project = {{"name": "Subprocess Project", "path": {str(tmp_path)!r}, "repo": "example/repo"}}
+        project = {{"name": "Subprocess Project", "path": {str(tmp_path)!r}, "repo": "example/repo", "slug": "subprocess-project"}}
         state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
 
         main.PROJECTS = {{"1": project}}
@@ -403,15 +504,22 @@ def test_real_subprocess_supported_action_keeps_stdout_json_only(tmp_path):
     payload = json.loads(result.stdout)
 
     assert result.returncode == 0
-    assert payload == {
-        "status": "success",
-        "action": "code_review",
-        "project": "1",
-        "result": {
-            "summary": "ok",
-            "headless": True,
-            "project_name": "Subprocess Project",
-        },
+    assert payload["status"] == "success"
+    assert payload["action"] == "code_review"
+    assert payload["project"] == "1"
+    assert payload["resolved_target"] == {
+        "selector_type": "key",
+        "selector_input": "1",
+        "project_key": "1",
+        "repo": "example/repo",
+        "path": str(tmp_path),
+        "slug": "subprocess-project",
+        "resolution_source": "local_registry",
+    }
+    assert payload["result"] == {
+        "summary": "ok",
+        "headless": True,
+        "project_name": "Subprocess Project",
     }
     assert "subprocess diagnostic should stay off stdout" not in result.stdout
     assert "subprocess diagnostic should stay off stdout" in result.stderr
@@ -424,7 +532,7 @@ def test_headless_alias_supported_action_keeps_stdout_json_only(tmp_path):
         import main
         from luma_core.state_manager import LumaState, WorkflowPhase
 
-        project = {{"name": "Alias Project", "path": {str(tmp_path)!r}, "repo": "example/repo"}}
+        project = {{"name": "Alias Project", "path": {str(tmp_path)!r}, "repo": "example/repo", "slug": "alias-project"}}
         state = LumaState(project_key="1", phase=WorkflowPhase.IDLE)
 
         main.PROJECTS = {{"1": project}}
@@ -453,17 +561,216 @@ def test_headless_alias_supported_action_keeps_stdout_json_only(tmp_path):
     payload = json.loads(result.stdout)
 
     assert result.returncode == 0
-    assert payload == {
-        "status": "success",
-        "action": "code_review",
-        "project": "1",
-        "result": {
-            "summary": "alias-ok",
-            "headless": True,
-        },
+    assert payload["status"] == "success"
+    assert payload["action"] == "code_review"
+    assert payload["project"] == "1"
+    assert payload["resolved_target"] == {
+        "selector_type": "key",
+        "selector_input": "1",
+        "project_key": "1",
+        "repo": "example/repo",
+        "path": str(tmp_path),
+        "slug": "alias-project",
+        "resolution_source": "local_registry",
+    }
+    assert payload["result"] == {
+        "summary": "alias-ok",
+        "headless": True,
     }
     assert "alias diagnostic should stay off stdout" not in result.stdout
     assert "alias diagnostic should stay off stdout" in result.stderr
+
+
+def test_headless_repo_selector_success_returns_resolved_target(
+    monkeypatch, tmp_path, capsys
+):
+    project = {
+        "name": "Luma",
+        "path": str(tmp_path),
+        "repo": "oatrice/Luma",
+        "slug": "luma",
+    }
+    state = LumaState(project_key="12", phase=WorkflowPhase.IDLE)
+
+    monkeypatch.setattr(main, "PROJECTS", {"12": project})
+    monkeypatch.setattr(main, "load_state", lambda path: state)
+    monkeypatch.setattr(
+        main.actions,
+        "action_code_review",
+        lambda current_state, current_project, headless=False: {"summary": "repo-ok"},
+    )
+
+    exit_code = main.main(
+        ["--auto", "--action", "code_review", "--json", "--project", "repo:oatrice/Luma"]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload == {
+        "status": "success",
+        "action": "code_review",
+        "project": "repo:oatrice/Luma",
+        "resolved_target": _resolved_target(
+            selector_type="repo",
+            selector_input="repo:oatrice/Luma",
+            project_key="12",
+            project=project,
+            resolution_source="local_registry",
+            ),
+            "result": {"summary": "repo-ok"},
+        }
+    assert "repo-ok" not in captured.err
+
+
+def test_headless_slug_selector_not_found_returns_structured_selector_error(
+    monkeypatch, tmp_path, capsys
+):
+    project = {
+        "name": "Luma",
+        "path": str(tmp_path),
+        "repo": "oatrice/Luma",
+        "slug": "luma",
+    }
+
+    monkeypatch.setattr(main, "PROJECTS", {"12": project})
+
+    exit_code = main.main(
+        ["--auto", "--action", "code_review", "--json", "--project", "slug:zenith"]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 2
+    assert payload == {
+        "status": "error",
+        "action": "code_review",
+        "project": "slug:zenith",
+        "resolved_target": None,
+        "error": "Project selector 'slug:zenith' did not match any local project.",
+        "error_code": "project_selector_not_found",
+        "error_details": {
+            "selector_type": "slug",
+            "selector_input": "slug:zenith",
+            "reason": "No local project matched the selector.",
+        },
+    }
+
+
+def test_headless_repo_selector_ambiguous_returns_candidates(
+    monkeypatch, tmp_path, capsys
+):
+    root_path = tmp_path / "cerebro"
+    worktree_path = tmp_path / "cerebro1"
+    root_path.mkdir()
+    worktree_path.mkdir()
+
+    monkeypatch.setattr(
+        main,
+        "PROJECTS",
+        {
+            "13": {
+                "name": "Cerebro",
+                "path": str(root_path),
+                "repo": "oatrice/Cerebro",
+                "slug": "cerebro",
+            },
+            "14": {
+                "name": "Cerebro (worktree)",
+                "path": str(worktree_path),
+                "repo": "oatrice/Cerebro",
+                "slug": "cerebro1",
+            },
+        },
+    )
+
+    exit_code = main.main(
+        ["--auto", "--action", "code_review", "--json", "--project", "repo:oatrice/Cerebro"]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 2
+    assert payload == {
+        "status": "error",
+        "action": "code_review",
+        "project": "repo:oatrice/Cerebro",
+        "resolved_target": None,
+        "error": "Project selector 'repo:oatrice/Cerebro' is ambiguous.",
+        "error_code": "project_selector_ambiguous",
+        "error_details": {
+            "selector_type": "repo",
+            "selector_input": "repo:oatrice/Cerebro",
+            "candidates": [
+                {
+                    "project_key": "13",
+                    "repo": "oatrice/Cerebro",
+                    "path": str(root_path),
+                    "slug": "cerebro",
+                },
+                {
+                    "project_key": "14",
+                    "repo": "oatrice/Cerebro",
+                    "path": str(worktree_path),
+                    "slug": "cerebro1",
+                },
+            ],
+        },
+    }
+
+
+def test_headless_path_selector_uses_direct_target_and_reports_null_project_key(
+    monkeypatch, tmp_path, capsys
+):
+    state = LumaState(project_key="dynamic", phase=WorkflowPhase.IDLE)
+    calls = {}
+
+    def fake_action(current_state, current_project, headless=False):
+        calls["project"] = current_project
+        calls["headless"] = headless
+        return {"summary": "path-ok"}
+
+    monkeypatch.setattr(main, "PROJECTS", {})
+    monkeypatch.setattr(main, "load_state", lambda path: state)
+    monkeypatch.setattr(main.actions, "action_code_review", fake_action)
+    monkeypatch.setattr(main, "_detect_repo_and_kanban", lambda project_path: (None, None, None))
+
+    exit_code = main.main(
+        [
+            "--auto",
+            "--action",
+            "code_review",
+            "--json",
+            "--project",
+            f"path:{tmp_path}",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload == {
+        "status": "success",
+        "action": "code_review",
+        "project": f"path:{tmp_path}",
+        "resolved_target": {
+            "selector_type": "path",
+            "selector_input": f"path:{tmp_path}",
+            "project_key": None,
+            "repo": None,
+            "path": str(tmp_path),
+            "slug": None,
+            "resolution_source": "direct_path",
+        },
+        "result": {"summary": "path-ok"},
+    }
+    assert calls["project"]["path"] == str(tmp_path)
+    assert calls["project"]["repo"] is None
+    assert calls["headless"] is True
 
 
 def test_zenith_style_consumer_still_parses_headless_json_after_action_logging(tmp_path):
