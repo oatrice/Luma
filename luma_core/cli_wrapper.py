@@ -70,8 +70,9 @@ class CLIWrapper:
         Returns:
             Token value or None if not set.
         """
-        token_env_var = self.get_token_env_var()
-        return config.VCS_TOKEN if token_env_var == "GITLAB_TOKEN" else config.GITHUB_TOKEN
+        if self.cli_tool == "glab":
+            return config.GITLAB_TOKEN
+        return config.GITHUB_TOKEN
 
 
 # Global CLI wrapper instance using configured CLI tool
