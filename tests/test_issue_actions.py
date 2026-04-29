@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from luma_core.actions.issue_actions import action_add_issue
+from luma_core.actions.issue_actions import action_add_issue, action_remove_issue
 from luma_core.state_manager import LumaState
 from luma_core.state_manager import WorkflowPhase, IssueData
 
@@ -218,3 +218,114 @@ class TestActionAddIssue(unittest.TestCase):
 
         # Verify sync called 3 times
         self.assertEqual(mock_sync.call_count, 3)
+
+class TestActionRemoveIssue(unittest.TestCase):
+    def test_remove_multiple_issues_comma_separated(self):
+        """Test removing multiple issues with comma-separated input (e.g. '3,4')"""
+        # Setup state with 4 active issues
+        state = LumaState()
+        state.phase = WorkflowPhase.CODING
+        state.active_issues = [
+            IssueData(84, "Primary Issue", "url84", "body84", "item84", "repo"),
+            IssueData(90, "Issue 90", "url90", "body90", "item90", "repo"),
+            IssueData(17, "Issue 17", "url17", "body17", "item17", "repo"),
+            IssueData(18, "Issue 18", "url18", "body18", "item18", "repo"),
+        ]
+
+        project = {"kanban_number": 1, "kanban_id": "kanban_id"}
+
+        # Mock input: "3,4" to remove issues at index 2 and 3 (#17 and #18)
+        with patch("luma_core.actions.issue_actions.safe_input", return_value="3,4"):
+            result = action_remove_issue(state, project)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertEqual(len(state.active_issues), 2)
+        self.assertEqual(state.active_issues[0].number, 84)
+        self.assertEqual(state.active_issues[1].number, 90)
+
+    def test_remove_multiple_issues_space_separated(self):
+        """Test removing multiple issues with space-separated input (e.g. '2 3')"""
+        # Setup state with 3 active issues
+        state = LumaState()
+        state.phase = WorkflowPhase.CODING
+        state.active_issues = [
+            IssueData(84, "Primary Issue", "url84", "body84", "item84", "repo"),
+            IssueData(90, "Issue 90", "url90", "body90", "item90", "repo"),
+            IssueData(17, "Issue 17", "url17", "body17", "item17", "repo"),
+        ]
+
+        project = {"kanban_number": 1, "kanban_id": "kanban_id"}
+
+        # Mock input: "2 3" to remove issues at index 1 and 2 (#90 and #17)
+        with patch("luma_core.actions.issue_actions.safe_input", return_value="2 3"):
+            result = action_remove_issue(state, project)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertEqual(len(state.active_issues), 1)
+        self.assertEqual(state.active_issues[0].number, 84)
+
+    def test_remove_single_issue_backward_compatibility(self):
+        """Test removing single issue still works (backward compatibility)"""
+        # Setup state with 2 active issues
+        state = LumaState()
+        state.phase = WorkflowPhase.CODING
+        state.active_issues = [
+            IssueData(84, "Primary Issue", "url84", "body84", "item84", "repo"),
+            IssueData(90, "Issue 90", "url90", "body90", "item90", "repo"),
+        ]
+
+        project = {"kanban_number": 1, "kanban_id": "kanban_id"}
+
+        # Mock input: "2" to remove issue at index 1 (#90)
+        with patch("luma_core.actions.issue_actions.safe_input", return_value="2"):
+            result = action_remove_issue(state, project)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertEqual(len(state.active_issues), 1)
+        self.assertEqual(state.active_issues[0].number, 84)
+
+    def test_remove_issue_invalid_input(self):
+        """Test invalid input handling"""
+        # Setup state with 2 active issues
+        state = LumaState()
+        state.phase = WorkflowPhase.CODING
+        state.active_issues = [
+            IssueData(84, "Primary Issue", "url84", "body84", "item84", "repo"),
+            IssueData(90, "Issue 90", "url90", "body90", "item90", "repo"),
+        ]
+
+        project = {"kanban_number": 1, "kanban_id": "kanban_id"}
+
+        # Mock input: "abc" (invalid)
+        with patch("luma_core.actions.issue_actions.safe_input", return_value="abc"):
+            result = action_remove_issue(state, project)
+
+        # Assert
+        self.assertFalse(result)
+        self.assertEqual(len(state.active_issues), 2)  # No change
+
+    def test_remove_issue_invalid_index(self):
+        """Test invalid index handling (partial success)"""
+        # Setup state with 3 active issues
+        state = LumaState()
+        state.phase = WorkflowPhase.CODING
+        state.active_issues = [
+            IssueData(84, "Primary Issue", "url84", "body84", "item84", "repo"),
+            IssueData(90, "Issue 90", "url90", "body90", "item90", "repo"),
+            IssueData(17, "Issue 17", "url17", "body17", "item17", "repo"),
+        ]
+
+        project = {"kanban_number": 1, "kanban_id": "kanban_id"}
+
+        # Mock input: "2,99" (99 is invalid but 2 is valid)
+        with patch("luma_core.actions.issue_actions.safe_input", return_value="2,99"):
+            result = action_remove_issue(state, project)
+
+        # Assert - should remove issue 2 and report invalid for 99
+        self.assertTrue(result)
+        self.assertEqual(len(state.active_issues), 2)
+        self.assertEqual(state.active_issues[0].number, 84)
+        self.assertEqual(state.active_issues[1].number, 17)
