@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.22.0] - 2026-04-29
+
+### Added
+- **CLI:** Multi-select support for adding and removing issues with comma-separated (e.g., "1,2,3") or space-separated (e.g., "1 2 3") input
+- **Tests:** Comprehensive unit test coverage for multi-issue selection scenarios (10 tests total)
+- **Documentation:** Feature spec, analysis, plan, SBE, and manual verification guide for Issue #90
+
+### Changed
+- **Issue Actions:** Enhanced `action_add_issue` and `action_remove_issue` to parse multi-select input with proper validation and error handling
+
 ## [0.21.0] - 2026-04-24
 
 ### Added
