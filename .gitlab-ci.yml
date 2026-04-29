@@ -1,0 +1,198 @@
+# GitLab CI/CD Pipeline for Luma
+# Converted from GitHub Actions (.github/workflows/ci.yml)
+#
+# Key differences from GitHub Actions:
+# - Uses .gitlab-ci.yml instead of .github/workflows/
+# - Uses GitLab CI/CD variables instead of GitHub secrets
+# - Different variable names (CI_* instead of github.*)
+# - Stages-based pipeline instead of jobs matrix
+# - Manual jobs for specific triggers
+#
+# Original GitHub workflows converted:
+# - ci.yml (test + lint jobs) → test, lint jobs
+#
+# Required GitLab CI/CD Variables:
+# - TELEGRAM_BOT_TOKEN: Telegram bot token for notifications
+# - TELEGRAM_CHAT_ID: Telegram chat ID for notifications
+# - GOOGLE_API_KEY: Google API key (if needed by tests)
+# - OPENROUTER_API_KEY: OpenRouter API key (if needed by tests)
+#
+# Setup Instructions:
+# 1. Copy this file to your GitLab repository root as .gitlab-ci.yml
+# 2. Configure CI/CD variables in GitLab project settings (Settings → CI/CD → Variables)
+# 3. Adjust image versions and commands as needed for your environment
+
+# Define stages
+stages:
+  - test
+  - lint
+  - notify
+
+# Global variables
+variables:
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Cache for Python dependencies
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+  key: ${CI_COMMIT_REF_SLUG}
+
+# ============================================================================
+# TEST JOB (Equivalent to GitHub Actions test job)
+# ============================================================================
+
+test:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install pytest
+    - if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - export PYTHONPATH=$PWD
+  script:
+    - python -m pytest tests/ -v
+  artifacts:
+    expire_in: 1 week
+    when: always
+    reports:
+      junit: pytest-report.xml
+  allow_failure: false
+
+# ============================================================================
+# LINT JOB (Equivalent to GitHub Actions lint job)
+# ============================================================================
+
+lint:
+  stage: lint
+  image: python:${PYTHON_VERSION}
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install ruff
+  script:
+    - ruff check . --ignore E501,F401
+  allow_failure: false
+
+# ============================================================================
+# NOTIFICATION JOBS (Success/Failure)
+# ============================================================================
+
+notify_test_success:
+  stage: notify
+  image: curlimages/curl:latest
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
+  when: on_success
+  allow_failure: true
+  script:
+    - |
+      if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+        MESSAGE="✅ *Luma CI Succeeded (Test)*%0A"
+        MESSAGE+="📦 Repo: \`$CI_PROJECT_NAME\`%0A"
+        MESSAGE+="🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A"
+        MESSAGE+="👤 Author: $CI_COMMIT_AUTHOR%0A"
+        MESSAGE+="📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A"
+        MESSAGE+="🔗 [View Run]($CI_PIPELINE_URL)"
+        curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+          -d chat_id="$TELEGRAM_CHAT_ID" \
+          -d parse_mode="Markdown" \
+          -d text="$MESSAGE"
+      else
+        echo "Telegram credentials not configured, skipping notification"
+      fi
+
+notify_test_failure:
+  stage: notify
+  image: curlimages/curl:latest
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
+  when: on_failure
+  allow_failure: true
+  script:
+    - |
+      if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+        MESSAGE="❌ *Luma CI Failed (Test)*%0A"
+        MESSAGE+="📦 Repo: \`$CI_PROJECT_NAME\`%0A"
+        MESSAGE+="🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A"
+        MESSAGE+="👤 Author: $CI_COMMIT_AUTHOR%0A"
+        MESSAGE+="📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A"
+        MESSAGE+="🔗 [View Run]($CI_PIPELINE_URL)"
+        curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+          -d chat_id="$TELEGRAM_CHAT_ID" \
+          -d parse_mode="Markdown" \
+          -d text="$MESSAGE"
+      else
+        echo "Telegram credentials not configured, skipping notification"
+      fi
+
+notify_lint_failure:
+  stage: notify
+  image: curlimages/curl:latest
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
+  when: on_failure
+  allow_failure: true
+  script:
+    - |
+      if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+        MESSAGE="❌ *Luma CI Failed (Lint)*%0A"
+        MESSAGE+="📦 Repo: \`$CI_PROJECT_NAME\`%0A"
+        MESSAGE+="🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A"
+        MESSAGE+="👤 Author: $CI_COMMIT_AUTHOR%0A"
+        MESSAGE+="📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A"
+        MESSAGE+="🔗 [View Run]($CI_PIPELINE_URL)"
+        curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+          -d chat_id="$TELEGRAM_CHAT_ID" \
+          -d parse_mode="Markdown" \
+          -d text="$MESSAGE"
+      else
+        echo "Telegram credentials not configured, skipping notification"
+      fi
+
+# ============================================================================
+# GitLab CI/CD Setup Instructions
+# ============================================================================
+#
+# 1. Pipeline Triggers:
+#    - Push to main/master: Automatic CI/CD (test + lint)
+#    - Merge Requests: Automatic testing and linting
+#    - Manual jobs: Use GitLab UI to trigger (if added later)
+#
+# 2. Required CI/CD Variables (GitLab project settings → CI/CD → Variables):
+#    - TELEGRAM_BOT_TOKEN: For Telegram notifications
+#    - TELEGRAM_CHAT_ID: For Telegram notifications
+#    - GOOGLE_API_KEY: For tests that use Google API (optional)
+#    - OPENROUTER_API_KEY: For tests that use OpenRouter API (optional)
+#
+# 3. Runner Requirements:
+#    - Docker executor for containerized jobs
+#    - Python 3.11+ available in containers
+#    - Network access for external API calls (Telegram)
+#
+# 4. Variable Mapping (GitHub Actions → GitLab CI):
+#    - github.repository → $CI_PROJECT_NAME
+#    - github.ref_name → $CI_COMMIT_REF_NAME
+#    - github.actor → $CI_COMMIT_AUTHOR
+#    - github.event.head_commit.message → $CI_COMMIT_MESSAGE
+#    - github.server_url → $CI_SERVER_URL
+#    - github.run_id → $CI_PIPELINE_ID
+#    - secrets.* → CI/CD Variables
+#
+# 5. Future Enhancements:
+#    - Add sync stage for GitHub/GitLab metrics sync
+#    - Add scheduled jobs for maintenance
+#    - Add deployment jobs for staging/production
+#    - Add coverage reporting
+#
+# ============================================================================
