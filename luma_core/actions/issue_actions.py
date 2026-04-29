@@ -244,15 +244,18 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
     for i, card in enumerate(selectable, 1):
         print(f"  [{i}] #{card.issue_number}: {card.title[:50]} ({card.status})")
     print("  [0] Cancel")
-    print("  ℹ️  Comma-separated for multi-select (e.g. 1,3)")
+    print("  ℹ️  Comma-separated or space-separated for multi-select (e.g. 1,3 or 1 3)")
 
     choice = safe_input("\nSelect issue(s) to add: ").strip()
     if choice == "0":
         return False
 
-    # Parse multi-select (e.g. "1,3" or "1")
+    # Parse multi-select (e.g. "1,3", "1 3", or "1")
     try:
-        indices = [int(x.strip()) - 1 for x in choice.split(",")]
+        if "," in choice:
+            indices = [int(x.strip()) - 1 for x in choice.split(",")]
+        else:
+            indices = [int(x.strip()) - 1 for x in choice.split()]
         added_count = 0
         for idx in indices:
             if 0 <= idx < len(selectable):
