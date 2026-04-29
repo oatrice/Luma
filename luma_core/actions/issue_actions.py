@@ -11,7 +11,7 @@ from .utils import (
     _display_selection_blockers,
     _start_issues,
     sync_kanban_on_action,
-    KanbanCard
+    KanbanCard,
 )
 from .quality_actions import sync_roadmap_for_closed_issues, sync_roadmap_for_new_issues
 from luma_core.github_client import create_issue
@@ -21,7 +21,15 @@ from .create_issue_action import (
     detect_zenith_issues_from_branch,
 )
 
-def action_create_issue(state: LumaState, project: dict, title: str = None, body: str = None, headless: bool = False, headless_args: dict = None) -> dict:
+
+def action_create_issue(
+    state: LumaState,
+    project: dict,
+    title: str = None,
+    body: str = None,
+    headless: bool = False,
+    headless_args: dict = None,
+) -> dict:
     """Create a new GitHub issue (First-class action)"""
     # Handle headless_args if provided
     if headless_args:
@@ -77,7 +85,7 @@ def action_create_issue(state: LumaState, project: dict, title: str = None, body
             else:
                 if not headless:
                     print("   ⚠️ Could not add to Kanban (may need manual addition)")
-        
+
         if not headless:
             print(f"   ✅ Created: {result['url']}")
         return result
@@ -85,6 +93,7 @@ def action_create_issue(state: LumaState, project: dict, title: str = None, body
         if not headless:
             print(f"   ❌ Failed: {result.get('error')}")
         return result
+
 
 def action_select_issue(state: LumaState, project: dict) -> bool:
     """Select an issue from Kanban (Ready or In Progress)"""
@@ -115,7 +124,9 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
 
     # Auto-sync CLOSED issues to Roadmap.md (silent background sync)
     try:
-        done_statuses = {_status_key(s) for s in workflow.get("done_statuses", ["Done", "Closed"])}
+        done_statuses = {
+            _status_key(s) for s in workflow.get("done_statuses", ["Done", "Closed"])
+        }
         closed_issue_nums = [
             c.issue_number for c in all_cards if _status_key(c.status) in done_statuses
         ]
@@ -171,13 +182,13 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
                 print(f"❌ Invalid index: {idx + 1}")
         if not selected_cards:
             return False
-        
+
         # Detect cross-repo links from selected issue bodies
         cross_repo_links = []
         for card in selected_cards:
             if card.body:
                 cross_repo_links.extend(detect_zenith_issues_from_text(card.body))
-        
+
         # Remove duplicates
         seen = set()
         unique_links = []
@@ -186,12 +197,12 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
             if key not in seen:
                 unique_links.append(link)
                 seen.add(key)
-        
+
         if unique_links:
             print(f"\n🔗 Cross-Repo Links Detected ({len(unique_links)}):")
             for link in unique_links:
                 print(f"   • {link.repo}#{link.issue_number} → {link.url}")
-            
+
             # Store in state for later PR creation
             state.context["cross_repo_links"] = [
                 {
@@ -203,11 +214,12 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
                 for link in unique_links
             ]
             print("   💡 Links will be auto-included when creating PR")
-            
+
         return _start_issues(state, selected_cards, project)
     except (ValueError, IndexError):
         print("❌ Invalid input. Please enter numbers.")
         return False
+
 
 def action_add_issue(state: LumaState, project: dict) -> bool:
     """Add an issue to the current active issues (mid-work)"""
@@ -232,42 +244,55 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
     for i, card in enumerate(selectable, 1):
         print(f"  [{i}] #{card.issue_number}: {card.title[:50]} ({card.status})")
     print("  [0] Cancel")
+    print("  ℹ️  Comma-separated for multi-select (e.g. 1,3)")
 
-    choice = safe_input("\nSelect issue to add: ").strip()
+    choice = safe_input("\nSelect issue(s) to add: ").strip()
     if choice == "0":
         return False
 
+    # Parse multi-select (e.g. "1,3" or "1")
     try:
-        idx = int(choice) - 1
-        if 0 <= idx < len(selectable):
-            card = selectable[idx]
-            new_issue = IssueData(
-                number=card.issue_number,
-                title=card.title,
-                html_url=card.url,
-                body=card.body,
-                project_item_id=card.item_id,
-                repository=card.repository,
-            )
-            state.active_issues.append(new_issue)
-            print(f"✅ Added #{card.issue_number}: {card.title[:40]}")
+        indices = [int(x.strip()) - 1 for x in choice.split(",")]
+        added_count = 0
+        for idx in indices:
+            if 0 <= idx < len(selectable):
+                card = selectable[idx]
+                # Check if already active to avoid duplicates
+                if any(i.number == card.issue_number for i in state.active_issues):
+                    print(f"⚠️  #{card.issue_number} already active, skipping")
+                    continue
+                new_issue = IssueData(
+                    number=card.issue_number,
+                    title=card.title,
+                    html_url=card.url,
+                    body=card.body,
+                    project_item_id=card.item_id,
+                    repository=card.repository,
+                )
+                state.active_issues.append(new_issue)
+                print(f"✅ Added #{card.issue_number}: {card.title[:40]}")
+                added_count += 1
+
+                # Sync Kanban
+                if card.item_id and project.get("kanban_id"):
+                    sync_kanban_on_action(
+                        "select_issue",
+                        project["kanban_id"],
+                        card.item_id,
+                    )
+            else:
+                print(f"❌ Invalid index: {idx + 1}")
+        if added_count > 0:
             print(
                 f"   Active issues: {', '.join(f'#{i.number}' for i in state.active_issues)}"
             )
-
-            # Sync Kanban
-            if card.item_id and project.get("kanban_id"):
-                sync_kanban_on_action(
-                    "select_issue",
-                    project["kanban_id"],
-                    card.item_id,
-                )
             return True
     except ValueError:
         pass
 
     print("❌ Invalid selection")
     return False
+
 
 def action_remove_issue(state: LumaState, project: dict) -> bool:
     """Remove an issue from the current active issues"""
@@ -300,6 +325,7 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
     print("❌ Invalid selection")
     return False
 
+
 def action_view_kanban(project: dict):
     """View Kanban status"""
     print(f"\n📊 Fetching {project['name']} Kanban...")
@@ -329,12 +355,15 @@ def action_view_kanban(project: dict):
         for card in cards_by_status[status]:
             print(f"  #{card.issue_number}: {card.title[:65]}")
 
+
 def action_list_active_issues(project: dict):
     """List all active issues (Backlog, Ready, In Progress)"""
     print(f"\n📋 Fetching Active Issues for {project['name']}...")
     workflow = get_status_workflow(project)
     # Use active_sort_order for display order of active issues
-    active_sort_order = workflow.get("active_sort_order", workflow.get("board_order", []))
+    active_sort_order = workflow.get(
+        "active_sort_order", workflow.get("board_order", [])
+    )
     status_priority = _status_priority(active_sort_order)
 
     cards = fetch_kanban_cards(project["kanban_number"])
@@ -343,28 +372,36 @@ def action_list_active_issues(project: dict):
         print("📭 No cards found")
         return
 
-    active_statuses = {_status_key(status) for status in workflow.get("active_statuses", [])}
+    active_statuses = {
+        _status_key(status) for status in workflow.get("active_statuses", [])
+    }
     if active_statuses:
         active_cards = [c for c in cards if _status_key(c.status) in active_statuses]
         # Sort by active status priority then by issue number
         active_cards.sort(
-            key=lambda c: (status_priority.get(_status_key(c.status), 999), c.issue_number)
+            key=lambda c: (
+                status_priority.get(_status_key(c.status), 999),
+                c.issue_number,
+            )
         )
         for card in active_cards:
             print(f"  #{card.issue_number}: {card.title[:65]} ({card.status})")
     else:
         print("ℹ️ No active statuses configured for this project.")
 
-def bootstrap_issue(state: LumaState, project: dict, issue_numbers: list[int], branch_name: str = None) -> bool:
+
+def bootstrap_issue(
+    state: LumaState, project: dict, issue_numbers: list[int], branch_name: str = None
+) -> bool:
     """
     Bootstrap a specific issue (or multiple) for headless/machine-readable workflows.
     Fetches the issue data from Kanban and starts the coding phase.
     """
     print(f"\n🚀 Bootstrapping issue(s): {', '.join(map(str, issue_numbers))}")
-    
+
     # Fetch all cards to find the requested ones
     all_cards = fetch_kanban_cards(project["kanban_number"])
-    
+
     selected_cards = []
     for num in issue_numbers:
         card = next((c for c in all_cards if c.issue_number == num), None)
@@ -372,9 +409,12 @@ def bootstrap_issue(state: LumaState, project: dict, issue_numbers: list[int], b
             selected_cards.append(card)
         else:
             print(f"❌ Issue #{num} not found on Kanban.")
-            
+
     if not selected_cards or len(selected_cards) != len(issue_numbers):
         return False
-        
+
     from .utils import _start_issues_headless
-    return _start_issues_headless(state, selected_cards, project, branch_name=branch_name)
+
+    return _start_issues_headless(
+        state, selected_cards, project, branch_name=branch_name
+    )
