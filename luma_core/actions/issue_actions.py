@@ -300,24 +300,46 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
 def action_remove_issue(state: LumaState, project: dict) -> bool:
     """Remove an issue from the current active issues"""
     if not state.active_issues or len(state.active_issues) <= 1:
-        print("❌ Cannot remove: need at least 1 active issue.")
+        print("Cannot remove: need at least 1 active issue.")
         return False
 
-    print("\n➖ Remove Issue from Current Work Session")
+    print("\n- Remove Issue from Current Work Session")
     for i, issue in enumerate(state.active_issues, 1):
         primary = " (primary)" if i == 1 else ""
         print(f"  [{i}] #{issue.number}: {issue.title[:50]}{primary}")
     print("  [0] Cancel")
+    print("  i  Comma-separated or space-separated for multi-select (e.g. 2,3 or 2 3)")
 
     choice = safe_input("\nSelect issue to remove: ").strip()
     if choice == "0":
         return False
 
+    # Parse multi-select (e.g. "2,3", "2 3", or "2")
     try:
-        idx = int(choice) - 1
-        if 0 <= idx < len(state.active_issues):
-            removed = state.active_issues.pop(idx)
-            print(f"✅ Removed #{removed.number}: {removed.title[:40]}")
+        if "," in choice:
+            indices = [int(x.strip()) - 1 for x in choice.split(",")]
+        else:
+            indices = [int(x.strip()) - 1 for x in choice.split()]
+
+        # Sort indices descending to avoid index shift when popping
+        indices_sorted = sorted(set(indices), reverse=True)
+
+        # Count valid indices to check if removal would leave at least 1 issue
+        valid_indices = [idx for idx in indices_sorted if 0 <= idx < len(state.active_issues)]
+        if len(state.active_issues) - len(valid_indices) < 1:
+            print(f"Cannot remove: need at least 1 active issue remaining.")
+            return False
+
+        removed_count = 0
+        for idx in indices_sorted:
+            if 0 <= idx < len(state.active_issues):
+                removed = state.active_issues.pop(idx)
+                print(f"Removed #{removed.number}: {removed.title[:40]}")
+                removed_count += 1
+            else:
+                print(f"Invalid index: {idx + 1}")
+
+        if removed_count > 0:
             print(
                 f"   Remaining: {', '.join(f'#{i.number}' for i in state.active_issues)}"
             )
@@ -325,13 +347,13 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
     except ValueError:
         pass
 
-    print("❌ Invalid selection")
+    print("Invalid selection")
     return False
 
 
 def action_view_kanban(project: dict):
     """View Kanban status"""
-    print(f"\n📊 Fetching {project['name']} Kanban...")
+    print(f"\n Fetching {project['name']} Kanban...")
     workflow = get_status_workflow(project)
     board_priority = _status_priority(workflow.get("board_order", []))
 
