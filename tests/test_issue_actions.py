@@ -35,14 +35,14 @@ class TestActionAddIssue(unittest.TestCase):
         # Mock inputs: "1 2 3"
         with patch(
             "luma_core.actions.issue_actions.fetch_kanban_cards", return_value=[]
-        ) as mock_fetch:
+        ):
             with patch(
                 "luma_core.actions.issue_actions._get_selectable_cards",
                 return_value=selectable,
-            ) as mock_select:
+            ):
                 with patch(
                     "luma_core.actions.issue_actions.safe_input", return_value="1 2 3"
-                ) as mock_input:
+                ):
                     with patch(
                         "luma_core.actions.issue_actions.sync_kanban_on_action"
                     ) as mock_sync:
@@ -74,14 +74,14 @@ class TestActionAddIssue(unittest.TestCase):
         # Mock inputs: "1"
         with patch(
             "luma_core.actions.issue_actions.fetch_kanban_cards", return_value=[]
-        ) as mock_fetch:
+        ):
             with patch(
                 "luma_core.actions.issue_actions._get_selectable_cards",
                 return_value=selectable,
-            ) as mock_select:
+            ):
                 with patch(
                     "luma_core.actions.issue_actions.safe_input", return_value="1"
-                ) as mock_input:
+                ):
                     with patch(
                         "luma_core.actions.issue_actions.sync_kanban_on_action"
                     ) as mock_sync:
@@ -111,14 +111,14 @@ class TestActionAddIssue(unittest.TestCase):
         # Mock inputs: "abc"
         with patch(
             "luma_core.actions.issue_actions.fetch_kanban_cards", return_value=[]
-        ) as mock_fetch:
+        ):
             with patch(
                 "luma_core.actions.issue_actions._get_selectable_cards",
                 return_value=selectable,
-            ) as mock_select:
+            ):
                 with patch(
                     "luma_core.actions.issue_actions.safe_input", return_value="abc"
-                ) as mock_input:
+                ):
                     with patch(
                         "luma_core.actions.issue_actions.sync_kanban_on_action"
                     ) as mock_sync:
@@ -156,14 +156,14 @@ class TestActionAddIssue(unittest.TestCase):
         # Mock inputs: "1,2"
         with patch(
             "luma_core.actions.issue_actions.fetch_kanban_cards", return_value=[]
-        ) as mock_fetch:
+        ):
             with patch(
                 "luma_core.actions.issue_actions._get_selectable_cards",
                 return_value=selectable,
-            ) as mock_select:
+            ):
                 with patch(
                     "luma_core.actions.issue_actions.safe_input", return_value="1,2"
-                ) as mock_input:
+                ):
                     with patch(
                         "luma_core.actions.issue_actions.sync_kanban_on_action"
                     ) as mock_sync:
@@ -196,14 +196,14 @@ class TestActionAddIssue(unittest.TestCase):
         # Mock inputs: "1,2,3"
         with patch(
             "luma_core.actions.issue_actions.fetch_kanban_cards", return_value=[]
-        ) as mock_fetch:
+        ):
             with patch(
                 "luma_core.actions.issue_actions._get_selectable_cards",
                 return_value=selectable,
-            ) as mock_select:
+            ):
                 with patch(
                     "luma_core.actions.issue_actions.safe_input", return_value="1,2,3"
-                ) as mock_input:
+                ):
                     with patch(
                         "luma_core.actions.issue_actions.sync_kanban_on_action"
                     ) as mock_sync:

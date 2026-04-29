@@ -327,7 +327,7 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
         # Count valid indices to check if removal would leave at least 1 issue
         valid_indices = [idx for idx in indices_sorted if 0 <= idx < len(state.active_issues)]
         if len(state.active_issues) - len(valid_indices) < 1:
-            print(f"Cannot remove: need at least 1 active issue remaining.")
+            print("Cannot remove: need at least 1 active issue remaining.")
             return False
 
         removed_count = 0
