@@ -96,12 +96,7 @@ notify_test_success:
   script:
     - |
       if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-        MESSAGE="✅ *Luma CI Succeeded (Test)*%0A"
-        MESSAGE+="📦 Repo: \`$CI_PROJECT_NAME\`%0A"
-        MESSAGE+="🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A"
-        MESSAGE+="👤 Author: $CI_COMMIT_AUTHOR%0A"
-        MESSAGE+="📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A"
-        MESSAGE+="🔗 [View Run]($CI_PIPELINE_URL)"
+        MESSAGE="✅ *Luma CI Succeeded (Test)*%0A📦 Repo: \`$CI_PROJECT_NAME\`%0A🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A👤 Author: $CI_COMMIT_AUTHOR%0A📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A🔗 [View Run]($CI_PIPELINE_URL)"
         curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
           -d chat_id="$TELEGRAM_CHAT_ID" \
           -d parse_mode="Markdown" \
@@ -121,12 +116,7 @@ notify_test_failure:
   script:
     - |
       if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-        MESSAGE="❌ *Luma CI Failed (Test)*%0A"
-        MESSAGE+="📦 Repo: \`$CI_PROJECT_NAME\`%0A"
-        MESSAGE+="🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A"
-        MESSAGE+="👤 Author: $CI_COMMIT_AUTHOR%0A"
-        MESSAGE+="📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A"
-        MESSAGE+="🔗 [View Run]($CI_PIPELINE_URL)"
+        MESSAGE="❌ *Luma CI Failed (Test)*%0A📦 Repo: \`$CI_PROJECT_NAME\`%0A🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A👤 Author: $CI_COMMIT_AUTHOR%0A📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A🔗 [View Run]($CI_PIPELINE_URL)"
         curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
           -d chat_id="$TELEGRAM_CHAT_ID" \
           -d parse_mode="Markdown" \
@@ -146,12 +136,7 @@ notify_lint_failure:
   script:
     - |
       if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-        MESSAGE="❌ *Luma CI Failed (Lint)*%0A"
-        MESSAGE+="📦 Repo: \`$CI_PROJECT_NAME\`%0A"
-        MESSAGE+="🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A"
-        MESSAGE+="👤 Author: $CI_COMMIT_AUTHOR%0A"
-        MESSAGE+="📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A"
-        MESSAGE+="🔗 [View Run]($CI_PIPELINE_URL)"
+        MESSAGE="❌ *Luma CI Failed (Lint)*%0A📦 Repo: \`$CI_PROJECT_NAME\`%0A🌿 Branch: \`$CI_COMMIT_REF_NAME\`%0A👤 Author: $CI_COMMIT_AUTHOR%0A📝 Commit: \`$CI_COMMIT_MESSAGE\`%0A🔗 [View Run]($CI_PIPELINE_URL)"
         curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
           -d chat_id="$TELEGRAM_CHAT_ID" \
           -d parse_mode="Markdown" \
