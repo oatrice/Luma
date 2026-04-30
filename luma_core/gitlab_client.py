@@ -30,7 +30,19 @@ def create_merge_request(repo_name, title, body, source_branch, target_branch="m
         return f"https://gitlab.com/{repo_name}/-/merge_requests/new?merge_request[source_branch]={source_branch}"
         
     except subprocess.CalledProcessError as e:
-        print(f"   Failed to create GitLab MR: {e.stderr}")
+        stderr = e.stderr or ""
+        # Check if MR already exists and extract the number
+        if "409" in stderr and "already exists for this source branch:" in stderr:
+            import re
+            # Extract MR number from error like "Another open merge request already exists for this source branch: !91"
+            match = re.search(r'!(\d+)', stderr)
+            if match:
+                mr_number = match.group(1)
+                url = f"https://gitlab.com/{repo_name}/-/merge_requests/{mr_number}"
+                print(f"   Found existing MR #{mr_number}")
+                return url
+        
+        print(f"   Failed to create GitLab MR: {stderr}")
         return None
     except Exception as e:
         print(f"   Error creating GitLab MR: {e}")
