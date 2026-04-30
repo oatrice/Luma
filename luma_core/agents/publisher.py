@@ -22,6 +22,7 @@ def publisher_agent(state: AgentState):
     
     # Detect platform from project config
     project = state.get('project', {})
+    print(f"   Debug: Received project config: {project}")
     platform = project.get('platform', 'github')  # Default to GitHub for backward compatibility
     
     print(f"   Platform: {platform}")
