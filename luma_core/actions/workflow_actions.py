@@ -437,6 +437,89 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "project": proj,  # Add project config for platform detection
         }
 
+        # Detect cross-repo links (Zenith issues) from issue body and branch
+        cross_repo_links = []
+        for issue in state.active_issues:
+            if issue.body:
+                cross_repo_links.extend(detect_zenith_issues_from_text(issue.body))
+        if state.active_branch:
+            cross_repo_links.extend(detect_zenith_issues_from_branch(state.active_branch))
+            
+        # Also include links stored from issue selection phase
+        stored_links = state.context.get("cross_repo_links", [])
+        for stored in stored_links:
+            cross_repo_links.append(CrossRepoLink(
+                repo=stored["repo"],
+                issue_number=stored["issue_number"],
+                url=stored["url"],
+                relationship=stored.get("relationship", "Related"),
+            ))
+            
+        # Remove duplicates
+        seen_links = set()
+        unique_links = []
+        for link in cross_repo_links:
+            key = f"{link.repo}#{link.issue_number}"
+            if key not in seen_links:
+                unique_links.append(link)
+                seen_links.add(key)
+        cross_repo_links = unique_links
+
+        # Construct a temporary state for the publisher
+        # Append screenshots and AI brain context to body
+        # Multi-issue: combine all issue bodies + closing references
+        primary_issue = state.active_issue
+
+        if len(state.active_issues) > 1:
+            closes_line = ", ".join(f"Closes #{i.number}" for i in state.active_issues)
+            issues_section = "\n\n## Issues\n" + "\n".join(
+                f"- #{i.number}: {i.title}" for i in state.active_issues
+            )
+            combined_body = (
+                (primary_issue.body or "")
+                + issues_section
+                + repo_screenshot_section
+                + ai_brain_section
+            )
+            pr_title = f"{primary_issue.title} (#{', #'.join(str(i.number) for i in state.active_issues)})"
+        else:
+            closes_line = f"Closes #{primary_issue.number}"
+            combined_body = (
+                (primary_issue.body or "") + repo_screenshot_section + ai_brain_section
+            )
+            pr_title = primary_issue.title
+
+        # Add closes line at the end
+        combined_body += f"\n\n{closes_line}"
+
+        # Add cross-repo links section if detected
+        if cross_repo_links:
+            cross_repo_section = "\n\n##  Cross-Repo Links\n"
+            for link in cross_repo_links:
+                cross_repo_section += f"- Related: [{link.repo}#{link.issue_number}]({link.url})\n"
+            combined_body += cross_repo_section
+            print(f"   Linked {len(cross_repo_links)} cross-repo issue(s)")
+
+        pub_state = {
+            "task": pr_title,
+            "issue_data": {
+                "title": pr_title,
+                "number": primary_issue.number,
+                "body": combined_body,
+                "url": getattr(
+                    primary_issue,
+                    "html_url",
+                    f"https://github.com/{project['repo']}/issues/{primary_issue.number}",
+                ),
+            },
+            "repo": proj["repo"],
+            "issue_source_repo": project["repo"],
+            "target_dir": target_dir,
+            "test_suggestions": "",
+            "auto_approve": auto_approve,
+            "project": proj,  # Add project config for platform detection
+        }
+
         # Load fresh project config to ensure we have the latest platform info
         from luma_core.config import load_projects
         fresh_projects = load_projects()
@@ -445,26 +528,27 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             if p.get('path') == proj.get('path') or p.get('name') == proj.get('name'):
                 project_key = key
                 break
-        
+
         if project_key and project_key in fresh_projects:
             fresh_proj = fresh_projects[project_key]
             pub_state['project'] = fresh_proj  # Override with fresh config
             print(f"   Debug: Loaded fresh project config with platform: {fresh_proj.get('platform')}")
 
-        print(f"   📤 Invoking Publisher Agent for {proj['name']}...")
+        print(f"   Debug: About to invoke publisher with project: {pub_state.get('project', {}).get('platform', 'NOT_FOUND')}")
+        print(f"   Invoking Publisher Agent for {proj['name']}...")
         result = publisher_agent(pub_state)
         pr_url = result.get("pr_url")
 
         if pr_url:
-            print(f"   ✅ PR Created: {pr_url}")
+            print(f"   Created PR: {pr_url}")
             created_prs.append((proj["name"], pr_url))
             # Update state with the created PR url
             if proj == project:
                 ok, msg = transition_to(state, WorkflowPhase.PR_PENDING, pr_url=pr_url)
                 if ok:
-                    print("   🔄 State updated to PR_PENDING")
+                    print("   State updated to PR_PENDING")
         else:
-            print("   ⚠️ Publisher finished but no known PR URL.")
+            print("   Publisher finished but no known PR URL.")
 
     if created_prs:
         print("\n📋 PR Summary:")
