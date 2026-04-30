@@ -9,28 +9,25 @@ def create_merge_request(repo_name, title, body, source_branch, target_branch="m
     try:
         wrapper = get_cli_wrapper('glab')
         
-        # Create merge request command
+        # Create merge request command - simplified flags
         args = [
             'mr', 'create',
             '--title', title,
             '--description', body,
             '--source-branch', source_branch,
-            '--target-branch', target_branch,
-            '--repo', repo_name,
-            '--yes'  # Auto-confirm
+            '--target-branch', target_branch
         ]
         
         output = wrapper.run_cli_command(args)
         
         # Extract URL from output
-        # glab typically returns a URL in the output
         lines = output.strip().split('\n')
         for line in lines:
             if 'http' in line and ('merge_requests' in line or '-/merge_requests' in line):
                 return line.strip()
         
-        # If no URL found, try to parse from repo name
-        return f"https://gitlab.com/{repo_name}/-/merge_requests"
+        # If no URL found, construct URL from branch name
+        return f"https://gitlab.com/{repo_name}/-/merge_requests/new?merge_request[source_branch]={source_branch}"
         
     except subprocess.CalledProcessError as e:
         print(f"   Failed to create GitLab MR: {e.stderr}")
@@ -44,26 +41,32 @@ def get_open_merge_request(repo_name, source_branch):
     try:
         wrapper = get_cli_wrapper('glab')
         
+        # GitLab CLI doesn't support --state flag, use basic list
         args = [
             'mr', 'list',
             '--source-branch', source_branch,
-            '--state', 'opened',
-            '--repo', repo_name,
-            '--json', 'iid,web_url,title'
+            '--repo', repo_name
         ]
         
         output = wrapper.run_cli_command(args)
         
         if output.strip():
-            mrs = json.loads(output)
-            if mrs:
-                # Return the first open MR
-                mr = mrs[0]
-                return {
-                    'number': mr.get('iid'),
-                    'url': mr.get('web_url'),
-                    'title': mr.get('title')
-                }
+            # Parse output to find MR info
+            lines = output.strip().split('\n')
+            for line in lines:
+                if '!' in line and source_branch in line:
+                    # Extract MR number from line like "!123 Merge request"
+                    parts = line.split()
+                    for part in parts:
+                        if part.startswith('!'):
+                            mr_number = part[1:]  # Remove '!'
+                            # Construct URL
+                            url = f"https://gitlab.com/{repo_name}/-/merge_requests/{mr_number}"
+                            return {
+                                'number': mr_number,
+                                'url': url,
+                                'title': line
+                            }
         
         return None
         
