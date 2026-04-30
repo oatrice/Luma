@@ -3,6 +3,7 @@ import subprocess
 import re
 
 import requests
+from luma_core.cli_wrapper import get_cli_wrapper
 
 from . import config
 
@@ -23,20 +24,11 @@ def _get_configured_github_token():
 
 def _get_gh_cli_token():
     try:
-        result = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except Exception:
+        wrapper = get_cli_wrapper()
+        result = wrapper.run_cli_command(["auth", "token"])
+        return result.strip()
+    except subprocess.CalledProcessError:
         return None
-
-    if result.returncode != 0:
-        return None
-
-    token = result.stdout.strip()
-    return token or None
 
 
 def _get_github_auth_tokens():
@@ -113,13 +105,8 @@ def create_issue(repo_name: str, title: str, body: str, labels: list = None) -> 
 
     try:
         # We need the output to get the URL of the created issue
-        result = subprocess.run(
-            ["gh"] + gh_args,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        output = result.stdout.strip()
+        wrapper = get_cli_wrapper()
+        output = wrapper.run_cli_command(gh_args).strip()
         # Usually 'gh issue create' returns the URL of the created issue
         # e.g. https://github.com/owner/repo/issues/123
         issue_url = output

@@ -6,8 +6,40 @@ GitHub CLI (gh) and GitLab CLI (glab) commands.
 """
 
 import subprocess
+import os
+import logging
+from datetime import datetime
 from typing import List, Optional
 from luma_core import config
+
+
+# Setup logging
+def _setup_logger():
+    """Setup logger for CLI wrapper operations."""
+    logger = logging.getLogger('cli_wrapper')
+    if logger.handlers:
+        return logger
+    
+    # Create logs directory if it doesn't exist
+    log_dir = os.path.join(os.path.dirname(__file__), '..', '..', '.luma_logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Setup file handler
+    log_file = os.path.join(log_dir, f'cli_wrapper_{datetime.now().strftime("%Y-%m-%d")}.log')
+    handler = logging.FileHandler(log_file, encoding='utf-8')
+    
+    # Setup formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    handler.setFormatter(formatter)
+    
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    
+    return logger
+
+_logger = _setup_logger()
 
 
 class CLIWrapper:
@@ -21,6 +53,9 @@ class CLIWrapper:
                      config.VCS_CLI (defaults to "gh").
         """
         self.cli_tool = cli_tool or config.VCS_CLI
+        
+        # Log initialization
+        _logger.info(f"CLI Wrapper initialized with tool: {self.cli_tool}")
         
         # Validate CLI tool
         if self.cli_tool not in ("gh", "glab"):
@@ -44,6 +79,9 @@ class CLIWrapper:
         """
         full_command = [self.cli_tool] + args
         
+        # Log command execution
+        _logger.info(f"Executing CLI command: {' '.join(full_command)}")
+        
         if capture_output:
             result = subprocess.run(
                 full_command,
@@ -51,9 +89,12 @@ class CLIWrapper:
                 text=True,
                 check=True
             )
+            _logger.info(f"Command executed successfully, output length: {len(result.stdout)} chars")
+            _logger.debug(f"Command output: {result.stdout[:200]}...")
             return result.stdout
         else:
             subprocess.run(full_command, check=True)
+            _logger.info("Command executed without capture")
             return ""
 
     def get_token_env_var(self) -> str:
