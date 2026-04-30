@@ -438,15 +438,16 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         }
 
         # Load fresh project config to ensure we have the latest platform info
-        from luma_core.config import PROJECTS
+        from luma_core.config import load_projects
+        fresh_projects = load_projects()
         project_key = None
-        for key, p in PROJECTS.items():
+        for key, p in fresh_projects.items():
             if p.get('path') == proj.get('path') or p.get('name') == proj.get('name'):
                 project_key = key
                 break
         
-        if project_key and project_key in PROJECTS:
-            fresh_proj = PROJECTS[project_key]
+        if project_key and project_key in fresh_projects:
+            fresh_proj = fresh_projects[project_key]
             pub_state['project'] = fresh_proj  # Override with fresh config
             print(f"   Debug: Loaded fresh project config with platform: {fresh_proj.get('platform')}")
 
