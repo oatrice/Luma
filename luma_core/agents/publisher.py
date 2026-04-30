@@ -8,18 +8,35 @@ from ..config import TARGET_DIR
 import luma_core.ui as ui
 from luma_core.ui import safe_input
 
-# GitHub Integration
+# VCS Integration
 from ..github_client import get_open_pr, create_pull_request, update_pull_request, update_issue_status
+from ..gitlab_client import get_open_merge_request, create_merge_request, update_merge_request
+from ..cli_wrapper import get_cli_wrapper
 
 def publisher_agent(state: AgentState):
     """Publisher: Pushes Code, Creates PRs"""
     print("🚀 Auto-Deploy / Publisher Agent...")
 
     target_dir = state.get('target_dir', TARGET_DIR)
-    print(f"📂 Working Directory: {target_dir}")
+    print(f"   Working Directory: {target_dir}")
+    
+    # Detect platform from project config
+    project = state.get('project', {})
+    platform = project.get('platform', 'github')  # Default to GitHub for backward compatibility
+    
+    print(f"   Platform: {platform}")
+    
+    # Select appropriate CLI tool
+    cli_tool = 'glab' if platform == 'gitlab' else 'gh'
+    try:
+        wrapper = get_cli_wrapper(cli_tool)
+        print(f"   Using CLI tool: {cli_tool}")
+    except Exception as e:
+        print(f"   Failed to initialize CLI wrapper: {e}")
+        return {}
     
     if not get_open_pr:
-        print("⚠️ GitHub tools not compiled/available. Skipping PR creation.")
+        print("   VCS tools not compiled/available. Skipping PR creation.")
         return {}
 
     # 1. Commit implementation? 
@@ -383,13 +400,23 @@ INSTRUCTIONS:
         if verify.returncode != 0:
             raise Exception(f"Remote branch 'origin/{branch_name}' not found after push!")
         
-        existing = get_open_pr(state['repo'], branch_name)
-        if existing:
-            print(f"🔄 Updating existing PR #{existing['number']}...")
-            url = update_pull_request(state['repo'], existing['number'], title=commit_msg, body=body)
+        # Use appropriate client based on platform
+        if platform == 'gitlab':
+            existing = get_open_merge_request(state['repo'], branch_name)
+            if existing:
+                print(f"   Updating existing MR #{existing['number']}...")
+                url = update_merge_request(state['repo'], existing['number'], title=commit_msg, body=body)
+            else:
+                print("   Creating new MR...")
+                url = create_merge_request(state['repo'], commit_msg, body, branch_name, "main")
         else:
-            print("🆕 Creating new PR...")
-            url = create_pull_request(state['repo'], commit_msg, body, branch_name, "main")
+            existing = get_open_pr(state['repo'], branch_name)
+            if existing:
+                print(f"   Updating existing PR #{existing['number']}...")
+                url = update_pull_request(state['repo'], existing['number'], title=commit_msg, body=body)
+            else:
+                print("   Creating new PR...")
+                url = create_pull_request(state['repo'], commit_msg, body, branch_name, "main")
             
         print(f"🎉 PR Ready: {url}")
         

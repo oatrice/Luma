@@ -682,6 +682,7 @@
       "slug": "luma",
       "kanban_number": 5,
       "kanban_id": "PVT_kwHOATfKEM4BKOOI",
+      "platform": "gitlab",
       "status_workflow": {
         "selectable_statuses": [
           "Ready",
