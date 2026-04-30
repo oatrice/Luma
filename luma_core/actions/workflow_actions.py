@@ -434,6 +434,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "target_dir": target_dir,
             "test_suggestions": "",
             "auto_approve": auto_approve,
+            "project": proj,  # Add project config for platform detection
         }
 
         print(f"   📤 Invoking Publisher Agent for {proj['name']}...")
