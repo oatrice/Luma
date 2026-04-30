@@ -1,5 +1,31 @@
 # Changelog
 
+## CHANGELOG.md Entry
+
+## [0.23.0] - 2026-04-30
+
+### Added
+- **VCS CLI Support**: Implemented abstraction layer supporting both GitHub CLI (`gh`) and GitLab CLI (`glab`)
+- **CLI Wrapper**: New [luma_core/cli_wrapper.py](cci:7://file:///Users/oatrice/Software-projects/Luma-worktrees/luma1/luma_core/cli_wrapper.py:0:0-0:0) module for unified VCS command execution
+- **Configuration Options**: Added `VCS_CLI`, `GITLAB_TOKEN`, and `VCS_TOKEN` configuration variables
+- **Command Conversion**: Automatic conversion between GitHub and GitLab CLI commands
+- **GitLab Integration**: Full support for GitLab repositories with issue fetching and parsing
+- **Comprehensive Testing**: Added 15 unit tests for CLI wrapper functionality
+- **Documentation**: Complete feature documentation including analysis, spec, plan, SBE, and manual verification guide
+
+### Changed
+- **GitHub Client**: Refactored to use CLI wrapper instead of direct subprocess calls
+- **Issue Metrics**: Updated to use configurable VCS CLI for GitHub/GitLab operations
+- **Admin Actions**: Enhanced to support both GitHub and GitLab CLI tools
+- **Project Integration**: Updated GitHub project sync to work with both CLI tools
+- **Error Handling**: Improved error messages for VCS CLI compatibility
+- **Token Management**: Enhanced token fallback chain supporting both GitHub and GitLab tokens
+
+### Fixed
+- **CLI Detection**: Improved detection and validation of VCS CLI tools
+- **Output Parsing**: Added support for GitLab tab-separated output format
+- **GraphQL Compatibility**: Graceful handling of GitLab CLI limitations with GraphQL operations
+
 ## [0.22.0] - 2026-04-29
 
 ### Added
