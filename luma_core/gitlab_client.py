@@ -41,20 +41,17 @@ def get_open_merge_request(repo_name, source_branch):
     try:
         wrapper = get_cli_wrapper('glab')
         
-        # GitLab CLI doesn't support --state flag, use basic list
-        args = [
-            'mr', 'list',
-            '--source-branch', source_branch,
-            '--repo', repo_name
-        ]
+        # Try to get MR list without source branch filter first
+        args = ['mr', 'list', '--repo', repo_name]
         
         output = wrapper.run_cli_command(args)
         
         if output.strip():
-            # Parse output to find MR info
+            # Parse output to find MR info for our branch
             lines = output.strip().split('\n')
             for line in lines:
-                if '!' in line and source_branch in line:
+                # Look for lines that contain MR numbers and our branch
+                if '!' in line and (source_branch in line or any(word in line for word in source_branch.split('-'))):
                     # Extract MR number from line like "!123 Merge request"
                     parts = line.split()
                     for part in parts:
@@ -65,7 +62,7 @@ def get_open_merge_request(repo_name, source_branch):
                             return {
                                 'number': mr_number,
                                 'url': url,
-                                'title': line
+                                'title': line.strip()
                             }
         
         return None
