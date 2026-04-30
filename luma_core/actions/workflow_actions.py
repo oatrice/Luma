@@ -437,6 +437,19 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "project": proj,  # Add project config for platform detection
         }
 
+        # Load fresh project config to ensure we have the latest platform info
+        from luma_core.config import PROJECTS
+        project_key = None
+        for key, p in PROJECTS.items():
+            if p.get('path') == proj.get('path') or p.get('name') == proj.get('name'):
+                project_key = key
+                break
+        
+        if project_key and project_key in PROJECTS:
+            fresh_proj = PROJECTS[project_key]
+            pub_state['project'] = fresh_proj  # Override with fresh config
+            print(f"   Debug: Loaded fresh project config with platform: {fresh_proj.get('platform')}")
+
         print(f"   📤 Invoking Publisher Agent for {proj['name']}...")
         result = publisher_agent(pub_state)
         pr_url = result.get("pr_url")
