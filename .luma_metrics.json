@@ -673,15 +673,15 @@
       "post_story_point": null,
       "estimated_mandays": 0.5,
       "start_datetime": "2026-05-01T22:59:21",
-      "actual_mandays": null,
+      "actual_mandays": 0.5,
       "due_date": null,
-      "actual_completion_date": null,
+      "actual_completion_date": "2026-05-01T23:12:53",
       "effort_level": "Low",
       "notes": null,
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-05-01T22:59:21.448019",
-      "updated_at": "2026-05-01T22:59:21.449088"
+      "updated_at": "2026-05-01T23:12:53.443560"
     }
   }
 }
