@@ -97,7 +97,7 @@ def get_open_merge_request(repo_name, source_branch):
         # Check if this is a 404 that might be expected in some cases
         if "404" in e.stderr and "Not Found" in e.stderr:
             print(
-                f"   Note: Unable to check for existing MR (repository may be inaccessible or MR list unavailable)"
+                "   Note: Unable to check for existing MR (repository may be inaccessible or MR list unavailable)"
             )
         else:
             print(

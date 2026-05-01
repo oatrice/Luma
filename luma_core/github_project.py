@@ -90,20 +90,20 @@ def _convert_glab_command(args: List[str]) -> List[str]:
     if len(args) >= 4 and args[0] == "project" and args[1] == "item-list":
         # gh project item-list 5 --owner oatricedev --format json
         # Convert to: glab board list --group oatricedev --format json
-        project_id = args[2]
-        owner = None
-        format_json = False
+        # Note: parsed variables not used in current implementation
+        # project_id = args[2]
+        # owner = None
+        # format_json = False
         
-        i = 3
-        while i < len(args):
-            if args[i] == "--owner" and i + 1 < len(args):
-                owner = args[i + 1]
-                i += 2
-            elif args[i] == "--format" and i + 1 < len(args) and args[i + 1] == "json":
-                format_json = True
-                i += 2
-            else:
-                i += 1
+        # while i < len(args):
+        #     if args[i] == "--owner" and i + 1 < len(args):
+        #         owner = args[i + 1]
+        #         i += 2
+        #     elif args[i] == "--format" and i + 1 < len(args) and args[i + 1] == "json":
+        #         format_json = True
+        #         i += 2
+        #     else:
+        #         i += 1
         
         # For GitLab, we'll use issue list with tab-separated format
         # This is a temporary solution - the full GitLab project board integration would need
@@ -133,8 +133,9 @@ def _parse_glab_issue_list(output: str) -> List[KanbanCard]:
                 continue
             
             title = parts[1].strip()
-            labels = parts[2].strip() if len(parts) > 2 else ""
-            created_at = parts[3].strip() if len(parts) > 3 else ""
+            # Note: labels and created_at parsed but not used in current implementation
+            # labels = parts[2].strip() if len(parts) > 2 else ""
+            # created_at = parts[3].strip() if len(parts) > 3 else ""
             
             # Create KanbanCard with GitLab issue data
             card = KanbanCard(
