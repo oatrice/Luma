@@ -1230,39 +1230,37 @@ def run_interactive(args) -> int:
             
             # --- AUTO-DETECT PR OUTSIDE LUMA ---
             if state.phase in [WorkflowPhase.CODING, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and state.active_branch:
-                import subprocess
                 try:
-                    res = subprocess.run(
-                        ["gh", "pr", "list", "--head", state.active_branch, "--state", "all", "--limit", "1", "--json", "url,state"],
-                        cwd=project["path"], capture_output=True, text=True
-                    )
-                    if res.returncode == 0 and res.stdout.strip():
-                        import json
-                        prs = json.loads(res.stdout)
-                        if prs and len(prs) > 0:
-                            pr_info = prs[0]
-                            pr_state = pr_info.get("state")
-                            pr_url = pr_info.get("url")
-                            
-                            if pr_state in ["OPEN", "MERGED"] and state.phase != WorkflowPhase.PR_PENDING:
-                                print(f"📡 Detected PR '{pr_state}' outside Luma: {pr_url}")
+                    from luma_core.platform_detector import get_open_pr_unified, detect_repo_platform
+                    
+                    # Only auto-detect if we don't already have a PR URL
+                    # This prevents overriding existing merged PR URLs
+                    if not state.pr_url:
+                        repo_name = project.get("repo", "")
+                        platform = detect_repo_platform(repo_name)
+                        
+                        # Try to find existing PR/MR for the current branch
+                        existing_pr = get_open_pr_unified(repo_name, state.active_branch)
+                        
+                        if existing_pr and existing_pr.get("url"):
+                            pr_url = existing_pr["url"]
+                            print(f"📡 Detected PR/MR outside Luma: {pr_url}")
+                            if state.phase != WorkflowPhase.PR_PENDING:
                                 state.phase = WorkflowPhase.PR_PENDING
-                                state.pr_url = pr_url
-                                save_state(state, project["path"])
-                                changes_detected = True
-                            elif pr_state in ["OPEN", "MERGED"] and state.phase == WorkflowPhase.PR_PENDING and not state.pr_url:
-                                state.pr_url = pr_url
-                                save_state(state, project["path"])
-                                changes_detected = True
-                except Exception:
+                            state.pr_url = pr_url
+                            save_state(state, project["path"])
+                            changes_detected = True
+                except Exception as e:
+                    # If auto-detection fails, continue silently
                     pass
             # -----------------------------------
             
             # Auto-detect merged PR
             if state.phase in [WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT, WorkflowPhase.PR_PENDING] and state.pr_url:
-                from luma_core.github_project import check_pr_merged, sync_kanban_on_action
+                from luma_core.github_project import sync_kanban_on_action
+                from luma_core.platform_detector import check_pr_status_unified
                 print(f"🔍 Checking PR status: {state.pr_url}")
-                pr_status = check_pr_merged(state.pr_url)
+                pr_status = check_pr_status_unified(state.pr_url)
                 
                 if pr_status["merged"]:
                     print("✅ PR has been merged!")

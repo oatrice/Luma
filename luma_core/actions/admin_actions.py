@@ -412,10 +412,12 @@ def action_settings():
     from luma_core.config import (
         AGENT_CLI,
         AVAILABLE_GEMINI_CLI_MODELS,
+        AVAILABLE_VCS_CLI_OPTIONS,
         GEMINI_CLI_MODEL,
         GLOBAL_CONFIG_FILE,
         LLM_PROVIDER,
         LUMA_EXPORT_PROMPTS,
+        VCS_CLI,
         normalize_llm_provider,
         save_fallback_index,
         save_gemini_cli_model,
@@ -436,6 +438,7 @@ def action_settings():
     current_llm = normalize_llm_provider(current_config.get("LLM_PROVIDER", LLM_PROVIDER))
     original_llm = current_llm
     current_cli = current_config.get("AGENT_CLI", AGENT_CLI)
+    current_vcs_cli = current_config.get("VCS_CLI", VCS_CLI)
     current_model = current_config.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
     # Get export prompts from config, or use current module default (True)
     current_export = current_config.get("LUMA_EXPORT_PROMPTS")
@@ -444,16 +447,18 @@ def action_settings():
 
     while True:
         export_status = "✅ ON (Export prompts to files)" if current_export else "❌ OFF (Call LLM directly)"
+        vcs_cli_desc = "GitHub CLI" if current_vcs_cli == "gh" else "GitLab CLI"
         print("\nCurrent Configuration:")
         print(f"  [1] LLM Provider:      {current_llm}")
         print(f"  [2] Agent CLI:         {current_cli}")
-        print(f"  [3] Gemini CLI Model:  {current_model}")
-        print(f"  [4] Export Prompts:    {export_status}")
-        print("  [5] 🐙 Edit GitHub Project (Kanban)")
-        print("  [6] � List GitHub Projects (from API)")
-        print("  [7] �� Back")
+        print(f"  [3] VCS CLI:           {current_vcs_cli} ({vcs_cli_desc})")
+        print(f"  [4] Gemini CLI Model:  {current_model}")
+        print(f"  [5] Export Prompts:    {export_status}")
+        print("  [6] 🐙 Edit GitHub Project (Kanban)")
+        print("  [7] List GitHub Projects (from API)")
+        print("  [8]  Back")
 
-        choice = safe_input("\nSelect setting to change [1-7]: ")
+        choice = safe_input("\nSelect setting to change [1-8]: ")
 
         if choice == "1":
             print("\nSelect LLM Provider:")
@@ -484,6 +489,24 @@ def action_settings():
                 current_cli = "opencode"
 
         elif choice == "3":
+            print("\nSelect VCS CLI:")
+            for i, option in enumerate(AVAILABLE_VCS_CLI_OPTIONS, 1):
+                desc = "GitHub CLI" if option == "gh" else "GitLab CLI"
+                marker = " ← current" if option == current_vcs_cli else ""
+                print(f"  [{i}] {option} ({desc}){marker}")
+
+            v_choice = safe_input(f"Select [1-{len(AVAILABLE_VCS_CLI_OPTIONS)}]: ")
+            try:
+                idx = int(v_choice) - 1
+                if 0 <= idx < len(AVAILABLE_VCS_CLI_OPTIONS):
+                    current_vcs_cli = AVAILABLE_VCS_CLI_OPTIONS[idx]
+                    print(f"  ✅ VCS CLI set to: {current_vcs_cli}")
+                else:
+                    print("❌ Invalid option")
+            except ValueError:
+                print("❌ Invalid option")
+
+        elif choice == "4":
             print("\nSelect Gemini CLI Model:")
             for i, model in enumerate(AVAILABLE_GEMINI_CLI_MODELS, 1):
                 marker = " ← current" if model == current_model else ""
@@ -501,18 +524,18 @@ def action_settings():
             except ValueError:
                 print("❌ Invalid option")
 
-        elif choice == "4":
+        elif choice == "5":
             current_export = not current_export
             status_msg = "ENABLED" if current_export else "DISABLED"
             print(f"\n  🔄 Export Prompts {status_msg}")
 
-        elif choice == "5":
+        elif choice == "6":
             _edit_github_project()
 
-        elif choice == "6":
+        elif choice == "7":
             _list_github_projects()
 
-        elif choice == "7" or choice == "":
+        elif choice == "8":
             break
         else:
             print("❌ Invalid option")
@@ -520,6 +543,7 @@ def action_settings():
     # Save back to config
     current_config["LLM_PROVIDER"] = current_llm
     current_config["AGENT_CLI"] = current_cli
+    current_config["VCS_CLI"] = current_vcs_cli
     current_config["LUMA_EXPORT_PROMPTS"] = current_export
 
     try:

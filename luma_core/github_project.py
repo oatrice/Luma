@@ -169,6 +169,7 @@ def run_gh_graphql(query: str, variables: Dict[str, str] = None) -> Optional[Dic
     # For now, we'll skip GraphQL operations when using GitLab
     if wrapper.cli_tool == "glab":
         print("   2. GitLab CLI doesn't support GraphQL operations in this context")
+        print("   🔄 Skipping GraphQL operations for GitLab repositories")
         return None
     
     args = ["api", "graphql", "-f", f"query={query}"]
@@ -333,6 +334,12 @@ def get_project_field_schema(project_id: str) -> Optional[Dict]:
     result = run_gh_graphql(query, {"projectId": project_id})
     
     if not result:
+        # Check if this is a GitLab CLI limitation
+        wrapper = get_cli_wrapper()
+        if wrapper.cli_tool == "glab":
+            print("   🔄 GitLab repositories use different project management system")
+            print("   📋 Skipping GitHub Project field schema for GitLab")
+            return None
         return None
     
     try:
@@ -415,6 +422,13 @@ def move_card_to_status(
         print(f"✅ Moved to '{new_status}'")
         return True
     else:
+        # Check if this is a GitLab CLI limitation
+        wrapper = get_cli_wrapper()
+        if wrapper.cli_tool == "glab":
+            print(f"   🔄 GitLab repositories use different issue tracking system")
+            print(f"   📋 Skipping GitHub Project status update for GitLab")
+            return False
+        
         errors = result.get("errors", []) if result else []
         print(f"❌ Failed to move: {errors}")
         return False
