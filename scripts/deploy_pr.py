@@ -9,9 +9,9 @@ load_dotenv()
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from github_fetcher import create_pull_request
+    from luma_core.platform_detector import create_pull_request_unified
 except ImportError:
-    print("❌ Error: Could not import github_fetcher. Make sure you are running this from 'scripts' directory.")
+    print("❌ Error: Could not import platform_detector. Make sure you are running this from 'scripts' directory.")
     sys.exit(1)
 
 def main():
@@ -64,7 +64,7 @@ def main():
     # Executing Push just in case (optional, might fail if not in git dir)
     # subprocess.run(["git", "push", "origin", args.branch], cwd=os.getcwd(), check=False)
 
-    url = create_pull_request(args.repo, args.title, body, args.branch, args.base)
+    url = create_pull_request_unified(args.repo, args.title, body, args.branch, args.base)
     
     if url:
         print(f"✅ Pipeline Complete! PR: {url}")
