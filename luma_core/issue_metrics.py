@@ -591,13 +591,23 @@ def _load_state_activity(project_path: str) -> Dict[str, object]:
 
 
 def _fetch_github_issue_activity_hint(
-    project_path: str, repository: str, issue_number: int
+    project_path: str, repository: str, issue_number: int, timeout: int = 5
 ) -> int:
     if not repository or not issue_number:
         return 0
 
     try:
-        wrapper = get_cli_wrapper()
+        # Detect if this is a GitLab repository
+        from luma_core.config import load_projects
+        projects = load_projects()
+        cli_tool = "gh"  # default
+        
+        for project in projects.values():
+            if project.get("repo") == repository and project.get("platform") == "gitlab":
+                cli_tool = "glab"
+                break
+        
+        wrapper = get_cli_wrapper(cli_tool)
         cmd_args = [
             "issue",
             "view",
