@@ -1,3 +1,4 @@
+
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
 > **Version:** 0.21.0  
@@ -78,11 +79,12 @@ stateDiagram-v2
 Luma/
 ├── luma_core/
 │   ├── actions/             # Modular business logic for menu actions
+│   ├── cli_wrapper.py      # [NEW] VCS CLI abstraction layer
 │   ├── config.py            # Centralized configuration (supports deep merging)
 │   ├── sbe.py               # SBE core module
 │   ├── ui.py                # UI & Display logic
 │   ├── state_manager.py     # State management
-│   ├── github_project.py    # GitHub Sync
+│   ├── github_project.py    # GitHub/GitLab Sync
 │   ├── preflight_checker.py # Validation
 │   ├── ci_checker.py        # [NEW] CI checks logic
 │   ├── project_context.py   # [NEW] Multi-repo context loader for agents
@@ -106,8 +108,24 @@ Luma/
 ## 🛠️ Prerequisites
 
 - **Python 3.9+**
-- **GitHub CLI (`gh`)**: Must be authenticated.
-- **LLM Keys**: `.env` configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Supports `OPENROUTER_API_KEY` and `CODEX_CLI_API_KEY`.
+- **VCS CLI**: Must be authenticated with one of:
+  - **GitHub CLI (`gh`)**: Default option for GitHub repositories
+  - **GitLab CLI (`glab`)**: Alternative for GitLab repositories
+- **LLM Keys**: [.env](cci:7://file:///Users/oatrice/Software-projects/Luma-worktrees/luma1/.env:0:0-0:0) configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Supports `OPENROUTER_API_KEY` and `CODEX_CLI_API_KEY`.
+
+### VCS Configuration
+
+Configure your preferred VCS CLI in [.env](cci:7://file:///Users/oatrice/Software-projects/Luma-worktrees/luma1/.env:0:0-0:0):
+
+```bash
+# Use GitHub CLI (default)
+VCS_CLI=gh
+GITHUB_TOKEN=your_github_token
+
+# Or use GitLab CLI
+VCS_CLI=glab
+GITLAB_TOKEN=your_gitlab_token
+```
 
 ---
 
@@ -251,3 +269,4 @@ Contract guarantees:
 - [x] **Project-Aware AI Brain Sync**: AI brain sessions filtered by current project context. 🆕
 - [x] **Enhanced Header UX**: CLI header displays folder path, GitHub Project info, and worktree detection. 🆕
 - [x] **Stable Project Selectors**: Reliable headless project selection using repo, path, or slug prefixes. 🆕
+- [x] **VCS CLI Abstraction**: Support for both GitHub CLI (`gh`) and GitLab CLI (`glab`) with configurable selection. 🆕

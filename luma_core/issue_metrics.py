@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 from typing import Dict, List, Optional, Any, Union
+from luma_core.cli_wrapper import get_cli_wrapper
 
 
 METRICS_FILENAME = ".luma_metrics.json"
@@ -590,31 +591,34 @@ def _load_state_activity(project_path: str) -> Dict[str, object]:
 
 
 def _fetch_github_issue_activity_hint(
-    project_path: str, repository: str, issue_number: int
+    project_path: str, repository: str, issue_number: int, timeout: int = 5
 ) -> int:
     if not repository or not issue_number:
         return 0
 
-    cmd = [
-        "gh",
-        "issue",
-        "view",
-        str(issue_number),
-        "--repo",
-        repository,
-        "--json",
-        "comments",
-    ]
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=project_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        payload = json.loads(result.stdout or "{}")
+        # Detect if this is a GitLab repository
+        from luma_core.config import load_projects
+        projects = load_projects()
+        cli_tool = "gh"  # default
+        
+        for project in projects.values():
+            if project.get("repo") == repository and project.get("platform") == "gitlab":
+                cli_tool = "glab"
+                break
+        
+        wrapper = get_cli_wrapper(cli_tool)
+        cmd_args = [
+            "issue",
+            "view",
+            str(issue_number),
+            "--repo",
+            repository,
+            "--json",
+            "comments",
+        ]
+        result = wrapper.run_cli_command(cmd_args)
+        payload = json.loads(result or "{}")
         comments = payload.get("comments", [])
         return len(comments) if isinstance(comments, list) else 0
     except Exception:
@@ -1565,10 +1569,11 @@ def fetch_lane_transition_date(repository: str, issue_number: int) -> Optional[s
     Fetches the issue timeline and identifies the earliest 'project_v2_item_status_changed' event.
     Returns the ISO timestamp of this transition, which represents the real 'work start'.
     """
-    cmd = ["gh", "api", f"repos/{repository}/issues/{issue_number}/timeline"]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        timeline = json.loads(result.stdout)
+        wrapper = get_cli_wrapper()
+        cmd_args = ["api", f"repos/{repository}/issues/{issue_number}/timeline"]
+        result = wrapper.run_cli_command(cmd_args)
+        timeline = json.loads(result)
         
         # Find all status change events
         status_changes = [
@@ -1619,18 +1624,18 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
     if not has_records:
         return {"updated": 0, "errors": 0}
 
-    cmd = [
-        "gh", "issue", "list",
-        "--repo", repository,
-        "--state", "all",
-        "--limit", "1000",
-        "--json", "number,createdAt,closedAt,projectItems,stateReason"
-    ]
-    
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        issues_data = json.loads(result.stdout)
-        print(f"DEBUG: Fetched {len(issues_data)} issues from GitHub")
+        wrapper = get_cli_wrapper()
+        cmd_args = [
+            "issue", "list",
+            "--repo", repository,
+            "--state", "all",
+            "--limit", "1000",
+            "--json", "number,createdAt,closedAt,projectItems,stateReason"
+        ]
+        result = wrapper.run_cli_command(cmd_args)
+        issues_data = json.loads(result)
+        print(f"DEBUG: Fetched {len(issues_data)} issues from VCS")
     except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
         print(f"DEBUG: Failed to fetch issues: {e}")
         return {"updated": 0, "errors": 1}

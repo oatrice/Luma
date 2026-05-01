@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 import subprocess
 import json
+from luma_core.cli_wrapper import get_cli_wrapper
 
 
 # =============================================================================
@@ -65,91 +66,95 @@ def get_project_config(project_key: str) -> Optional[Dict[str, Any]]:
 def run_gh_command(args: List[str], timeout: int = 30) -> Optional[str]:
     """
     Run gh CLI command and return output
-    
-    Args:
-        args: Command arguments (without 'gh')
-        timeout: Command timeout in seconds
-        
-    Returns:
-        Command output or None if failed
     """
-    import os
-    import shutil
-    
-    # Find gh executable
-    gh_path = shutil.which("gh")
-    
-    if not gh_path:
-        # Try common locations
-        for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"]:
-            if os.path.exists(path):
-                gh_path = path
-                break
-    
-    if not gh_path:
-        print("❌ gh CLI not installed. Visit: https://cli.github.com/")
-        return None
-    
-    cmd = [gh_path] + args
-    
     try:
-        # Create a clean environment for gh CLI
-        env = os.environ.copy()
+        wrapper = get_cli_wrapper()
         
-        # EXPLICTLY REMOVE GITHUB_TOKEN provided via env vars 
-        # because the one in .env/shell often lacks 'read:org' scope causing 'unknown owner type'
-        # We want to force usage of the system keyring auth which has correct scopes.
-        for token_key in ['GITHUB_TOKEN', 'GH_TOKEN']:
-            if env.pop(token_key, None):
-                pass
+        # Convert GitHub CLI commands to GitLab CLI equivalents
+        if wrapper.cli_tool == "glab":
+            args = _convert_glab_command(args)
         
-        # Remove Python-specific env vars that can interfere with gh CLI
-        for key in ['VIRTUAL_ENV', 'PYTHONHOME', 'PYTHONPATH']:
-            env.pop(key, None)
-
-        # Force a clean PATH with only essential directories
-        clean_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        env["PATH"] = clean_path
-        
-        # Ensure HOME is preserved (crucial for gh config)
-        if "HOME" not in env:
-             env["HOME"] = os.path.expanduser("~")
-        
-        result = subprocess.run(
-            cmd, 
-            capture_output=True, 
-            text=True, 
-            timeout=timeout,
-            env=env,
-            cwd=env.get("HOME") # Run from HOME to avoid local git config interference
-        )
-        
-        if result.returncode != 0:
-            error_msg = result.stderr.strip()
-            if "auth login" in error_msg.lower():
-                print("❌ gh CLI not logged in. Run: gh auth login")
-            # Only print error if it's not a "no items" verification empty state which might be valid in some contexts
-            # but for item-list we generally expect success
-            else:
-                print(f"❌ gh CLI error: {error_msg[:100]}")
-            return None
-        
-        return result.stdout
-        
+        result = wrapper.run_cli_command(args)
+        return result
     except subprocess.TimeoutExpired:
-        print(f"❌ gh CLI timeout ({timeout}s)")
-        return None
-    except FileNotFoundError:
-        print("❌ gh CLI not installed. Visit: https://cli.github.com/")
+        print(f"   2. {wrapper.cli_tool} CLI command timed out")
         return None
     except Exception as e:
-        print(f"❌ gh CLI error: {e}")
+        print(f"   2. {wrapper.cli_tool} CLI error: {str(e)[:100]}")
         return None
+
+
+def _convert_glab_command(args: List[str]) -> List[str]:
+    """Convert GitHub CLI commands to GitLab CLI equivalents."""
+    # Convert project item-list to board list for GitLab
+    if len(args) >= 4 and args[0] == "project" and args[1] == "item-list":
+        # gh project item-list 5 --owner oatricedev --format json
+        # Convert to: glab board list --group oatricedev --format json
+        # Note: parsed variables not used in current implementation
+        # project_id = args[2]
+        # owner = None
+        # format_json = False
+        
+        # while i < len(args):
+        #     if args[i] == "--owner" and i + 1 < len(args):
+        #         owner = args[i + 1]
+        #         i += 2
+        #     elif args[i] == "--format" and i + 1 < len(args) and args[i + 1] == "json":
+        #         format_json = True
+        #         i += 2
+        #     else:
+        #         i += 1
+        
+        # For GitLab, we'll use issue list with tab-separated format
+        # This is a temporary solution - the full GitLab project board integration would need
+        # a different approach since GitLab doesn't have the same project structure as GitHub
+        return ["issue", "list", "--per-page", "50"]
+    
+    return args
+
+
+def _parse_glab_issue_list(output: str) -> List[KanbanCard]:
+    """Parse GitLab CLI tab-separated issue list into KanbanCard objects."""
+    cards = []
+    lines = output.strip().split('\n')
+    
+    # Skip header line and empty lines
+    data_lines = [line for line in lines if line.strip() and not line.startswith('ID\tTitle')]
+    
+    for line in data_lines:
+        # Parse tab-separated values
+        parts = line.split('\t')
+        if len(parts) >= 2:
+            # Extract issue number from "#91" format
+            issue_id = parts[0].strip()
+            if issue_id.startswith('#'):
+                issue_number = int(issue_id[1:])
+            else:
+                continue
+            
+            title = parts[1].strip()
+            # Note: labels and created_at parsed but not used in current implementation
+            # labels = parts[2].strip() if len(parts) > 2 else ""
+            # created_at = parts[3].strip() if len(parts) > 3 else ""
+            
+            # Create KanbanCard with GitLab issue data
+            card = KanbanCard(
+                item_id=f"GLAB_{issue_number}",
+                issue_number=issue_number,
+                title=title,
+                status="Ready",  # Default status for GitLab issues
+                repository="oatricedev/Luma",
+                url=f"https://gitlab.com/oatricedev/Luma/-/issues/{issue_number}",
+                body=None
+            )
+            cards.append(card)
+    
+    return cards
 
 
 def run_gh_graphql(query: str, variables: Dict[str, str] = None) -> Optional[Dict]:
     """
-    Run GraphQL query via gh api graphql
+    Run GraphQL query via VCS CLI
     
     Args:
         query: GraphQL query string
@@ -158,6 +163,14 @@ def run_gh_graphql(query: str, variables: Dict[str, str] = None) -> Optional[Dic
     Returns:
         JSON response or None if failed
     """
+    wrapper = get_cli_wrapper()
+    
+    # GitLab CLI doesn't support GraphQL the same way as GitHub CLI
+    # For now, we'll skip GraphQL operations when using GitLab
+    if wrapper.cli_tool == "glab":
+        print("   2. GitLab CLI doesn't support GraphQL operations in this context")
+        return None
+    
     args = ["api", "graphql", "-f", f"query={query}"]
     
     if variables:
@@ -170,7 +183,7 @@ def run_gh_graphql(query: str, variables: Dict[str, str] = None) -> Optional[Dic
         try:
             return json.loads(output)
         except json.JSONDecodeError as e:
-            print(f"❌ JSON parse error: {e}")
+            print(f"   2. JSON parse error: {e}")
             return None
     return None
 
@@ -210,6 +223,10 @@ def fetch_kanban_cards(
     
     if not output:
         return []
+    
+    # Check if output is from GitLab CLI (tab-separated format)
+    if "ID\tTitle\tLabels\tCreated at" in output:
+        return _parse_glab_issue_list(output)
     
     try:
         data = json.loads(output)

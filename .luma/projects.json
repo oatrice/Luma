@@ -676,12 +676,13 @@
       }
     },
     "12": {
-      "name": "Luma",
-      "path": "/Users/oatrice/Software-projects/Luma",
+      "name": "Luma (worktree)",
+      "path": "/Users/oatrice/Software-projects/Luma-worktrees/luma1",
       "repo": "oatrice/Luma",
       "slug": "luma",
       "kanban_number": 5,
       "kanban_id": "PVT_kwHOATfKEM4BKOOI",
+      "platform": "gitlab",
       "status_workflow": {
         "selectable_statuses": [
           "Ready",

@@ -5,6 +5,7 @@ from luma_core.state_manager import LumaState
 from luma_core.config import PROJECTS
 from luma_core.issue_metrics import _humanize_feature_slug
 from luma_core.tools import resolve_project_target_dir
+from luma_core.cli_wrapper import get_cli_wrapper
 from .utils import (
     sync_kanban_on_action,
     _add_new_project
@@ -252,21 +253,10 @@ def _list_github_projects():
     }'''
     
     try:
-        result = subprocess.run(
-            ['gh', 'api', 'graphql', '-f', f'query={query}'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        wrapper = get_cli_wrapper()
+        result = wrapper.run_cli_command(['api', 'graphql', '-f', f'query={query}'])
         
-        if result.returncode != 0:
-            print(f"❌ Error fetching projects: {result.stderr}")
-            print("\n💡 Make sure you have:")
-            print("   1. GitHub CLI installed (gh)")
-            print("   2. Authenticated with 'gh auth login'")
-            return
-        
-        data = json.loads(result.stdout)
+        data = json.loads(result)
         projects = data.get('data', {}).get('viewer', {}).get('projectsV2', {}).get('nodes', [])
         
         if not projects:
@@ -287,9 +277,10 @@ def _list_github_projects():
         print("   Then use option [5] 🐙 GitHub Project (Kanban) to configure")
         
     except FileNotFoundError:
-        print("❌ GitHub CLI (gh) not found")
-        print("\n💡 Install with: brew install gh")
-        print("   Then authenticate: gh auth login")
+        print("❌ VCS CLI not found")
+        print("\n💡 Install GitHub CLI: brew install gh")
+        print("   Or install GitLab CLI: brew install glab")
+        print("   Then authenticate: gh auth login or glab auth login")
     except subprocess.TimeoutExpired:
         print("❌ Request timed out")
     except Exception as e:

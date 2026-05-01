@@ -217,6 +217,18 @@ GEMINI_API_FALLBACK_MODELS = [
 # GitHub Configuration
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+# GitLab Configuration
+GITLAB_TOKEN = os.getenv("GITLAB_TOKEN")
+
+# VCS CLI Configuration
+# Controls which CLI tool to use for VCS operations: "gh" (GitHub CLI) or "glab" (GitLab CLI)
+# Default is "gh" for backward compatibility
+VCS_CLI = os.getenv("VCS_CLI", "gh")
+
+# VCS Token Configuration
+# Fallback chain: VCS_TOKEN -> GITLAB_TOKEN -> GITHUB_TOKEN
+VCS_TOKEN = os.getenv("VCS_TOKEN") or os.getenv("GITLAB_TOKEN") or os.getenv("GITHUB_TOKEN")
+
 # Akasa Notification Configuration
 AKASA_API_URL = os.getenv("AKASA_API_URL", "http://localhost:8000")
 AKASA_API_KEY = os.getenv("AKASA_API_KEY", "default-dev-key")
