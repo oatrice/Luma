@@ -95,7 +95,7 @@ def test_config_normalizes_known_custom_project_kanban():
     # Test 3: When a known repo drifts to the wrong kanban, canonical value wins
     project_with_wrong_known_kanban = {
         "name": "Luma",
-        "repo": "oatrice/Luma",
+        "repo": "oatricedev/Luma",
         "kanban_number": 1,
         "kanban_id": "PVT_wrong",
     }
@@ -196,10 +196,8 @@ def test_get_status_workflow_uses_luma_specific_lanes():
     assert workflow["board_order"] == [
         "Backlog",
         "Ready",
-        "Todo",
         "In Progress",
         "In Review",
         "Done",
-        "Closed",
     ]
-    assert workflow["selectable_statuses"] == ["Ready", "In Progress", "Todo"]
+    assert workflow["selectable_statuses"] == ["Ready", "In Progress"]

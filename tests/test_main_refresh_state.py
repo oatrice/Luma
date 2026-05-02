@@ -55,7 +55,7 @@ def test_refresh_state_skips_kanban_sync_when_project_id_missing_after_merge(
     monkeypatch.setattr(main.ui, "safe_input", lambda prompt="": "")
     monkeypatch.setattr(
         github_project,
-        "check_pr_merged",
+        "check_pr_status_unified",
         lambda pr_url: {"merged": True, "state": "MERGED", "error": None},
     )
     monkeypatch.setattr(github_project, "sync_kanban_on_action", sync_mock)
