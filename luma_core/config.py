@@ -22,7 +22,7 @@ DEFAULT_PROJECTS = {
     "12": {
         "name": "Luma",
         "path": "/Users/oatrice/Software-projects/Luma",
-        "repo": "oatrice/Luma",
+        "repo": "oatricedev/Luma",
         "slug": "luma",
         "kanban_number": 5,
         "kanban_id": "PVT_kwHOATfKEM4BKOOI",
@@ -225,6 +225,9 @@ GITLAB_TOKEN = os.getenv("GITLAB_TOKEN")
 # Default is "gh" for backward compatibility
 VCS_CLI = os.getenv("VCS_CLI", "gh")
 
+# Available VCS CLI options
+AVAILABLE_VCS_CLI_OPTIONS = ["gh", "glab"]
+
 # VCS Token Configuration
 # Fallback chain: VCS_TOKEN -> GITLAB_TOKEN -> GITHUB_TOKEN
 VCS_TOKEN = os.getenv("VCS_TOKEN") or os.getenv("GITLAB_TOKEN") or os.getenv("GITHUB_TOKEN")
@@ -294,7 +297,7 @@ CANONICAL_KANBAN_BY_REPO = {
         "kanban_number": 6,
         "kanban_id": "PVT_kwHOATfKEM4BKZK5",
     },
-    "oatrice/Luma": {
+    "oatricedev/Luma": {
         "kanban_number": 5,
         "kanban_id": "PVT_kwHOATfKEM4BKOOI",
     },
@@ -333,7 +336,7 @@ CANONICAL_KANBAN_BY_REPO = {
 }
 
 STATUS_WORKFLOW_BY_REPO = {
-    "oatrice/Luma": LUMA_STATUS_WORKFLOW,
+    "oatricedev/Luma": LUMA_STATUS_WORKFLOW,
 }
 
 
@@ -671,7 +674,7 @@ _PROJECTS_LEGACY = {
     "12": {
         "name": "Luma",
         "path": "/Users/oatrice/Software-projects/Luma",
-        "repo": "oatrice/Luma",
+        "repo": "oatricedev/Luma",
         "kanban_number": 5,
         "kanban_id": "PVT_kwHOATfKEM4BKOOI",
     },

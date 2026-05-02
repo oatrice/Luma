@@ -259,6 +259,13 @@ def add_issue_to_project(repo: str, issue_node_id: str, project_number: int) -> 
     project_result = run_gh_graphql(project_query, {"owner": owner, "number": project_number})
     
     if not project_result or "errors" in project_result:
+        # Check if this is a GitLab CLI limitation
+        from luma_core.cli_wrapper import get_cli_wrapper
+        wrapper = get_cli_wrapper()
+        if wrapper.cli_tool == "glab":
+            print("   🔄 GitLab repositories use different project management system")
+            print("   📋 Skipping GitHub Project addition for GitLab")
+            return False
         print(f"⚠️ Could not find project #{project_number}")
         return False
     
@@ -272,6 +279,15 @@ def add_issue_to_project(repo: str, issue_node_id: str, project_number: int) -> 
     if result and "errors" not in result:
         print(f"   📌 Added to project #{project_number}")
         return True
+    else:
+        # Check if this is a GitLab CLI limitation
+        from luma_core.cli_wrapper import get_cli_wrapper
+        wrapper = get_cli_wrapper()
+        if wrapper.cli_tool == "glab":
+            print("   🔄 GitLab repositories use different project management system")
+            print("   📋 Skipping GitHub Project addition for GitLab")
+            return False
+        return False
     
     return False
 

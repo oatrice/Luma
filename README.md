@@ -1,4 +1,3 @@
-
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
 > **Version:** 0.21.0  
@@ -89,6 +88,7 @@ Luma/
 │   ├── ci_checker.py        # [NEW] CI checks logic
 │   ├── project_context.py   # [NEW] Multi-repo context loader for agents
 │   ├── error_classifier.py  # Error identification for Fallback 
+│   ├── platform_detector.py # [NEW] Platform detection and unified PR functions
 │   ├── tools.py             # Agent tools
 │   └── agents/
 │       ├── analyst.py       # Issue analysis agent
@@ -270,3 +270,5 @@ Contract guarantees:
 - [x] **Enhanced Header UX**: CLI header displays folder path, GitHub Project info, and worktree detection. 🆕
 - [x] **Stable Project Selectors**: Reliable headless project selection using repo, path, or slug prefixes. 🆕
 - [x] **VCS CLI Abstraction**: Support for both GitHub CLI (`gh`) and GitLab CLI (`glab`) with configurable selection. 🆕
+- [x] **Platform Detection**: Automatic detection of GitHub vs GitLab repositories for unified operations. 🆕
+- [x] **GitLab Support**: Full support for GitLab repositories including merge request creation and status checking. 🆕

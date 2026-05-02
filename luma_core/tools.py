@@ -1018,8 +1018,8 @@ def get_git_changed_files(mode: str = "all", target_dir: str = DEFAULT_TARGET_DI
 
 # --- Multi-Repo PR Functions ---
 
-# GitHub Integration
-from .github_client import get_open_pr, create_pull_request, update_pull_request  # noqa: E402
+# Platform Integration (supports both GitHub and GitLab)
+from .platform_detector import get_open_pr_unified, create_pull_request_unified, update_pull_request_unified  # noqa: E402
 
 
 def check_branch_sync(repo_configs: list) -> tuple:
@@ -2032,8 +2032,8 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
     Returns:
         List of results: {repo: str, url: str, success: bool, error: str}
     """
-    if not create_pull_request:
-        print("❌ GitHub fetcher not available.")
+    if not create_pull_request_unified:
+        print("❌ PR creation functions not available.")
         return []
     
     results = []
@@ -2081,7 +2081,7 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
             print(f"� [{config['name']}] {commits_ahead} commit(s) ahead of {base_branch}")
             
             # Step 1: Check if create new or update existing
-            existing_pr = get_open_pr(config["repo"], current_branch) if get_open_pr else None
+            existing_pr = get_open_pr_unified(config["repo"], current_branch) if get_open_pr_unified else None
             
             if existing_pr:
                 print(f"   🔄 Mode: UPDATE existing PR #{existing_pr['number']}")
@@ -2138,10 +2138,10 @@ def create_multi_repo_prs(repo_configs: list, base_branch: str = "main") -> list
             # Create or Update PR
             if existing_pr:
                 print(f"   🔄 Updating PR #{existing_pr['number']}...")
-                url = update_pull_request(config["repo"], existing_pr['number'], title, body)
+                url = update_pull_request_unified(config["repo"], existing_pr['number'], title, body)
             else:
                 print("   🆕 Creating new PR...")
-                url = create_pull_request(config["repo"], title, body, current_branch, base_branch)
+                url = create_pull_request_unified(config["repo"], title, body, current_branch, base_branch)
             
             if url:
                 result["url"] = url

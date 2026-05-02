@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.24.0] - 2026-05-01
+
+### Added
+- **GitLab Repository Support**: Full support for GitLab repositories including merge request creation and status checking
+- **Platform Detection**: Automatic detection of GitHub vs GitLab repositories from URLs and git remotes
+- **Unified PR Functions**: New unified functions for PR/MR creation, status checking, and updates across both platforms
+- **VCS CLI Settings**: User-friendly interface to switch between GitHub CLI (`gh`) and GitLab CLI (`glab`) in settings
+- **GraphQL Fallback**: Graceful handling of GraphQL operations for GitLab repositories where CLI doesn't support them
+- **Comprehensive Documentation**: Complete feature documentation including analysis, spec, plan, SBE, and verification guide
+- **Test Scripts**: Added test scripts for PR creation and status checking verification
+
+### Changed
+- **Repository Configuration**: Updated repository names from `oatrice/Luma` to `oatricedev/Luma` across all configuration files
+- **Multi-Repo PR Creation**: Updated to use unified platform detection and appropriate CLI tools
+- **Deploy Script**: Modified `scripts/deploy_pr.py` to use unified PR creation functions
+- **Project Tools**: Updated `luma_core/tools.py` to use platform-aware PR functions
+- **GitHub Project Integration**: Added graceful fallback for GitLab repositories in project operations
+- **Main Application**: Enhanced PR status checking to work with both GitHub and GitLab repositories
+
+### Fixed
+- **PR Creation Errors**: Fixed "422 Validation Failed" errors when creating PRs on GitLab repositories
+- **GraphQL Operations**: Fixed "GitLab CLI doesn't support GraphQL operations" errors with graceful fallbacks
+- **Project Field Schema**: Fixed "Could not get project field schema" errors for GitLab repositories
+- **PR URL Validation**: Fixed "Invalid PR URL" errors for GitLab merge request URLs
+- **Platform Detection**: Improved detection logic for various repository URL formats (HTTPS, SSH, owner/repo)
+
 ## CHANGELOG.md Entry
 
 ## [0.23.0] - 2026-04-30

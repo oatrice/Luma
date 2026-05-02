@@ -76,7 +76,7 @@ def test_action_select_issue_shows_blocking_status_summary(mock_fetch, capsys):
 
     assert result is False
     assert "เช็ค gh cli, Roadmap.md ว่าต้องทำ issue ไหนต่อ" in output
-    assert "No 'Ready', 'In Progress' issues found on Kanban." in output
+    assert "No 'Ready', 'In Progress', 'Todo' issues found on Kanban." in output
     assert "Available elsewhere on the board:" in output
     assert "- Backlog: 3" in output
     assert "#7: Upgrade Luma v2 from cli to Web UI" in output
