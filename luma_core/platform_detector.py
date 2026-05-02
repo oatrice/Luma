@@ -20,7 +20,6 @@ def detect_repo_platform(repo_url: str) -> str:
     
     # Parse URL if it's a full URL
     if repo_url.startswith(('http://', 'https://', 'git@')):
-        original_url = repo_url
         if repo_url.startswith('git@'):
             # Convert git@github.com:owner/repo.git to https://github.com/owner/repo
             # First extract the domain part between git@ and the colon
@@ -186,7 +185,6 @@ def check_pr_status_unified(pr_url: str) -> dict:
     Returns:
         {"merged": True/False, "state": "open|closed|merged", "error": None|str}
     """
-    import re
     import json
     
     # Check if it's a GitLab MR URL

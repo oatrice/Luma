@@ -1237,7 +1237,7 @@ def run_interactive(args) -> int:
                     # This prevents overriding existing merged PR URLs
                     if not state.pr_url:
                         repo_name = project.get("repo", "")
-                        platform = detect_repo_platform(repo_name)
+                        detect_repo_platform(repo_name)
                         
                         # Try to find existing PR/MR for the current branch
                         existing_pr = get_open_pr_unified(repo_name, state.active_branch)
@@ -1250,7 +1250,7 @@ def run_interactive(args) -> int:
                             state.pr_url = pr_url
                             save_state(state, project["path"])
                             changes_detected = True
-                except Exception as e:
+                except Exception:
                     # If auto-detection fails, continue silently
                     pass
             # -----------------------------------

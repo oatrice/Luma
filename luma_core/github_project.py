@@ -425,8 +425,8 @@ def move_card_to_status(
         # Check if this is a GitLab CLI limitation
         wrapper = get_cli_wrapper()
         if wrapper.cli_tool == "glab":
-            print(f"   🔄 GitLab repositories use different issue tracking system")
-            print(f"   📋 Skipping GitHub Project status update for GitLab")
+            print("   🔄 GitLab repositories use different issue tracking system")
+            print("   📋 Skipping GitHub Project status update for GitLab")
             return False
         
         errors = result.get("errors", []) if result else []
