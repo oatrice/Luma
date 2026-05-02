@@ -73,7 +73,7 @@ def test_config_normalizes_known_custom_project_kanban():
     # Test 1: When project has None/empty values, canonical values are applied
     project_with_none = {
         "name": "Luma",
-        "repo": "oatrice/Luma",
+        "repo": "oatricedev/Luma",
         "kanban_number": None,
         "kanban_id": None,
     }
@@ -84,7 +84,7 @@ def test_config_normalizes_known_custom_project_kanban():
     # Test 2: When project has empty kanban_id, canonical value is applied
     project_with_empty_id = {
         "name": "Luma",
-        "repo": "oatrice/Luma",
+        "repo": "oatricedev/Luma",
         "kanban_number": 5,
         "kanban_id": "",
     }
@@ -189,15 +189,17 @@ def test_get_status_workflow_uses_luma_specific_lanes():
     workflow = config.get_status_workflow(
         {
             "name": "Luma",
-            "repo": "oatrice/Luma",
+            "repo": "oatricedev/Luma",
         }
     )
 
     assert workflow["board_order"] == [
         "Backlog",
         "Ready",
+        "Todo",
         "In Progress",
         "In Review",
         "Done",
+        "Closed",
     ]
-    assert workflow["selectable_statuses"] == ["Ready", "In Progress"]
+    assert workflow["selectable_statuses"] == ["Ready", "In Progress", "Todo"]

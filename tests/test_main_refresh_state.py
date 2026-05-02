@@ -13,7 +13,7 @@ def test_refresh_state_skips_kanban_sync_when_project_id_missing_after_merge(
     project = {
         "name": "Luma",
         "path": str(tmp_path),
-        "repo": "oatrice/Luma",
+        "repo": "oatricedev/Luma",
     }
     state = LumaState(
         project_key="test",
