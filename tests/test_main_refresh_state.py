@@ -5,6 +5,7 @@ import main
 
 from luma_core.state_manager import IssueData, LumaState, WorkflowPhase
 import luma_core.github_project as github_project
+import luma_core.platform_detector as platform_detector
 
 
 def test_refresh_state_skips_kanban_sync_when_project_id_missing_after_merge(
@@ -54,7 +55,7 @@ def test_refresh_state_skips_kanban_sync_when_project_id_missing_after_merge(
     )
     monkeypatch.setattr(main.ui, "safe_input", lambda prompt="": "")
     monkeypatch.setattr(
-        github_project,
+        platform_detector,
         "check_pr_status_unified",
         lambda pr_url: {"merged": True, "state": "MERGED", "error": None},
     )
