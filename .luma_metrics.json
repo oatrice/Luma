@@ -1342,6 +1342,28 @@
       "gh_mandays": null,
       "created_at": "2026-05-02T10:03:19.459847",
       "updated_at": "2026-05-02T10:03:19.459848"
+    },
+    "oatricedev/Luma#93": {
+      "issue_key": "oatricedev/Luma#93",
+      "issue_number": 93,
+      "issue_title": "check_pr_status_unified() ไม่ respect VCS_CLI configuration",
+      "issue_url": "https://gitlab.com/oatricedev/Luma/-/issues/93",
+      "repository": "oatricedev/Luma",
+      "project_name": "Luma (worktree)",
+      "issue_status": null,
+      "estimate_points": null,
+      "post_story_point": null,
+      "estimated_mandays": null,
+      "start_datetime": null,
+      "actual_mandays": 0.0,
+      "due_date": null,
+      "actual_completion_date": "2026-05-03T07:40:18",
+      "effort_level": null,
+      "notes": null,
+      "gh_closed_at": null,
+      "gh_mandays": null,
+      "created_at": "2026-05-03T07:40:18.851230",
+      "updated_at": "2026-05-03T07:40:18.851921"
     }
   }
 }
