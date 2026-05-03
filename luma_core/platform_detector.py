@@ -271,7 +271,7 @@ def update_pull_request_unified(repo_name: str, pr_number: int, title: Optional[
             return update_pull_request(repo_name, pr_number, title, body)
 
 
-def check_pr_status_unified(pr_url: str, allow_self_healing: bool = False) -> dict:
+def check_pr_status_unified(pr_url: str, allow_self_healing: bool = True) -> dict:
     """
     Unified function to check PR/MR status for both GitHub and GitLab.
     
