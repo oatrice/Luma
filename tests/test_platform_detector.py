@@ -57,9 +57,9 @@ class TestVCSCLIPriority:
             mock_glab_wrapper.run_cli_command.assert_called_once()
 
         @patch('luma_core.config.VCS_CLI', 'glab')
-        def test_vcs_cli_glab_with_github_url_should_error(self):
+        def test_vcs_cli_glab_with_github_url_should_error(self, mock_glab_wrapper):
             """Test VCS_CLI=glab with GitHub URL should return error."""
-            result = check_pr_status_unified('https://github.com/oatrice/Cerebro/pull/65')
+            result = check_pr_status_unified('https://github.com/oatrice/Cerebro/pull/65', allow_self_healing=False)
             
             assert result['merged'] is False
             assert result['state'] == 'unknown'
@@ -87,9 +87,9 @@ class TestVCSCLIPriority:
             mock_gh_wrapper.run_cli_command.assert_called_once()
 
         @patch('luma_core.config.VCS_CLI', 'gh')
-        def test_vcs_cli_gh_with_gitlab_url_should_error(self):
+        def test_vcs_cli_gh_with_gitlab_url_should_error(self, mock_gh_wrapper):
             """Test VCS_CLI=gh with GitLab URL should return error."""
-            result = check_pr_status_unified('https://gitlab.com/oatricedev/Luma/-/merge_requests/93')
+            result = check_pr_status_unified('https://gitlab.com/oatricedev/Luma/-/merge_requests/93', allow_self_healing=False)
             
             assert result['merged'] is False
             assert result['state'] == 'unknown'
