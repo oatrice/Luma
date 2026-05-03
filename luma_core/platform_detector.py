@@ -113,18 +113,50 @@ def create_pull_request_unified(repo_name: str, title: str, body: str, head_bran
     Returns:
         URL of created PR/MR or None if failed
     """
-    if platform is None:
-        # Try to detect platform from repository name or assume GitHub
-        platform = detect_repo_platform(repo_name)
+    import logging
+    from .config import VCS_CLI
     
-    print(f"🔍 Detected platform: {platform}")
+    logger = logging.getLogger(__name__)
+    logger.debug(f"create_pull_request_unified: VCS_CLI={VCS_CLI}, repo={repo_name}")
     
-    if platform == 'gitlab':
-        from .gitlab_client import create_merge_request
-        return create_merge_request(repo_name, title, body, head_branch, base_branch)
+    # Check VCS_CLI configuration first
+    if VCS_CLI == "glab":
+        # VCS_CLI=glab only supports GitLab repos
+        detected_platform = detect_repo_platform(repo_name)
+        if detected_platform == 'gitlab':
+            logger.debug("Using glab CLI (VCS_CLI=glab + GitLab repo)")
+            from .gitlab_client import create_merge_request
+            return create_merge_request(repo_name, title, body, head_branch, base_branch)
+        else:
+            logger.debug("VCS_CLI=glab but GitHub repo provided - returning None")
+            return None
+    
+    elif VCS_CLI == "gh":
+        # VCS_CLI=gh only supports GitHub repos
+        detected_platform = detect_repo_platform(repo_name)
+        if detected_platform == 'github':
+            logger.debug("Using gh CLI (VCS_CLI=gh + GitHub repo)")
+            from .github_client import create_pull_request
+            return create_pull_request(repo_name, title, body, head_branch, base_branch)
+        else:
+            logger.debug("VCS_CLI=gh but GitLab repo provided - returning None")
+            return None
+    
     else:
-        from .github_client import create_pull_request
-        return create_pull_request(repo_name, title, body, head_branch, base_branch)
+        # VCS_CLI unset - fallback to platform detection (current behavior)
+        logger.debug("VCS_CLI unset - using platform detection fallback")
+        if platform is None:
+            # Try to detect platform from repository name or assume GitHub
+            platform = detect_repo_platform(repo_name)
+        
+        print(f"🔍 Detected platform: {platform}")
+        
+        if platform == 'gitlab':
+            from .gitlab_client import create_merge_request
+            return create_merge_request(repo_name, title, body, head_branch, base_branch)
+        else:
+            from .github_client import create_pull_request
+            return create_pull_request(repo_name, title, body, head_branch, base_branch)
 
 
 def get_open_pr_unified(repo_name: str, head_branch: str, platform: Optional[str] = None):
@@ -139,15 +171,47 @@ def get_open_pr_unified(repo_name: str, head_branch: str, platform: Optional[str
     Returns:
         PR/MR object or None if not found
     """
-    if platform is None:
-        platform = detect_repo_platform(repo_name)
+    import logging
+    from .config import VCS_CLI
     
-    if platform == 'gitlab':
-        from .gitlab_client import get_open_merge_request
-        return get_open_merge_request(repo_name, head_branch)
+    logger = logging.getLogger(__name__)
+    logger.debug(f"get_open_pr_unified: VCS_CLI={VCS_CLI}, repo={repo_name}")
+    
+    # Check VCS_CLI configuration first
+    if VCS_CLI == "glab":
+        # VCS_CLI=glab only supports GitLab repos
+        detected_platform = detect_repo_platform(repo_name)
+        if detected_platform == 'gitlab':
+            logger.debug("Using glab CLI (VCS_CLI=glab + GitLab repo)")
+            from .gitlab_client import get_open_merge_request
+            return get_open_merge_request(repo_name, head_branch)
+        else:
+            logger.debug("VCS_CLI=glab but GitHub repo provided - returning None")
+            return None
+    
+    elif VCS_CLI == "gh":
+        # VCS_CLI=gh only supports GitHub repos
+        detected_platform = detect_repo_platform(repo_name)
+        if detected_platform == 'github':
+            logger.debug("Using gh CLI (VCS_CLI=gh + GitHub repo)")
+            from .github_client import get_open_pr
+            return get_open_pr(repo_name, head_branch)
+        else:
+            logger.debug("VCS_CLI=gh but GitLab repo provided - returning None")
+            return None
+    
     else:
-        from .github_client import get_open_pr
-        return get_open_pr(repo_name, head_branch)
+        # VCS_CLI unset - fallback to platform detection (current behavior)
+        logger.debug("VCS_CLI unset - using platform detection fallback")
+        if platform is None:
+            platform = detect_repo_platform(repo_name)
+        
+        if platform == 'gitlab':
+            from .gitlab_client import get_open_merge_request
+            return get_open_merge_request(repo_name, head_branch)
+        else:
+            from .github_client import get_open_pr
+            return get_open_pr(repo_name, head_branch)
 
 
 def update_pull_request_unified(repo_name: str, pr_number: int, title: Optional[str] = None, body: Optional[str] = None, platform: Optional[str] = None):
@@ -164,27 +228,197 @@ def update_pull_request_unified(repo_name: str, pr_number: int, title: Optional[
     Returns:
         URL of updated PR/MR or None if failed
     """
-    if platform is None:
-        platform = detect_repo_platform(repo_name)
+    import logging
+    from .config import VCS_CLI
     
-    if platform == 'gitlab':
-        from .gitlab_client import update_merge_request
-        return update_merge_request(repo_name, pr_number, title, body)
+    logger = logging.getLogger(__name__)
+    logger.debug(f"update_pull_request_unified: VCS_CLI={VCS_CLI}, repo={repo_name}")
+    
+    # Check VCS_CLI configuration first
+    if VCS_CLI == "glab":
+        # VCS_CLI=glab only supports GitLab repos
+        detected_platform = detect_repo_platform(repo_name)
+        if detected_platform == 'gitlab':
+            logger.debug("Using glab CLI (VCS_CLI=glab + GitLab repo)")
+            from .gitlab_client import update_merge_request
+            return update_merge_request(repo_name, pr_number, title, body)
+        else:
+            logger.debug("VCS_CLI=glab but GitHub repo provided - returning None")
+            return None
+    
+    elif VCS_CLI == "gh":
+        # VCS_CLI=gh only supports GitHub repos
+        detected_platform = detect_repo_platform(repo_name)
+        if detected_platform == 'github':
+            logger.debug("Using gh CLI (VCS_CLI=gh + GitHub repo)")
+            from .github_client import update_pull_request
+            return update_pull_request(repo_name, pr_number, title, body)
+        else:
+            logger.debug("VCS_CLI=gh but GitLab repo provided - returning None")
+            return None
+    
     else:
-        from .github_client import update_pull_request
-        return update_pull_request(repo_name, pr_number, title, body)
+        # VCS_CLI unset - fallback to platform detection (current behavior)
+        logger.debug("VCS_CLI unset - using platform detection fallback")
+        if platform is None:
+            platform = detect_repo_platform(repo_name)
+        
+        if platform == 'gitlab':
+            from .gitlab_client import update_merge_request
+            return update_merge_request(repo_name, pr_number, title, body)
+        else:
+            from .github_client import update_pull_request
+            return update_pull_request(repo_name, pr_number, title, body)
 
 
-def check_pr_status_unified(pr_url: str) -> dict:
+def check_pr_status_unified(pr_url: str, allow_self_healing: bool = True) -> dict:
     """
     Unified function to check PR/MR status for both GitHub and GitLab.
     
     Args:
         pr_url: Full PR/MR URL
+        allow_self_healing: If True, fallback to URL regex when VCS_CLI mismatch
         
     Returns:
         {"merged": True/False, "state": "open|closed|merged", "error": None|str}
     """
+    import json
+    import logging
+    from .config import VCS_CLI
+    
+    logger = logging.getLogger(__name__)
+    logger.debug(f"VCS_CLI={VCS_CLI}, PR URL={pr_url}, self_healing={allow_self_healing}")
+    
+    # Check VCS_CLI configuration first
+    if VCS_CLI == "glab":
+        # VCS_CLI=glab only supports GitLab URLs
+        gitlab_match = re.match(r'https://gitlab\.com/([^/]+)/([^/]+)/-/merge_requests/(\d+)', pr_url)
+        if gitlab_match:
+            logger.debug("Using glab CLI (VCS_CLI=glab + GitLab URL)")
+            return _check_pr_with_glab(pr_url)
+        else:
+            if allow_self_healing:
+                logger.warning("VCS_CLI=glab but GitHub URL provided - self-healing enabled, using URL regex fallback")
+                return _check_pr_by_url_regex(pr_url)
+            else:
+                logger.debug("VCS_CLI=glab but GitHub URL provided - returning error")
+                return {"merged": False, "state": "unknown", "error": "VCS_CLI=glab but GitHub URL provided"}
+    
+    elif VCS_CLI == "gh":
+        # VCS_CLI=gh only supports GitHub URLs
+        github_match = re.match(r'https://github\.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
+        if github_match:
+            logger.debug("Using gh CLI (VCS_CLI=gh + GitHub URL)")
+            return _check_pr_with_gh(pr_url)
+        else:
+            if allow_self_healing:
+                logger.warning("VCS_CLI=gh but GitLab URL provided - self-healing enabled, using URL regex fallback")
+                return _check_pr_by_url_regex(pr_url)
+            else:
+                logger.debug("VCS_CLI=gh but GitLab URL provided - returning error")
+                return {"merged": False, "state": "unknown", "error": "VCS_CLI=gh but GitLab URL provided"}
+    
+    else:
+        # VCS_CLI unset - fallback to URL regex matching (current behavior)
+        logger.debug("VCS_CLI unset - using URL regex fallback")
+        return _check_pr_by_url_regex(pr_url)
+
+
+def _check_pr_with_glab(pr_url: str) -> dict:
+    """Check PR status using glab CLI."""
+    import json
+    
+    gitlab_match = re.match(r'https://gitlab\.com/([^/]+)/([^/]+)/-/merge_requests/(\d+)', pr_url)
+    if gitlab_match:
+        owner, repo, mr_number = gitlab_match.groups()
+        try:
+            from .cli_wrapper import get_cli_wrapper
+            wrapper = get_cli_wrapper("glab")
+            
+            # Use glab to get MR status (no --json flag available)
+            args = ["mr", "view", mr_number, "--repo", f"{owner}/{repo}"]
+            output = wrapper.run_cli_command(args)
+            
+            if output.strip():
+                # Parse output to extract state
+                # glab mr view output contains lines like "State: opened"
+                state = "unknown"
+                for line in output.split('\n'):
+                    line_lower = line.lower().strip()
+                    if line_lower.startswith('state:'):
+                        state = line_lower.replace('state:', '').strip()
+                        break
+                
+                state = state.lower()
+                if state == "merged":
+                    return {"merged": True, "state": "merged", "error": None}
+                elif state in ["opened", "closed", "locked"]:
+                    return {"merged": False, "state": state, "error": None}
+                else:
+                    return {"merged": False, "state": state, "error": None}
+            else:
+                return {"merged": False, "state": "unknown", "error": "MR not found or access denied"}
+                
+        except Exception as e:
+            error_str = str(e)
+            # Check if it's an authentication error
+            if "401" in error_str or "unauthorized" in error_str.lower():
+                return {"merged": False, "state": "unknown", "error": "GitLab authentication failed"}
+            elif "404" in error_str or "not found" in error_str.lower():
+                return {"merged": False, "state": "unknown", "error": "MR not found"}
+            elif "returned non-zero exit status" in error_str:
+                # Extract more specific error from subprocess
+                if hasattr(e, 'stderr') and e.stderr:
+                    stderr = e.stderr
+                    if "404" in stderr or "Not Found" in stderr:
+                        return {"merged": False, "state": "unknown", "error": "MR not found"}
+                    elif "401" in stderr or "unauthorized" in stderr.lower():
+                        return {"merged": False, "state": "unknown", "error": "GitLab authentication failed"}
+                return {"merged": False, "state": "unknown", "error": "MR not found or access denied"}
+            else:
+                return {"merged": False, "state": "unknown", "error": f"Failed to check MR: {error_str}"}
+
+
+def _check_pr_with_gh(pr_url: str) -> dict:
+    """Check PR status using gh CLI."""
+    import json
+    
+    github_match = re.match(r'https://github\.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
+    if github_match:
+        owner, repo, pr_number = github_match.groups()
+        try:
+            from .cli_wrapper import get_cli_wrapper
+            wrapper = get_cli_wrapper("gh")
+            
+            # Use gh to get PR status
+            args = ["pr", "view", pr_number, "--repo", f"{owner}/{repo}", "--json", "state"]
+            output = wrapper.run_cli_command(args)
+            
+            if output.strip():
+                data = json.loads(output)
+                state = data.get("state", "unknown").lower()
+                
+                if state == "merged":
+                    return {"merged": True, "state": "merged", "error": None}
+                else:
+                    return {"merged": False, "state": state, "error": None}
+            else:
+                return {"merged": False, "state": "unknown", "error": "PR not found or access denied"}
+                
+        except json.JSONDecodeError:
+            return {"merged": False, "state": "unknown", "error": "Failed to parse PR response"}
+        except Exception as e:
+            # Check if it's an authentication error
+            if "401" in str(e) or "unauthorized" in str(e).lower():
+                return {"merged": False, "state": "unknown", "error": "GitHub authentication failed"}
+            elif "404" in str(e) or "not found" in str(e).lower():
+                return {"merged": False, "state": "unknown", "error": "PR not found"}
+            else:
+                return {"merged": False, "state": "unknown", "error": f"Failed to check PR: {str(e)}"}
+
+
+def _check_pr_by_url_regex(pr_url: str) -> dict:
+    """Check PR status using original URL regex matching logic."""
     import json
     
     # Check if it's a GitLab MR URL

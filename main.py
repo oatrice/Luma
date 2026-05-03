@@ -1260,6 +1260,7 @@ def run_interactive(args) -> int:
                 from luma_core.github_project import sync_kanban_on_action
                 from luma_core.platform_detector import check_pr_status_unified
                 print(f"🔍 Checking PR status: {state.pr_url}")
+                # Self-healing enabled by default for VCS migration scenarios
                 pr_status = check_pr_status_unified(state.pr_url)
                 
                 if pr_status["merged"]:

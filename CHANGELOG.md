@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.25.0] - 2026-05-03
+
+### Added
+- **VCS_CLI Priority Logic**: Unified PR functions now respect VCS_CLI configuration with strict provider matching (glab+GitLab, gh+GitHub)
+- **Self-Healing Fallback**: Automatic fallback to URL regex matching when VCS_CLI configuration doesn't match URL type, with configurable strict mode
+- **Enhanced Error Handling**: Clear error messages for VCS_CLI mismatches with debug logging for CLI tool selection
+- **Comprehensive Test Coverage**: Added 18 test cases covering VCS_CLI priority logic, error handling, and self-healing scenarios
+- **Feature Documentation**: Complete analysis, specification, implementation plan, SBE, and manual verification guide for VCS CLI priority feature
+
+### Changed
+- **Platform Detector Functions**: Updated `check_pr_status_unified()`, `get_open_pr_unified()`, `update_pull_request_unified()`, and `create_pull_request_unified()` to use VCS_CLI priority logic
+- **Refresh Workflow**: Enhanced PR status checking in refresh workflow to handle VCS migration scenarios with self-healing enabled by default
+- **CLI Tool Selection**: VCS_CLI configuration now takes priority over URL regex matching for consistent tool selection
+- **Debug Logging**: Added comprehensive logging for VCS CLI selection and self-healing decisions
+
+### Fixed
+- **Issue #93**: Resolved VCS_CLI configuration being ignored by unified PR functions, ensuring proper CLI tool selection based on user configuration
+
 ## [0.24.0] - 2026-05-01
 
 ### Added

@@ -855,10 +855,64 @@
     "15": {
       "name": "Zenith",
       "path": "/Users/oatrice/Software-projects/Zenith",
-      "repo": "oatrice/Zenith",
+      "repo": "oatricedev/Zenith",
       "slug": "zenith",
       "kanban_number": 10,
-      "kanban_id": null
+      "kanban_id": null,
+      "platform": "gitlab",
+      "status_workflow": {
+        "selectable_statuses": [
+          "Ready",
+          "In Progress",
+          "Todo"
+        ],
+        "selection_order": [
+          "In Progress",
+          "Ready",
+          "Todo"
+        ],
+        "active_statuses": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review"
+        ],
+        "active_sort_order": [
+          "In Progress",
+          "Ready",
+          "Todo",
+          "In Review",
+          "Backlog"
+        ],
+        "board_order": [
+          "Backlog",
+          "Ready",
+          "Todo",
+          "In Progress",
+          "In Review",
+          "Done",
+          "Closed"
+        ],
+        "done_statuses": [
+          "Done",
+          "Closed"
+        ],
+        "status_icons": {
+          "Backlog": "📥 ",
+          "Ready": "✅ ",
+          "Todo": "📝 ",
+          "In Progress": "🔥 ",
+          "In Review": "👀 ",
+          "Done": "✅ ",
+          "Closed": "✅ "
+        },
+        "action_status_map": {
+          "select_issue": "In Progress",
+          "create_pr": "In Review",
+          "pr_merged": "Done"
+        }
+      }
     }
   }
 }
