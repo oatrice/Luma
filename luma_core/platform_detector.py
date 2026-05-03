@@ -271,12 +271,13 @@ def update_pull_request_unified(repo_name: str, pr_number: int, title: Optional[
             return update_pull_request(repo_name, pr_number, title, body)
 
 
-def check_pr_status_unified(pr_url: str) -> dict:
+def check_pr_status_unified(pr_url: str, allow_self_healing: bool = False) -> dict:
     """
     Unified function to check PR/MR status for both GitHub and GitLab.
     
     Args:
         pr_url: Full PR/MR URL
+        allow_self_healing: If True, fallback to URL regex when VCS_CLI mismatch
         
     Returns:
         {"merged": True/False, "state": "open|closed|merged", "error": None|str}
@@ -286,7 +287,7 @@ def check_pr_status_unified(pr_url: str) -> dict:
     from .config import VCS_CLI
     
     logger = logging.getLogger(__name__)
-    logger.debug(f"VCS_CLI={VCS_CLI}, PR URL={pr_url}")
+    logger.debug(f"VCS_CLI={VCS_CLI}, PR URL={pr_url}, self_healing={allow_self_healing}")
     
     # Check VCS_CLI configuration first
     if VCS_CLI == "glab":
@@ -296,8 +297,12 @@ def check_pr_status_unified(pr_url: str) -> dict:
             logger.debug("Using glab CLI (VCS_CLI=glab + GitLab URL)")
             return _check_pr_with_glab(pr_url)
         else:
-            logger.debug("VCS_CLI=glab but GitHub URL provided - returning error")
-            return {"merged": False, "state": "unknown", "error": "VCS_CLI=glab but GitHub URL provided"}
+            if allow_self_healing:
+                logger.warning("VCS_CLI=glab but GitHub URL provided - self-healing enabled, using URL regex fallback")
+                return _check_pr_by_url_regex(pr_url)
+            else:
+                logger.debug("VCS_CLI=glab but GitHub URL provided - returning error")
+                return {"merged": False, "state": "unknown", "error": "VCS_CLI=glab but GitHub URL provided"}
     
     elif VCS_CLI == "gh":
         # VCS_CLI=gh only supports GitHub URLs
@@ -306,8 +311,12 @@ def check_pr_status_unified(pr_url: str) -> dict:
             logger.debug("Using gh CLI (VCS_CLI=gh + GitHub URL)")
             return _check_pr_with_gh(pr_url)
         else:
-            logger.debug("VCS_CLI=gh but GitLab URL provided - returning error")
-            return {"merged": False, "state": "unknown", "error": "VCS_CLI=gh but GitLab URL provided"}
+            if allow_self_healing:
+                logger.warning("VCS_CLI=gh but GitLab URL provided - self-healing enabled, using URL regex fallback")
+                return _check_pr_by_url_regex(pr_url)
+            else:
+                logger.debug("VCS_CLI=gh but GitLab URL provided - returning error")
+                return {"merged": False, "state": "unknown", "error": "VCS_CLI=gh but GitLab URL provided"}
     
     else:
         # VCS_CLI unset - fallback to URL regex matching (current behavior)

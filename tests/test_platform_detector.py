@@ -65,6 +65,17 @@ class TestVCSCLIPriority:
             assert result['state'] == 'unknown'
             assert 'VCS_CLI=glab but GitHub URL provided' in result['error']
 
+        @patch('luma_core.config.VCS_CLI', 'glab')
+        def test_vcs_cli_glab_with_github_url_self_healing(self, mock_gh_wrapper):
+            """Test VCS_CLI=glab with GitHub URL self-healing fallback."""
+            mock_gh_wrapper.run_cli_command.return_value = '{"state": "closed"}'
+            
+            result = check_pr_status_unified('https://github.com/oatrice/Cerebro/pull/65', allow_self_healing=True)
+            
+            assert result['merged'] is False
+            assert result['state'] == 'closed'
+            assert result['error'] is None
+
         @patch('luma_core.config.VCS_CLI', 'gh')
         def test_vcs_cli_gh_with_github_url(self, mock_gh_wrapper):
             """Test VCS_CLI=gh with GitHub URL uses gh."""
