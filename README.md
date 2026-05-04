@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 0.21.0  
+> **Version:** 0.26.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -188,7 +188,7 @@ Successful output is emitted on `stdout` as JSON:
   "status": "success",
   "mode": "metadata",
   "result": {
-    "version": "0.21.0",
+    "version": "0.26.0",
     "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
     "dirty": true,
     "contract_version": "2.0",
@@ -272,3 +272,4 @@ Contract guarantees:
 - [x] **VCS CLI Abstraction**: Support for both GitHub CLI (`gh`) and GitLab CLI (`glab`) with configurable selection. 🆕
 - [x] **Platform Detection**: Automatic detection of GitHub vs GitLab repositories for unified operations. 🆕
 - [x] **GitLab Support**: Full support for GitLab repositories including merge request creation and status checking. 🆕
+- [x] **Universal Add/Remove Issues**: Add and remove issue options now available in all workflow phases, removing the previous CODING/PREFLIGHT restriction. 🆕
