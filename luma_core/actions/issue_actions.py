@@ -223,9 +223,6 @@ def action_select_issue(state: LumaState, project: dict) -> bool:
 
 def action_add_issue(state: LumaState, project: dict) -> bool:
     """Add an issue to the current active issues (mid-work)"""
-    if state.phase not in [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]:
-        print("❌ Can only add issues during CODING or PREFLIGHT phase.")
-        return False
 
     print("\n➕ Add Issue to Current Work Session")
     if state.active_issues:
