@@ -683,6 +683,9 @@ def action_update_roadmap(state: LumaState, project: dict, headless: bool = Fals
         return
 
     def _fetch_issue_from_github(issue_id: str):
+        from luma_core.cli_wrapper import get_cli_wrapper
+        wrapper = get_cli_wrapper()
+
         gh_args = ["issue", "view", issue_id, "--json", "number,title,state,url"]
         repo_name = project.get("repo")
         if repo_name:
@@ -694,10 +697,10 @@ def action_update_roadmap(state: LumaState, project: dict, headless: bool = Fals
                 return json.loads(output)
             except json.JSONDecodeError as e:
                 if not headless:
-                    print(f"   ⚠️ Failed to parse gh output for issue #{issue_id}: {e}")
+                    print(f"   ⚠️ Failed to parse {wrapper.cli_tool} output for issue #{issue_id}: {e}")
 
         try:
-            fallback_cmd = ["gh", "issue", "view", issue_id, "--json", "number,title,state,url"]
+            fallback_cmd = [wrapper.cli_tool, "issue", "view", issue_id, "--json", "number,title,state,url"]
             if repo_name:
                 fallback_cmd.extend(["--repo", repo_name])
 
@@ -712,10 +715,10 @@ def action_update_roadmap(state: LumaState, project: dict, headless: bool = Fals
 
             error_text = gh_res.stderr.strip()
             if not headless and error_text:
-                print(f"   ⚠️ Could not verify issue via gh: {error_text}")
+                print(f"   ⚠️ Could not verify issue via {wrapper.cli_tool}: {error_text}")
         except Exception as e:
             if not headless:
-                print(f"   ⚠️ GitHub CLI check failed: {e}")
+                print(f"   ⚠️ {wrapper.cli_tool} CLI check failed: {e}")
 
         return None
 

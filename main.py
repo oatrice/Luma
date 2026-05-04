@@ -340,7 +340,7 @@ def check_luma_outdated():
 
 def _detect_repo_and_kanban(project_path: str) -> tuple[Optional[str], Optional[int], Optional[str]]:
     """
-    Detect GitHub repo and kanban info from project path.
+    Detect VCS repo and kanban info from project path.
 
     Returns:
         Tuple of (detected_repo, kanban_number, kanban_id)
@@ -355,6 +355,9 @@ def _detect_repo_and_kanban(project_path: str) -> tuple[Optional[str], Optional[
             remote = res.stdout.strip()
             if "github.com" in remote:
                 path_part = remote.split("github.com")[-1].lstrip(":").lstrip("/")
+                detected_repo = path_part.replace(".git", "")
+            elif "gitlab.com" in remote:
+                path_part = remote.split("gitlab.com")[-1].lstrip(":").lstrip("/")
                 detected_repo = path_part.replace(".git", "")
     except Exception:
         pass
