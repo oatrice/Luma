@@ -89,12 +89,33 @@ All phases now support add/remove issue operations:
 - Function execution validated
 - No regression detected
 
+## Related Issues Addressed
+
+### Additional Fixes Implemented
+During the implementation of this feature, the following related issues were identified and resolved:
+
+- **Issue #95**: Fixed VCS_CLI configuration support in roadmap update fallback
+  - Problem: Fallback subprocess.run hardcodes "gh" instead of using configured CLI tool
+  - Fix: Modified quality_actions.py to use get_cli_wrapper().cli_tool
+  - Impact: Proper support for GitLab CLI (glab) in roadmap operations
+
+- **Issue #96**: Fixed VCS repo detection to support GitLab repos
+  - Problem: _detect_repo_and_kanban only detects GitHub repos
+  - Fix: Extended detection to check for "gitlab.com" in remote URLs
+  - Impact: Correct repo names for GitLab-based projects (e.g., oatricedev/Cerebro)
+
+### Integration Testing
+- Verified that the main feature works correctly with GitLab repos
+- Confirmed CLI commands use proper tool based on VCS_CLI configuration
+- Ensured no regression in existing GitHub-based workflows
+
 ## Benefits Achieved
 
 1. **Improved User Experience**: Users can now manage issues from any phase
 2. **Workflow Flexibility**: No need to transition phases for issue management
 3. **Consistent Behavior**: Aligns with other "ALL" phase menu options
 4. **Simplified Mental Model**: Users don't need to remember phase restrictions
+5. **Enhanced VCS Support**: Works seamlessly with both GitHub and GitLab repositories
 
 ## Rollback Plan (If Needed)
 

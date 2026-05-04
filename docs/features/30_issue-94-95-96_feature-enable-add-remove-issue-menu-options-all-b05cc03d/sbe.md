@@ -185,13 +185,34 @@ if state.phase not in [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]:
 - **Issue fetching**: Existing Kanban fetching logic unchanged
 - **State management**: No additional state complexity introduced
 
+## Related Issues and Fixes
+
+### Infrastructure Fixes Implemented
+During the implementation and testing of this feature, several related infrastructure issues were identified and resolved:
+
+#### Issue #95: VCS_CLI Configuration Support
+- **Problem**: Roadmap update fallback used hardcoded "gh" CLI instead of configured VCS_CLI
+- **Fix**: Updated quality_actions.py to use get_cli_wrapper().cli_tool for proper GitLab support
+- **Impact**: Enables roadmap operations with GitLab CLI (glab)
+
+#### Issue #96: VCS Repo Detection Enhancement
+- **Problem**: Repo detection only worked for GitHub repositories
+- **Fix**: Extended _detect_repo_and_kanban to support GitLab URLs
+- **Impact**: Correct repo name detection for GitLab projects (e.g., oatricedev/Cerebro vs oatrice/Cerebro)
+
+### Testing with Fixes
+- Verified feature works correctly in GitLab environment
+- Confirmed CLI tool selection based on VCS_CLI configuration
+- Validated repo detection across different VCS platforms
+
 ## User Experience Improvements
 
 1. **Reduced Friction**: No need to switch phases for issue management
 2. **Consistent Interface**: Add/remove behavior same across all phases
 3. **Workflow Continuity**: Users can stay focused on current task
 4. **Mental Model Simplification**: Fewer rules to remember
+5. **Cross-Platform Support**: Seamless operation with GitHub and GitLab repositories
 
 ## Conclusion
 
-The implementation successfully addresses all expected behaviors with minimal code changes. Users can now manage their active issues consistently across all workflow phases, improving the overall user experience and workflow efficiency.
+The implementation successfully addresses all expected behaviors with minimal code changes. Users can now manage their active issues consistently across all workflow phases, improving the overall user experience and workflow efficiency. Additionally, related infrastructure improvements ensure robust support across different version control platforms.

@@ -3,7 +3,7 @@
 ## Feature Specification
 
 **Feature ID**: 30  
-**Issue Number**: 94  
+**Issue Numbers**: 94, 95, 96  
 **Status**: ✅ IMPLEMENTED  
 **Implementation Date**: 2026-05-04  
 
@@ -305,6 +305,18 @@ If rollback is required:
 2. Restore menu configuration in `main.py`
 3. Test rollback in staging environment
 4. Deploy rollback to production
+
+## Related Issues
+
+### Issues Addressed in Implementation
+1. **Issue #94**: Enable Add/Remove Issue Menu Options in All Workflow Phases (this feature)
+2. **Issue #95**: Fix VCS_CLI configuration support in roadmap update fallback (GitLab CLI support)
+3. **Issue #96**: Fix VCS repo detection to support GitLab repos (repo name detection fix)
+
+### Additional Context
+- Issues #95 and #96 were identified and fixed during the implementation and testing of this feature
+- These fixes ensure proper CLI tool support and repo detection for GitLab-based projects
+- The fixes are backward compatible and don't affect the core functionality of this feature
 
 ## Future Enhancements
 

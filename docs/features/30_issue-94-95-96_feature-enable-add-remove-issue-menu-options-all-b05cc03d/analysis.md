@@ -96,6 +96,18 @@ def action_add_issue(state: LumaState, project: dict) -> bool:
 3. **Consistent Behavior**: Aligns with other "ALL" phase menu options
 4. **Simplified Mental Model**: Users don't need to remember phase restrictions
 
+## Related Issues
+
+### Issues Identified During Analysis
+- **Issue #95**: VCS_CLI configuration fallback issue in roadmap updates
+- **Issue #96**: VCS repo detection only supporting GitHub repos
+
+### Implementation Impact
+The analysis and implementation of this feature revealed additional issues in the codebase that were addressed:
+- Fixed CLI tool fallback to use configured VCS_CLI instead of hardcoded "gh"
+- Extended repo detection to support GitLab repositories alongside GitHub
+- These fixes ensure the feature works correctly across different VCS platforms
+
 ## Conclusion
 
-This is a low-risk, high-impact improvement that removes unnecessary limitations while maintaining all existing functionality. The changes are minimal and focused on the specific problem without affecting other system components.
+This is a low-risk, high-impact improvement that removes unnecessary limitations while maintaining all existing functionality. The changes are minimal and focused on the specific problem without affecting other system components. Additionally, related infrastructure issues were identified and resolved during implementation.
