@@ -106,7 +106,7 @@ def test_config_normalizes_known_custom_project_kanban():
     # Test 4: When project has user-customized values (different from canonical), preserve them
     project_with_custom = {
         "name": "Cerebro",
-        "repo": "oatrice/Cerebro",
+        "repo": "oatricedev/Cerebro",
         "kanban_number": 12,
         "kanban_id": "PVT_custom",
     }

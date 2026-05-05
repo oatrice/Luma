@@ -86,6 +86,39 @@ def run_gh_command(args: List[str], timeout: int = 30) -> Optional[str]:
 
 def _convert_glab_command(args: List[str]) -> List[str]:
     """Convert GitHub CLI commands to GitLab CLI equivalents."""
+    # Handle GitLab CLI specific conversions
+    if args[0] == "issue" and len(args) >= 3 and args[1] == "view":
+        # Convert: gh issue view 123 --json fields -> glab issue view 123 -F json
+        # GitLab CLI doesn't support field selection like GitHub CLI
+        # It returns all fields in JSON format
+        new_args = ["issue", "view", args[2]]  # issue number
+        i = 3
+        while i < len(args):
+            arg = args[i]
+            if arg == "--json":
+                # Convert to -F json for GitLab
+                new_args.extend(["-F", "json"])
+                # The next argument is the fields list, skip it
+                if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                    i += 1
+            elif arg.startswith("--json="):
+                # Skip field specifications - GitLab returns all fields in JSON
+                new_args.extend(["-F", "json"])
+            elif arg.startswith("--format=json"):
+                # Convert to -F json for GitLab
+                new_args.extend(["-F", "json"])
+            elif arg.startswith("--repo"):
+                # Keep repo arguments
+                new_args.append(arg)
+            else:
+                new_args.append(arg)
+            i += 1
+        return new_args
+    
+    # Convert --json flag to -F json for other commands
+    if "--json" in args:
+        args = ["-F json" if arg == "--json" else arg for arg in args]
+    
     # Convert project item-list to board list for GitLab
     if len(args) >= 4 and args[0] == "project" and args[1] == "item-list":
         # gh project item-list 5 --owner oatricedev --format json

@@ -424,7 +424,7 @@ def sync_roadmap_for_closed_issues(project: dict, issue_numbers: list) -> int:
 
     for issue_id in issue_numbers:
         issue_id_str = str(issue_id)
-        # Check gh cli if issue is closed
+        # Check gh/glab cli if issue is closed
         gh_args = ["issue", "view", issue_id_str, "--json", "number,title,state,url"]
         if repo_name:
             gh_args.extend(["--repo", repo_name])

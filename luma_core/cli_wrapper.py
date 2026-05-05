@@ -77,6 +77,10 @@ class CLIWrapper:
         Raises:
             subprocess.CalledProcessError: If command fails.
         """
+        # Convert GitHub CLI commands to GitLab CLI equivalents if needed
+        if self.cli_tool == "glab":
+            args = self._convert_glab_command(args)
+        
         full_command = [self.cli_tool] + args
         
         # Log command execution
@@ -114,6 +118,11 @@ class CLIWrapper:
         if self.cli_tool == "glab":
             return config.GITLAB_TOKEN
         return config.GITHUB_TOKEN
+
+    def _convert_glab_command(self, args: List[str]) -> List[str]:
+        """Convert GitHub CLI commands to GitLab CLI equivalents."""
+        from luma_core.github_project import _convert_glab_command
+        return _convert_glab_command(args)
 
 
 # Global CLI wrapper instance using configured CLI tool
