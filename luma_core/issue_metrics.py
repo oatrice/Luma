@@ -1636,7 +1636,7 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
                 "issue", "list",
                 "--repo", repository,
                 "--state", "all",
-                "--limit", "1000",
+                "--per-page", "100",
                 "--json", "number,createdAt,closedAt,state"
             ]
         else:
@@ -1656,7 +1656,7 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
         print(f"DEBUG: Failed to fetch issues: {e}")
         return {"updated": 0, "errors": 1}
 
-    gh_map = {issue["number"]: issue for issue in issues_data}
+    gh_map = {issue.get("number", issue.get("iid")): issue for issue in issues_data}
     updates_count = 0
 
     for record in records:
@@ -1671,8 +1671,8 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             
         changed = False
         previous_completion_date = record.actual_completion_date
-        gh_created_at = issue_data.get("createdAt")
-        gh_closed_at = issue_data.get("closedAt")
+        gh_created_at = issue_data.get("createdAt") or issue_data.get("created_at")
+        gh_closed_at = issue_data.get("closedAt") or issue_data.get("closed_at")
         gh_status_name = None
         
         # Handle different field names between GitHub and GitLab
