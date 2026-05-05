@@ -622,6 +622,14 @@ def _resolve_explicit_headless_project_selector(selector: dict, projects: dict =
             for project_key, project in projects.items()
             if project.get("repo") == selector_value
         ]
+        if not matches:
+            # Fallback: case-insensitive repo name only match
+            selector_name = selector_value.split("/")[-1].lower()
+            matches = [
+                (project_key, project)
+                for project_key, project in projects.items()
+                if project.get("repo", "").split("/")[-1].lower() == selector_name
+            ]
     elif selector_type == "slug":
         matches = [
             (project_key, project)
