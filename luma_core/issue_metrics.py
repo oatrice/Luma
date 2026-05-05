@@ -1626,13 +1626,29 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
 
     try:
         wrapper = get_cli_wrapper()
-        cmd_args = [
-            "issue", "list",
-            "--repo", repository,
-            "--state", "all",
-            "--limit", "1000",
-            "--json", "number,createdAt,closedAt,projectItems,stateReason"
-        ]
+        
+        # Check if this is a GitLab repository
+        is_gitlab = "gitlab" in repository.lower() or wrapper.cli_tool == "glab"
+        
+        if is_gitlab:
+            # GitLab CLI doesn't support projectItems, use available fields
+            cmd_args = [
+                "issue", "list",
+                "--repo", repository,
+                "--state", "all",
+                "--per-page", "100",
+                "--json", "number,createdAt,closedAt,state"
+            ]
+        else:
+            # GitHub CLI with projectItems support
+            cmd_args = [
+                "issue", "list",
+                "--repo", repository,
+                "--state", "all",
+                "--limit", "1000",
+                "--json", "number,createdAt,closedAt,projectItems,stateReason"
+            ]
+        
         result = wrapper.run_cli_command(cmd_args)
         issues_data = json.loads(result)
         print(f"DEBUG: Fetched {len(issues_data)} issues from VCS")
@@ -1640,7 +1656,7 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
         print(f"DEBUG: Failed to fetch issues: {e}")
         return {"updated": 0, "errors": 1}
 
-    gh_map = {issue["number"]: issue for issue in issues_data}
+    gh_map = {issue.get("number", issue.get("iid")): issue for issue in issues_data}
     updates_count = 0
 
     for record in records:
@@ -1655,15 +1671,29 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             
         changed = False
         previous_completion_date = record.actual_completion_date
-        gh_created_at = issue_data.get("createdAt")
-        gh_closed_at = issue_data.get("closedAt")
-        gh_project_items = issue_data.get("projectItems") or []
+        gh_created_at = issue_data.get("createdAt") or issue_data.get("created_at")
+        gh_closed_at = issue_data.get("closedAt") or issue_data.get("closed_at")
         gh_status_name = None
         
-        if gh_project_items:
-            gh_status_name = _canonical_metrics_status_from_lane(
-                gh_project_items[0].get("status", {}).get("name")
-            )
+        # Handle different field names between GitHub and GitLab
+        if "projectItems" in issue_data:
+            # GitHub format
+            gh_project_items = issue_data.get("projectItems") or []
+            if gh_project_items:
+                gh_status_name = _canonical_metrics_status_from_lane(
+                    gh_project_items[0].get("status", {}).get("name")
+                )
+        elif "state" in issue_data:
+            # GitLab format - use state field directly
+            gh_state = issue_data.get("state")
+            if gh_state:
+                # Map GitLab states to Luma status
+                state_mapping = {
+                    "opened": "🟡 In Progress",
+                    "closed": "✅ Complete", 
+                    "merged": "✅ Complete"
+                }
+                gh_status_name = state_mapping.get(gh_state.lower(), gh_state)
         
         # Sync Created At (We prefer GitHub's truth if available)
         if gh_created_at and record.created_at != gh_created_at:
@@ -1671,20 +1701,28 @@ def sync_github_metrics_for_project(workspace_path: str, project_name: str, repo
             changed = True
 
         if gh_closed_at:
-            gh_reason = issue_data.get("stateReason")
-            if gh_reason == "NOT_PLANNED":
-                if record.issue_status != "🚫 Obsolete":
-                    record.issue_status = "🚫 Obsolete"
+            # Handle stateReason (GitHub) vs state (GitLab)
+            if "stateReason" in issue_data:
+                # GitHub format
+                gh_reason = issue_data.get("stateReason")
+                if gh_reason == "NOT_PLANNED":
+                    if record.issue_status != "🚫 Obsolete":
+                        record.issue_status = "🚫 Obsolete"
+                        changed = True
+                    if record.actual_mandays != 0:
+                        record.actual_mandays = 0
+                        changed = True
+                    if record.estimate_points != 0:
+                        record.estimate_points = 0
+                        changed = True
+                elif not _is_complete_status(record.issue_status):
+                    record.issue_status = "✅ Complete"
                     changed = True
-                if record.actual_mandays != 0:
-                    record.actual_mandays = 0
+            else:
+                # GitLab format - if closed, mark as complete
+                if not _is_complete_status(record.issue_status):
+                    record.issue_status = "✅ Complete"
                     changed = True
-                if record.estimate_points != 0:
-                    record.estimate_points = 0
-                    changed = True
-            elif not _is_complete_status(record.issue_status):
-                record.issue_status = "✅ Complete"
-                changed = True
         else:
             should_clear_local_completion = _is_complete_status(record.issue_status)
             if gh_status_name:

@@ -733,7 +733,7 @@
     "13": {
       "name": "Cerebro",
       "path": "/Users/oatrice/Software-projects/Cerebro",
-      "repo": "oatrice/Cerebro",
+      "repo": "oatricedev/Cerebro",
       "slug": "cerebro",
       "kanban_number": 12,
       "kanban_id": "PVT_kwHOATfKEM4BTlFw",
@@ -794,7 +794,7 @@
     "14": {
       "name": "Cerebro (worktree)",
       "path": "/Users/oatrice/Software-projects/Cerebro-worktrees/cerebro1",
-      "repo": "oatrice/Cerebro",
+      "repo": "oatricedev/Cerebro",
       "slug": "cerebro1",
       "kanban_number": 12,
       "kanban_id": "PVT_kwHOATfKEM4BTlFw",

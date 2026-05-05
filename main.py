@@ -340,7 +340,7 @@ def check_luma_outdated():
 
 def _detect_repo_and_kanban(project_path: str) -> tuple[Optional[str], Optional[int], Optional[str]]:
     """
-    Detect GitHub repo and kanban info from project path.
+    Detect VCS repo and kanban info from project path.
 
     Returns:
         Tuple of (detected_repo, kanban_number, kanban_id)
@@ -355,6 +355,9 @@ def _detect_repo_and_kanban(project_path: str) -> tuple[Optional[str], Optional[
             remote = res.stdout.strip()
             if "github.com" in remote:
                 path_part = remote.split("github.com")[-1].lstrip(":").lstrip("/")
+                detected_repo = path_part.replace(".git", "")
+            elif "gitlab.com" in remote:
+                path_part = remote.split("gitlab.com")[-1].lstrip(":").lstrip("/")
                 detected_repo = path_part.replace(".git", "")
     except Exception:
         pass
@@ -619,6 +622,14 @@ def _resolve_explicit_headless_project_selector(selector: dict, projects: dict =
             for project_key, project in projects.items()
             if project.get("repo") == selector_value
         ]
+        if not matches:
+            # Fallback: case-insensitive repo name only match
+            selector_name = selector_value.split("/")[-1].lower()
+            matches = [
+                (project_key, project)
+                for project_key, project in projects.items()
+                if project.get("repo", "").split("/")[-1].lower() == selector_name
+            ]
     elif selector_type == "slug":
         matches = [
             (project_key, project)
@@ -932,8 +943,8 @@ MENU_ACTIONS = {
     "1": {"label": "📋 List Active Issues",          "valid_phases": "ALL"},
     "N": {"label": "🆕 Create New Issue",           "valid_phases": "ALL"},
     "2": {"label": "📥 Select Issue (from Kanban)", "valid_phases": [WorkflowPhase.IDLE, WorkflowPhase.CODING]},
-    "+": {"label": "➕ Add Issue (to session)",     "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
-    "-": {"label": "➖ Remove Issue (from session)", "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT]},
+    "+": {"label": "➕ Add Issue (to session)",     "valid_phases": "ALL"},
+    "-": {"label": "➖ Remove Issue (from session)", "valid_phases": "ALL"},
     "3": {"label": "🧬 Refine Issue (Analyst)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "4": {"label": "📝 Generate Spec + SBE",        "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},
     "5": {"label": "📐 Generate Plan (The How)",    "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.SELECTING]},

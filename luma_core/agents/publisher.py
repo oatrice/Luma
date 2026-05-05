@@ -33,9 +33,23 @@ def publisher_agent(state: AgentState):
     # Detect platform from project config
     project = state.get("project", {})
     print(f"   Debug: Received project config: {project}")
-    platform = project.get(
-        "platform", "github"
-    )  # Default to GitHub for backward compatibility
+    platform = project.get("platform")
+    
+    if not platform:
+        # Auto-detect from git remote
+        try:
+            res = subprocess.run(
+                ["git", "config", "--get", "remote.origin.url"],
+                cwd=target_dir,
+                capture_output=True,
+                text=True,
+            )
+            if "gitlab" in res.stdout.lower():
+                platform = "gitlab"
+            else:
+                platform = "github"
+        except Exception:
+            platform = "github"
 
     print(f"   Platform: {platform}")
 

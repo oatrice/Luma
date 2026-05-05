@@ -34,6 +34,23 @@ import json
 from dataclasses import asdict
 
 def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None, force: bool = False):
+    # Aggressive re-detection and correction of state.active_branch
+    if not isinstance(state.active_branch, str):
+        state.active_branch = str(state.active_branch)
+    # Auto-correct similar names (e.g. colon replaced with double hyphen)
+    import subprocess
+    try:
+        br_res = subprocess.run(["git", "branch", "--show-current"], cwd=project.get("path", "."), capture_output=True, text=True)
+        curr_br = br_res.stdout.strip()
+        if curr_br and curr_br != state.active_branch:
+            import re
+            def norm(b): return re.sub(r"[^a-zA-Z0-9/]", "", str(b)).lower()
+            if norm(curr_br) == norm(state.active_branch):
+                print(f"   🔄 Auto-correcting state branch from {state.active_branch} to {curr_br}")
+                state.active_branch = curr_br
+                save_state(state, project["path"])
+    except Exception:
+        pass
     """Create Pull Request with Pre-flight Checks"""
 
     # --- CRITICAL BRANCH REPAIR ---

@@ -305,7 +305,7 @@ CANONICAL_KANBAN_BY_REPO = {
         "kanban_number": 10,  # Zenith Project
         "kanban_id": None,  # TODO: lookup correct project ID if needed for status sync
     },
-    "oatrice/Cerebro": {
+    "oatricedev/Cerebro": {
         "kanban_number": None,  # TODO: Add GitHub Project number when available
         "kanban_id": None,
     },

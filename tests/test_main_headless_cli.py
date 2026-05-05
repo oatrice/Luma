@@ -674,13 +674,13 @@ def test_headless_repo_selector_ambiguous_returns_candidates(
             "13": {
                 "name": "Cerebro",
                 "path": str(root_path),
-                "repo": "oatrice/Cerebro",
+                "repo": "oatricedev/Cerebro",
                 "slug": "cerebro",
             },
             "14": {
                 "name": "Cerebro (worktree)",
                 "path": str(worktree_path),
-                "repo": "oatrice/Cerebro",
+                "repo": "oatricedev/Cerebro",
                 "slug": "cerebro1",
             },
         },
@@ -707,13 +707,13 @@ def test_headless_repo_selector_ambiguous_returns_candidates(
             "candidates": [
                 {
                     "project_key": "13",
-                    "repo": "oatrice/Cerebro",
+                    "repo": "oatricedev/Cerebro",
                     "path": str(root_path),
                     "slug": "cerebro",
                 },
                 {
                     "project_key": "14",
-                    "repo": "oatrice/Cerebro",
+                    "repo": "oatricedev/Cerebro",
                     "path": str(worktree_path),
                     "slug": "cerebro1",
                 },

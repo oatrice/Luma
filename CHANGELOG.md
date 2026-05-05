@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.26.0] - 2026-05-04
+
+### Added
+- **Universal Add/Remove Issues**: สามารถเพิ่มและลบ issues ในทุก workflow phases (IDLE, SELECTING, CODING, REVIEWING, PREFLIGHT, PR_PENDING) โดยไม่จำกัดเฉพาะ CODING และ PREFLIGHT phases อีกต่อไป
+- **Enhanced VCS CLI Support**: ปรับปรุงการรองรับ VCS_CLI configuration ใน roadmap updates ให้รองรับทั้ง GitHub และ GitLab CLI อย่างถูกต้อง
+- **GitLab Repository Detection**: เพิ่มการ detect repository name สำหรับ GitLab repositories ให้ถูกต้อง
+
+### Changed
+- **Menu Options Configuration**: ปรับปรุงการแสดงผลเมนูให้ตัวเลือก + และ - ปรากฏในทุก workflow phases
+- **Code Actions**: ลบข้อจำกัด phase ใน action_add_issue() และปรับปรุง error messages ใน VCS CLI operations
+
 ## [0.25.0] - 2026-05-03
 
 ### Added
