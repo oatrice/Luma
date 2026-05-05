@@ -86,64 +86,50 @@ def run_gh_command(args: List[str], timeout: int = 30) -> Optional[str]:
 
 def _convert_glab_command(args: List[str]) -> List[str]:
     """Convert GitHub CLI commands to GitLab CLI equivalents."""
-    # Handle GitLab CLI specific conversions
-    if args[0] == "issue" and len(args) >= 3 and args[1] == "view":
-        # Convert: gh issue view 123 --json fields -> glab issue view 123 -F json
-        # GitLab CLI doesn't support field selection like GitHub CLI
-        # It returns all fields in JSON format
-        new_args = ["issue", "view", args[2]]  # issue number
-        i = 3
-        while i < len(args):
-            arg = args[i]
-            if arg == "--json":
-                # Convert to -F json for GitLab
+    new_args = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        
+        # Handle --state
+        if arg == "--state":
+            if i + 1 < len(args):
+                state_val = args[i+1].lower()
+                if state_val == "all":
+                    new_args.append("--all")
+                elif state_val == "closed":
+                    new_args.append("--closed")
+                elif state_val in ["open", "opened"]:
+                    new_args.append("--opened")
+                else:
+                    new_args.extend(["--state", args[i+1]])
+                i += 2
+                continue
+        
+        # Handle --json globally
+        if arg == "--json" or arg.startswith("--json=") or arg.startswith("--format=json"):
+            # For issue list, glab uses -O for output format instead of -F
+            if len(args) >= 2 and args[0] == "issue" and args[1] == "list":
+                new_args.extend(["-O", "json"])
+            else:
                 new_args.extend(["-F", "json"])
-                # The next argument is the fields list, skip it
+                
+            # Skip the next argument if it's the field list
+            if arg == "--json":
                 if i + 1 < len(args) and not args[i + 1].startswith("-"):
                     i += 1
-            elif arg.startswith("--json="):
-                # Skip field specifications - GitLab returns all fields in JSON
-                new_args.extend(["-F", "json"])
-            elif arg.startswith("--format=json"):
-                # Convert to -F json for GitLab
-                new_args.extend(["-F", "json"])
-            elif arg.startswith("--repo"):
-                # Keep repo arguments
-                new_args.append(arg)
-            else:
-                new_args.append(arg)
             i += 1
-        return new_args
-    
-    # Convert --json flag to -F json for other commands
-    if "--json" in args:
-        args = ["-F json" if arg == "--json" else arg for arg in args]
-    
+            continue
+            
+        new_args.append(arg)
+        i += 1
+
     # Convert project item-list to board list for GitLab
-    if len(args) >= 4 and args[0] == "project" and args[1] == "item-list":
-        # gh project item-list 5 --owner oatricedev --format json
-        # Convert to: glab board list --group oatricedev --format json
-        # Note: parsed variables not used in current implementation
-        # project_id = args[2]
-        # owner = None
-        # format_json = False
-        
-        # while i < len(args):
-        #     if args[i] == "--owner" and i + 1 < len(args):
-        #         owner = args[i + 1]
-        #         i += 2
-        #     elif args[i] == "--format" and i + 1 < len(args) and args[i + 1] == "json":
-        #         format_json = True
-        #         i += 2
-        #     else:
-        #         i += 1
-        
+    if len(new_args) >= 4 and new_args[0] == "project" and new_args[1] == "item-list":
         # For GitLab, we'll use issue list with tab-separated format
-        # This is a temporary solution - the full GitLab project board integration would need
-        # a different approach since GitLab doesn't have the same project structure as GitHub
         return ["issue", "list", "--per-page", "50"]
     
-    return args
+    return new_args
 
 
 def _parse_glab_issue_list(output: str) -> List[KanbanCard]:

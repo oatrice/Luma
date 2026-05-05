@@ -116,7 +116,7 @@ def update_merge_request(repo_name, mr_number, title=None, body=None):
     try:
         wrapper = get_cli_wrapper("glab")
 
-        args = ["mr", "edit", str(mr_number), "--repo", repo_name]
+        args = ["mr", "update", str(mr_number), "--repo", repo_name]
 
         if title:
             args.extend(["--title", title])
