@@ -98,12 +98,40 @@ Try invalid selections
 ### Expected Result:
 Appropriate error messages displayed, no crashes
 
+## 5. Testing GitLab CLI Field Compatibility (Issue #97)
+
+### Step 1: Test with GitLab CLI
+Set environment variable: `export VCS_CLI=glab`
+Ensure repository is a GitLab repo (contains "gitlab" in repo name)
+Run metrics sync action (option 4 in Issue Metrics menu)
+
+### Expected Result:
+- No field mismatch errors
+- GitLab CLI command uses correct fields: `number,createdAt,closedAt,state`
+- Status mapping works correctly (opened→🟡 In Progress, closed→✅ Complete)
+
+### Step 2: Test with GitHub CLI (fallback)
+Set environment variable: `export VCS_CLI=gh` or unset it
+Run same metrics sync action
+
+### Expected Result:
+- GitHub CLI command uses full fields: `number,createdAt,closedAt,projectItems,stateReason`
+- ProjectItems and stateReason processing works correctly
+
+### Step 3: Mixed Environment Test
+Test both CLI tools in same session to ensure proper switching
+
+### Expected Result:
+- Platform detection works correctly based on repo name and CLI tool
+- No cross-contamination between GitHub and GitLab field handling
+
 ## Success Criteria
 
 - ✅ Add/remove options visible in all 6 workflow phases
 - ✅ Add/remove functionality works in all phases
 - ✅ VCS_CLI configuration respected (gh/glab)
 - ✅ GitLab repo detection works correctly
+- ✅ GitLab CLI field compatibility works (Issue #97)
 - ✅ No regressions in existing functionality
 - ✅ All tests pass (pytest)
 - ✅ Documentation updated correctly

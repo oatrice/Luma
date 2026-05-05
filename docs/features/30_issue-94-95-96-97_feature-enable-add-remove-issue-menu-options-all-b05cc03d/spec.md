@@ -3,9 +3,9 @@
 ## Feature Specification
 
 **Feature ID**: 30  
-**Issue Numbers**: 94, 95, 96  
+**Issue Numbers**: 94, 95, 96, 97  
 **Status**: ✅ IMPLEMENTED  
-**Implementation Date**: 2026-05-04  
+**Implementation Date**: 2026-05-05  
 
 ## Objective
 
@@ -249,6 +249,7 @@ def action_remove_issue(state: LumaState, project: dict) -> bool:
 |------|---------------|--------------|--------|
 | luma_core/actions/issue_actions.py | 4 removed | Feature enhancement | Removes phase restriction |
 | main.py | 2 changed | Configuration update | Enables menu visibility |
+| luma_core/issue_metrics.py | ~30 modified | Bug fix | GitLab CLI field compatibility (Issue #97) |
 
 ### Dependencies
 - No new dependencies introduced
@@ -312,10 +313,11 @@ If rollback is required:
 1. **Issue #94**: Enable Add/Remove Issue Menu Options in All Workflow Phases (this feature)
 2. **Issue #95**: Fix VCS_CLI configuration support in roadmap update fallback (GitLab CLI support)
 3. **Issue #96**: Fix VCS repo detection to support GitLab repos (repo name detection fix)
+4. **Issue #97**: Fix GitLab CLI issue list fields mismatch in sync_github_metrics
 
 ### Additional Context
-- Issues #95 and #96 were identified and fixed during the implementation and testing of this feature
-- These fixes ensure proper CLI tool support and repo detection for GitLab-based projects
+- Issues #95, #96, and #97 were identified and fixed during the implementation and testing of this feature
+- These fixes ensure proper CLI tool support, repo detection, and field compatibility for GitLab-based projects
 - The fixes are backward compatible and don't affect the core functionality of this feature
 
 ## Future Enhancements

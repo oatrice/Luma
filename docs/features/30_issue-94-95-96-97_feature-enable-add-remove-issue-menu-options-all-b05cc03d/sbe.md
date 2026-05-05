@@ -195,10 +195,18 @@ During the implementation and testing of this feature, several related infrastru
 - **Fix**: Updated quality_actions.py to use get_cli_wrapper().cli_tool for proper GitLab support
 - **Impact**: Enables roadmap operations with GitLab CLI (glab)
 
-#### Issue #96: VCS Repo Detection Enhancement
+#### Issue #96: VCS Repo Detection Enhancement ✅
 - **Problem**: Repo detection only worked for GitHub repositories
 - **Fix**: Extended _detect_repo_and_kanban to support GitLab URLs
 - **Impact**: Correct repo name detection for GitLab projects (e.g., oatricedev/Cerebro vs oatrice/Cerebro)
+
+#### Issue #97: GitLab CLI Field Compatibility ✅
+- **Problem**: sync_github_metrics_for_project used GitHub-specific fields (projectItems, stateReason) not available in GitLab CLI
+- **Fix**: Added platform detection and conditional field handling
+  - GitHub: uses `projectItems` and `stateReason` fields
+  - GitLab: uses `state` field, no `projectItems` support
+  - Added status mapping for GitLab states (opened→🟡 In Progress, closed→✅ Complete)
+- **Impact**: GitLab CLI metrics sync now works without field errors
 
 ### Testing with Fixes
 - Verified feature works correctly in GitLab environment
