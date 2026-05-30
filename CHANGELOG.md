@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.27.0] - 2026-05-30
+
+### Added
+- **GitLab URL Generation**: Supported generating correct issue URLs for GitLab repositories in PR prompts with automatic platform detection.
+- **Verification Scripts**: Added `test_url_gen.py` to verify URL generation logic across different repository states.
+
+### Changed
+- **VCS CLI Authentication**: Prioritized extracting auth tokens directly from CLI tools (`gh` or `glab`) for robust authentication.
+
+### Fixed
+- **URL String Formatting Bug**: Fixed an issue where malformed GitLab issue URLs were generated in PR descriptions for non-Luma repositories.
+- **Git Push Credential Handling**: Implemented inline Git credential helpers to bypass system keychain conflicts and prevent `git push` failures.
+
 ## [0.26.0] - 2026-05-04
 
 ### Added
