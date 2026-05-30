@@ -34,7 +34,7 @@ def publisher_agent(state: AgentState):
     project = state.get("project", {})
     print(f"   Debug: Received project config: {project}")
     platform = project.get("platform")
-    
+
     if not platform:
         # Auto-detect from git remote
         try:
@@ -296,13 +296,13 @@ GIT CONTEXT:
 PR TEMPLATE:
 {template_content}
 
-INSTRUCTIONS:
-1. Generate a comprehensive PR description in Markdown format.
-2. If a template is provided, fill it out intelligently.
-3. If no template, use a standard structure: Summary, Changes, Impact.
-4. Focus on 'Why' and 'What'.
-5. Do not include 'Here is the PR description' preamble. Just the body.
-6. IMPORTANT: Always use the exact FULL URL for closing issues. You must write `Closes {state.get("issue_data", {}).get("url", f"https://github.com/{state.get('issue_source_repo', state.get('repo'))}/issues/{state.get('issue_data', {}).get('number')}")}`. Do NOT use short syntax (e.g., #123) and do not invent an owner/repo.
+    INSTRUCTIONS:
+  1. Generate a comprehensive PR description in Markdown format.
+  2. If a template is provided, fill it out intelligently.
+  3. If no template, use a standard structure: Summary, Changes, Impact.
+  4. Focus on 'Why' and 'What'.
+  5. Do not include 'Here is the PR description' preamble. Just the body.
+  6. IMPORTANT: Always use the exact FULL URL for closing issues. You must write `Closes {state.get("issue_data", {}).get("url", f"{'https://gitlab.com/' if platform == 'gitlab' else 'https://github.com/'}{state.get('issue_source_repo', state.get('repo'))}/issues/{state.get('issue_data', {}).get('number')}")}`. Do NOT use short syntax (e.g., #123) and do not invent an owner/repo.
 """
 
     # D. Save Draft & Wait for Approval
@@ -474,15 +474,53 @@ INSTRUCTIONS:
     # 4. Push & PR
     try:
         print(f"⬆️ Pushing {branch_name}...")
+        
+        # Prepare clean environment for git network operations
+        env = os.environ.copy()
+        for token_key in ['GITHUB_TOKEN', 'GH_TOKEN', 'GITLAB_TOKEN', 'GL_TOKEN']:
+            if token_key in env:
+                del env[token_key]
+                
+        git_cmd = ["git"]
+        token = None
+        
+        # 1. Try to get token from CLI first (most reliable)
+        try:
+            if wrapper.cli_tool == "glab":
+                # glab prints auth status to stderr, so we must run subprocess directly to capture it
+                glab_res = subprocess.run(["glab", "auth", "status", "-t"], capture_output=True, text=True, env=env)
+                import re
+                # Check both stderr and stdout just in case
+                match = re.search(r"Token found:\s*([A-Za-z0-9_-]+)", glab_res.stderr + "\n" + glab_res.stdout)
+                if match:
+                    token = match.group(1)
+            elif wrapper.cli_tool == "gh":
+                # gh token command prints to stdout, so wrapper is fine
+                res = wrapper.run_cli_command(["auth", "token"])
+                if res:
+                    token = res.strip()
+        except Exception as e:
+            print(f"   ⚠️ Could not extract token from CLI: {e}")
+            
+        # 2. Fallback to config token if CLI failed
+        if not token:
+            token = wrapper.get_token()
+
+        if token:
+            # Clear existing credential helpers (like osxkeychain) before injecting ours
+            helper = f'!f() {{ echo "username=oauth2"; echo "password={token}"; }}; f'
+            git_cmd.extend(["-c", "credential.helper=", "-c", f"credential.helper={helper}"])
+
         subprocess.run(
-            ["git", "push", "-u", "origin", branch_name], cwd=target_dir, check=True
+            git_cmd + ["push", "-u", "origin", branch_name], cwd=target_dir, env=env, check=True
         )
 
         # Verify remote branch exists as requested
         print("🔍 Verifying remote branch...")
         verify = subprocess.run(
-            ["git", "ls-remote", "--exit-code", "--heads", "origin", branch_name],
+            git_cmd + ["ls-remote", "--exit-code", "--heads", "origin", branch_name],
             cwd=target_dir,
+            env=env,
             capture_output=True,
         )
         if verify.returncode != 0:

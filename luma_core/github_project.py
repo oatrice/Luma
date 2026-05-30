@@ -79,8 +79,12 @@ def run_gh_command(args: List[str], timeout: int = 30) -> Optional[str]:
     except subprocess.TimeoutExpired:
         print(f"   2. {wrapper.cli_tool} CLI command timed out")
         return None
-    except Exception as e:
-        print(f"   2. {wrapper.cli_tool} CLI error: {str(e)[:100]}")
+    except subprocess.CalledProcessError as e:
+        print(f"   2. {wrapper.cli_tool} CLI error: {e}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"      STDERR: {e.stderr}")
+        if hasattr(e, 'stdout') and e.stdout:
+            print(f"      STDOUT: {e.stdout}")
         return None
 
 
@@ -399,6 +403,9 @@ def move_card_to_status(
     schema = get_project_field_schema(project_id)
     
     if not schema:
+        wrapper = get_cli_wrapper()
+        if wrapper.cli_tool == "glab":
+            return False
         print("❌ Could not get project field schema")
         return False
     
