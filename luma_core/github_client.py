@@ -393,7 +393,11 @@ def create_pull_request(repo_name, title, body, head_branch, base_branch="main")
     """
     Create a Pull Request via GitHub API
     """
-    owner, name = repo_name.split("/")
+    try:
+        owner, name = repo_name.split("/")
+    except ValueError:
+        print("❌ Invalid repo format. Use 'owner/repo'.")
+        return None
     url = f"https://api.github.com/repos/{owner}/{name}/pulls"
     payload = {
         "title": title,
@@ -428,7 +432,11 @@ def get_open_pr(repo_name, head_branch):
     Check if there is an open PR for the given head branch.
     Returns the PR object (dict) or None.
     """
-    owner, name = repo_name.split("/")
+    try:
+        owner, name = repo_name.split("/")
+    except ValueError:
+        print("❌ Invalid repo format. Use 'owner/repo'.")
+        return None
     # GitHub API expects head as 'user:branch'
     url = f"https://api.github.com/repos/{owner}/{name}/pulls?head={owner}:{head_branch}&state=open"
     try:
@@ -451,7 +459,11 @@ def update_pull_request(repo_name, pr_number, title=None, body=None):
     """
     Update an existing Pull Request.
     """
-    owner, name = repo_name.split("/")
+    try:
+        owner, name = repo_name.split("/")
+    except ValueError:
+        print("❌ Invalid repo format. Use 'owner/repo'.")
+        return None
     url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
     payload = {}
     if title:

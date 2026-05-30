@@ -34,7 +34,7 @@ def publisher_agent(state: AgentState):
     project = state.get("project", {})
     print(f"   Debug: Received project config: {project}")
     platform = project.get("platform")
-    
+
     if not platform:
         # Auto-detect from git remote
         try:
@@ -296,13 +296,13 @@ GIT CONTEXT:
 PR TEMPLATE:
 {template_content}
 
-INSTRUCTIONS:
-1. Generate a comprehensive PR description in Markdown format.
-2. If a template is provided, fill it out intelligently.
-3. If no template, use a standard structure: Summary, Changes, Impact.
-4. Focus on 'Why' and 'What'.
-5. Do not include 'Here is the PR description' preamble. Just the body.
-6. IMPORTANT: Always use the exact FULL URL for closing issues. You must write `Closes {state.get("issue_data", {}).get("url", f"https://github.com/{state.get('issue_source_repo', state.get('repo'))}/issues/{state.get('issue_data', {}).get('number')}")}`. Do NOT use short syntax (e.g., #123) and do not invent an owner/repo.
+    INSTRUCTIONS:
+  1. Generate a comprehensive PR description in Markdown format.
+  2. If a template is provided, fill it out intelligently.
+  3. If no template, use a standard structure: Summary, Changes, Impact.
+  4. Focus on 'Why' and 'What'.
+  5. Do not include 'Here is the PR description' preamble. Just the body.
+  6. IMPORTANT: Always use the exact FULL URL for closing issues. You must write `Closes {state.get("issue_data", {}).get("url", f"{'https://gitlab.com/' if platform == 'gitlab' else 'https://github.com/'}{state.get('issue_source_repo', state.get('repo'))}/issues/{state.get('issue_data', {}).get('number')}")}`. Do NOT use short syntax (e.g., #123) and do not invent an owner/repo.
 """
 
     # D. Save Draft & Wait for Approval
