@@ -481,14 +481,37 @@ PR TEMPLATE:
             if token_key in env:
                 del env[token_key]
                 
+        git_cmd = ["git"]
+        token = wrapper.get_token()
+        
+        if not token:
+            try:
+                if wrapper.cli_tool == "glab":
+                    res = wrapper.run_cli_command(["auth", "status", "-t"])
+                    import re
+                    match = re.search(r"Token found:\s*([A-Za-z0-9_-]+)", res)
+                    if match:
+                        token = match.group(1)
+                elif wrapper.cli_tool == "gh":
+                    res = wrapper.run_cli_command(["auth", "token"])
+                    if res:
+                        token = res.strip()
+            except Exception as e:
+                print(f"   ⚠️ Could not extract token from CLI: {e}")
+
+        if token:
+            # Inline credential helper to use the token without prompting
+            helper = f'!f() {{ echo "username=oauth2"; echo "password={token}"; }}; f'
+            git_cmd.extend(["-c", f"credential.helper={helper}"])
+
         subprocess.run(
-            ["git", "push", "-u", "origin", branch_name], cwd=target_dir, env=env, check=True
+            git_cmd + ["push", "-u", "origin", branch_name], cwd=target_dir, env=env, check=True
         )
 
         # Verify remote branch exists as requested
         print("🔍 Verifying remote branch...")
         verify = subprocess.run(
-            ["git", "ls-remote", "--exit-code", "--heads", "origin", branch_name],
+            git_cmd + ["ls-remote", "--exit-code", "--heads", "origin", branch_name],
             cwd=target_dir,
             env=env,
             capture_output=True,

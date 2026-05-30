@@ -1456,8 +1456,8 @@
     "oatricedev/Luma#101": {
       "issue_key": "oatricedev/Luma#101",
       "issue_number": 101,
-      "issue_title": "Dummy issue for test in issue 100",
-      "issue_url": "https://gitlab.com/oatricedev/Luma/-/issues/101",
+      "issue_title": "Untitled issue",
+      "issue_url": "https://github.com/oatricedev/Luma/issues/101",
       "repository": "oatricedev/Luma",
       "project_name": "Luma (worktree)",
       "issue_status": "🟡 In Progress",
@@ -1473,7 +1473,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-05-30T08:17:00.399Z",
-      "updated_at": "2026-05-30T19:33:49.759374"
+      "updated_at": "2026-05-30T19:33:52.802982"
     },
     "oatricedev/Luma#100": {
       "issue_key": "oatricedev/Luma#100",
