@@ -86,18 +86,31 @@ class CLIWrapper:
         # Log command execution
         _logger.info(f"Executing CLI command: {' '.join(full_command)}")
         
+        # Prepare clean environment
+        env = os.environ.copy()
+        # Explicitly remove tokens to force usage of system config/keyring
+        # if they are not explicitly provided by the Luma config.
+        for token_key in ['GITHUB_TOKEN', 'GH_TOKEN', 'GITLAB_TOKEN', 'GL_TOKEN']:
+            if token_key in env:
+                del env[token_key]
+                
+        # If Luma config has a specific token for this tool, inject it.
+        # But we currently don't set token_val in this method's original version,
+        # so we just let the CLI tool use its own authenticated config.yml.
+        
         if capture_output:
             result = subprocess.run(
                 full_command,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=env
             )
             _logger.info(f"Command executed successfully, output length: {len(result.stdout)} chars")
             _logger.debug(f"Command output: {result.stdout[:200]}...")
             return result.stdout
         else:
-            subprocess.run(full_command, check=True)
+            subprocess.run(full_command, check=True, env=env)
             _logger.info("Command executed without capture")
             return ""
 
