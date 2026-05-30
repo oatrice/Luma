@@ -507,9 +507,9 @@ PR TEMPLATE:
             token = wrapper.get_token()
 
         if token:
-            # Inline credential helper to use the token without prompting
+            # Clear existing credential helpers (like osxkeychain) before injecting ours
             helper = f'!f() {{ echo "username=oauth2"; echo "password={token}"; }}; f'
-            git_cmd.extend(["-c", f"credential.helper={helper}"])
+            git_cmd.extend(["-c", "credential.helper=", "-c", f"credential.helper={helper}"])
 
         subprocess.run(
             git_cmd + ["push", "-u", "origin", branch_name], cwd=target_dir, env=env, check=True
