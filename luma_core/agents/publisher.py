@@ -482,22 +482,29 @@ PR TEMPLATE:
                 del env[token_key]
                 
         git_cmd = ["git"]
-        token = wrapper.get_token()
+        token = None
         
+        # 1. Try to get token from CLI first (most reliable)
+        try:
+            if wrapper.cli_tool == "glab":
+                # glab prints auth status to stderr, so we must run subprocess directly to capture it
+                glab_res = subprocess.run(["glab", "auth", "status", "-t"], capture_output=True, text=True, env=env)
+                import re
+                # Check both stderr and stdout just in case
+                match = re.search(r"Token found:\s*([A-Za-z0-9_-]+)", glab_res.stderr + "\n" + glab_res.stdout)
+                if match:
+                    token = match.group(1)
+            elif wrapper.cli_tool == "gh":
+                # gh token command prints to stdout, so wrapper is fine
+                res = wrapper.run_cli_command(["auth", "token"])
+                if res:
+                    token = res.strip()
+        except Exception as e:
+            print(f"   ⚠️ Could not extract token from CLI: {e}")
+            
+        # 2. Fallback to config token if CLI failed
         if not token:
-            try:
-                if wrapper.cli_tool == "glab":
-                    res = wrapper.run_cli_command(["auth", "status", "-t"])
-                    import re
-                    match = re.search(r"Token found:\s*([A-Za-z0-9_-]+)", res)
-                    if match:
-                        token = match.group(1)
-                elif wrapper.cli_tool == "gh":
-                    res = wrapper.run_cli_command(["auth", "token"])
-                    if res:
-                        token = res.strip()
-            except Exception as e:
-                print(f"   ⚠️ Could not extract token from CLI: {e}")
+            token = wrapper.get_token()
 
         if token:
             # Inline credential helper to use the token without prompting

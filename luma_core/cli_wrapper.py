@@ -95,8 +95,14 @@ class CLIWrapper:
                 del env[token_key]
                 
         # If Luma config has a specific token for this tool, inject it.
-        # But we currently don't set token_val in this method's original version,
-        # so we just let the CLI tool use its own authenticated config.yml.
+        # But we must NOT inject an expired/invalid token into the CLI environment
+        # if we are doing auth commands, so we can read the CLI's internal auth state!
+        is_auth_command = len(args) > 0 and args[0] == "auth"
+        if not is_auth_command:
+            token_val = self.get_token()
+            token_var = self.get_token_env_var()
+            if token_val:
+                env[token_var] = token_val
         
         if capture_output:
             result = subprocess.run(
