@@ -474,8 +474,15 @@ PR TEMPLATE:
     # 4. Push & PR
     try:
         print(f"⬆️ Pushing {branch_name}...")
+        
+        # Prepare clean environment for git network operations
+        env = os.environ.copy()
+        for token_key in ['GITHUB_TOKEN', 'GH_TOKEN', 'GITLAB_TOKEN', 'GL_TOKEN']:
+            if token_key in env:
+                del env[token_key]
+                
         subprocess.run(
-            ["git", "push", "-u", "origin", branch_name], cwd=target_dir, check=True
+            ["git", "push", "-u", "origin", branch_name], cwd=target_dir, env=env, check=True
         )
 
         # Verify remote branch exists as requested
@@ -483,6 +490,7 @@ PR TEMPLATE:
         verify = subprocess.run(
             ["git", "ls-remote", "--exit-code", "--heads", "origin", branch_name],
             cwd=target_dir,
+            env=env,
             capture_output=True,
         )
         if verify.returncode != 0:

@@ -24,7 +24,7 @@ def _get_configured_github_token():
 
 def _get_gh_cli_token():
     try:
-        wrapper = get_cli_wrapper()
+        wrapper = get_cli_wrapper("gh")
         result = wrapper.run_cli_command(["auth", "token"])
         return result.strip()
     except subprocess.CalledProcessError:

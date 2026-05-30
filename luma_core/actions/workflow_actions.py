@@ -258,14 +258,20 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             continue
 
         # Check for existing PR
-        from luma_core.github_client import get_open_pr
-
+        platform = proj.get("platform", "github")
         repo_name = proj.get("repo")
         if repo_name:
-            existing = get_open_pr(repo_name, state.active_branch)
+            if platform == "gitlab":
+                from luma_core.gitlab_client import get_open_merge_request
+                existing = get_open_merge_request(repo_name, state.active_branch)
+            else:
+                from luma_core.github_client import get_open_pr
+                existing = get_open_pr(repo_name, state.active_branch)
+            
             if existing:
+                pr_url = existing.get('web_url') or existing.get('html_url')
                 print(
-                    f"   ⏩ Skipping {proj['name']} (PR already exists: {existing['html_url']})"
+                    f"   ⏩ Skipping {proj['name']} (PR/MR already exists: {pr_url})"
                 )
                 continue
 
