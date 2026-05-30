@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.28.0] - 2026-05-30
+
+### Fixed
+- **GitLab Issue Parsing**: Removed hardcoded repository name (`oatricedev/Luma`) in the `glab` issue parser to dynamically detect and support multiple GitLab repositories for accurate issue mapping.
+
 ## [0.27.0] - 2026-05-30
 
 ### Added
