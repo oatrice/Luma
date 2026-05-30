@@ -1,0 +1,7 @@
+- [x] อัปเดตไฟล์ `backend/app/services/rainbow.py` ให้รองรับพารามิเตอร์ `endpoint_type`
+- [x] เพิ่มฟังก์ชัน `edit_telegram_message` ในไฟล์ `backend/app/services/telegram.py`
+- [x] อัปเดต `process_telegram_location` ใน `backend/app/routers/webhook.py` เพื่อรองรับการสลับแหล่งข้อมูลผ่าน Inline Keyboard
+- [x] อัปเดต `handle_callback_query` ใน `webhook.py` เพื่อดักจับปุ่มสลับ Endpoint
+- [x] ปรับปรุง Unit Tests ใน `backend/tests/test_services.py` 
+- [x] ทดสอบความถูกต้องด้วยคำสั่ง `pytest`
+- [x] อัปเดตคู่มือ Walkthrough

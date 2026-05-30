@@ -1,0 +1,5 @@
+- [x] ตรวจสอบสาเหตุที่ Luma ทำการ generate PR issue URL ผิดปกติในโปรเจกต์ GitLab อื่น
+- [x] แก้ไขฟังก์ชัน `_parse_glab_issue_list` ใน `luma_core/github_project.py` ไม่ให้ hardcode
+- [x] สร้าง helper `_get_current_gitlab_repo`
+- [x] สร้าง Issue #102 บน GitLab ผ่าน CLI
+- [x] เขียนเอกสารสรุปการทำงาน (Implementation Plan, Walkthrough, etc.)

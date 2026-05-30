@@ -136,6 +136,18 @@ def _convert_glab_command(args: List[str]) -> List[str]:
     return new_args
 
 
+def _get_current_gitlab_repo() -> str:
+    """Detect the current repository for GitLab issues dynamically."""
+    try:
+        from luma_core.config import TARGET_DIR, detect_project_key_for_path, PROJECTS
+        key = detect_project_key_for_path(TARGET_DIR, PROJECTS)
+        if key and key in PROJECTS and PROJECTS[key].get("repo"):
+            return PROJECTS[key]["repo"]
+    except Exception:
+        pass
+    return "oatricedev/Luma"
+
+
 def _parse_glab_issue_list(output: str) -> List[KanbanCard]:
     """Parse GitLab CLI tab-separated issue list into KanbanCard objects."""
     cards = []
@@ -143,6 +155,8 @@ def _parse_glab_issue_list(output: str) -> List[KanbanCard]:
     
     # Skip header line and empty lines
     data_lines = [line for line in lines if line.strip() and not line.startswith('ID\tTitle')]
+    
+    repository = _get_current_gitlab_repo()
     
     for line in data_lines:
         # Parse tab-separated values
@@ -166,8 +180,8 @@ def _parse_glab_issue_list(output: str) -> List[KanbanCard]:
                 issue_number=issue_number,
                 title=title,
                 status="Ready",  # Default status for GitLab issues
-                repository="oatricedev/Luma",
-                url=f"https://gitlab.com/oatricedev/Luma/-/issues/{issue_number}",
+                repository=repository,
+                url=f"https://gitlab.com/{repository}/-/issues/{issue_number}",
                 body=None
             )
             cards.append(card)
