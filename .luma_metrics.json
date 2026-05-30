@@ -670,7 +670,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 0.5,
       "start_datetime": "2026-05-01T22:59:21",
       "actual_mandays": 0.5,
@@ -681,7 +681,7 @@
       "gh_closed_at": "2026-05-02T03:01:58.333Z",
       "gh_mandays": 0.5,
       "created_at": "2026-05-01T15:19:46.886Z",
-      "updated_at": "2026-05-30T19:21:46.677042"
+      "updated_at": "2026-05-30T19:47:59.300700"
     },
     "oatricedev/Luma#20": {
       "issue_key": "oatricedev/Luma#20",
@@ -692,7 +692,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 8.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -703,7 +703,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-03-31T02:24:24Z",
-      "updated_at": "2026-05-30T19:21:47.363301"
+      "updated_at": "2026-05-30T19:47:58.613798"
     },
     "oatricedev/Luma#16": {
       "issue_key": "oatricedev/Luma#16",
@@ -714,7 +714,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -725,7 +725,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-03-29T14:30:19Z",
-      "updated_at": "2026-05-30T19:21:47.983844"
+      "updated_at": "2026-05-30T19:47:58.107200"
     },
     "oatricedev/Luma#27": {
       "issue_key": "oatricedev/Luma#27",
@@ -736,7 +736,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -747,7 +747,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-01T15:39:30Z",
-      "updated_at": "2026-05-30T19:21:48.582641"
+      "updated_at": "2026-05-30T19:47:57.118216"
     },
     "oatricedev/Luma#32": {
       "issue_key": "oatricedev/Luma#32",
@@ -758,7 +758,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 13.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -769,7 +769,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-02T08:25:00Z",
-      "updated_at": "2026-05-30T19:21:49.214574"
+      "updated_at": "2026-05-30T19:47:55.306167"
     },
     "oatricedev/Luma#33": {
       "issue_key": "oatricedev/Luma#33",
@@ -780,7 +780,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 13.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -791,7 +791,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-02T08:25:21Z",
-      "updated_at": "2026-05-30T19:21:49.899988"
+      "updated_at": "2026-05-30T19:47:54.415364"
     },
     "oatricedev/Luma#29": {
       "issue_key": "oatricedev/Luma#29",
@@ -802,7 +802,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -813,7 +813,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-02T01:45:23Z",
-      "updated_at": "2026-05-30T19:21:50.509149"
+      "updated_at": "2026-05-30T19:47:53.774027"
     },
     "oatricedev/Luma#35": {
       "issue_key": "oatricedev/Luma#35",
@@ -824,7 +824,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 3,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -835,7 +835,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-03T03:05:38Z",
-      "updated_at": "2026-05-30T19:21:51.131751"
+      "updated_at": "2026-05-30T19:47:53.318878"
     },
     "oatricedev/Luma#39": {
       "issue_key": "oatricedev/Luma#39",
@@ -846,7 +846,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -857,7 +857,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-03T09:57:52Z",
-      "updated_at": "2026-05-30T19:21:51.752521"
+      "updated_at": "2026-05-30T19:47:52.759324"
     },
     "oatricedev/Luma#40": {
       "issue_key": "oatricedev/Luma#40",
@@ -868,7 +868,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 13.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -879,7 +879,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-03T10:10:52Z",
-      "updated_at": "2026-05-30T19:21:52.406655"
+      "updated_at": "2026-05-30T19:47:52.157581"
     },
     "oatricedev/Luma#42": {
       "issue_key": "oatricedev/Luma#42",
@@ -890,7 +890,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 13.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -901,7 +901,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-03T10:10:56Z",
-      "updated_at": "2026-05-30T19:21:53.033064"
+      "updated_at": "2026-05-30T19:47:51.782529"
     },
     "oatricedev/Luma#41": {
       "issue_key": "oatricedev/Luma#41",
@@ -912,7 +912,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 13.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -923,7 +923,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-03T10:10:54Z",
-      "updated_at": "2026-05-30T19:21:53.638902"
+      "updated_at": "2026-05-30T19:47:50.762945"
     },
     "oatricedev/Luma#55": {
       "issue_key": "oatricedev/Luma#55",
@@ -934,7 +934,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -945,7 +945,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T08:49:50Z",
-      "updated_at": "2026-05-30T19:21:54.250584"
+      "updated_at": "2026-05-30T19:47:49.766876"
     },
     "oatricedev/Luma#56": {
       "issue_key": "oatricedev/Luma#56",
@@ -956,7 +956,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -967,7 +967,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T08:55:41Z",
-      "updated_at": "2026-05-30T19:21:54.901828"
+      "updated_at": "2026-05-30T19:47:49.366884"
     },
     "oatricedev/Luma#58": {
       "issue_key": "oatricedev/Luma#58",
@@ -978,7 +978,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -989,7 +989,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T10:33:11Z",
-      "updated_at": "2026-05-30T19:21:55.532437"
+      "updated_at": "2026-05-30T19:47:48.900453"
     },
     "oatricedev/Luma#59": {
       "issue_key": "oatricedev/Luma#59",
@@ -1000,7 +1000,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1011,7 +1011,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T10:37:00Z",
-      "updated_at": "2026-05-30T19:21:56.393324"
+      "updated_at": "2026-05-30T19:47:48.381333"
     },
     "oatricedev/Luma#62": {
       "issue_key": "oatricedev/Luma#62",
@@ -1022,7 +1022,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1033,7 +1033,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T12:34:05Z",
-      "updated_at": "2026-05-30T19:21:57.111342"
+      "updated_at": "2026-05-30T19:47:47.839414"
     },
     "oatricedev/Luma#67": {
       "issue_key": "oatricedev/Luma#67",
@@ -1044,7 +1044,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1055,7 +1055,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T14:09:29Z",
-      "updated_at": "2026-05-30T19:21:57.721658"
+      "updated_at": "2026-05-30T19:47:47.388630"
     },
     "oatricedev/Luma#64": {
       "issue_key": "oatricedev/Luma#64",
@@ -1066,7 +1066,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1077,7 +1077,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T12:37:07Z",
-      "updated_at": "2026-05-30T19:21:58.339493"
+      "updated_at": "2026-05-30T19:47:46.991555"
     },
     "oatricedev/Luma#70": {
       "issue_key": "oatricedev/Luma#70",
@@ -1088,7 +1088,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1099,7 +1099,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-10T03:30:19Z",
-      "updated_at": "2026-05-30T19:21:58.991825"
+      "updated_at": "2026-05-30T19:47:46.617553"
     },
     "oatricedev/Luma#74": {
       "issue_key": "oatricedev/Luma#74",
@@ -1110,7 +1110,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1121,7 +1121,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-10T10:04:33Z",
-      "updated_at": "2026-05-30T19:21:59.614763"
+      "updated_at": "2026-05-30T19:47:46.269825"
     },
     "oatricedev/Luma#72": {
       "issue_key": "oatricedev/Luma#72",
@@ -1132,7 +1132,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1143,7 +1143,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-10T08:15:18Z",
-      "updated_at": "2026-05-30T19:22:00.294531"
+      "updated_at": "2026-05-30T19:47:45.929344"
     },
     "oatricedev/Luma#71": {
       "issue_key": "oatricedev/Luma#71",
@@ -1154,7 +1154,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1165,7 +1165,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-10T03:33:02Z",
-      "updated_at": "2026-05-30T19:22:00.933625"
+      "updated_at": "2026-05-30T19:47:45.588358"
     },
     "oatricedev/Luma#60": {
       "issue_key": "oatricedev/Luma#60",
@@ -1176,7 +1176,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1187,7 +1187,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-09T11:47:59Z",
-      "updated_at": "2026-05-30T19:22:01.574200"
+      "updated_at": "2026-05-30T19:47:45.118816"
     },
     "oatricedev/Luma#78": {
       "issue_key": "oatricedev/Luma#78",
@@ -1198,7 +1198,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1209,7 +1209,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-21T14:30:45Z",
-      "updated_at": "2026-05-30T19:22:02.258473"
+      "updated_at": "2026-05-30T19:47:44.713789"
     },
     "oatricedev/Luma#79": {
       "issue_key": "oatricedev/Luma#79",
@@ -1220,7 +1220,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1231,7 +1231,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-21T15:22:47Z",
-      "updated_at": "2026-05-30T19:22:02.860913"
+      "updated_at": "2026-05-30T19:47:43.681101"
     },
     "oatricedev/Luma#84": {
       "issue_key": "oatricedev/Luma#84",
@@ -1242,7 +1242,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1253,7 +1253,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-04-23T21:49:53Z",
-      "updated_at": "2026-05-30T19:22:03.435094"
+      "updated_at": "2026-05-30T19:47:43.046684"
     },
     "oatricedev/Luma#90": {
       "issue_key": "oatricedev/Luma#90",
@@ -1264,7 +1264,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 1,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 0.5,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1275,7 +1275,7 @@
       "gh_closed_at": "2026-04-29T14:26:19.237Z",
       "gh_mandays": 0.5,
       "created_at": "2026-04-28T23:32:55Z",
-      "updated_at": "2026-05-30T19:22:04.018593"
+      "updated_at": "2026-05-30T19:47:41.853817"
     },
     "oatricedev/Luma#91": {
       "issue_key": "oatricedev/Luma#91",
@@ -1286,7 +1286,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 21.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1297,7 +1297,7 @@
       "gh_closed_at": "2026-05-01T14:18:21.89Z",
       "gh_mandays": null,
       "created_at": "2026-04-29T13:59:37.051Z",
-      "updated_at": "2026-05-30T19:22:04.657189"
+      "updated_at": "2026-05-30T19:47:40.685775"
     },
     "oatricedev/Luma#9": {
       "issue_key": "oatricedev/Luma#9",
@@ -1308,7 +1308,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 3.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1319,7 +1319,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-03-18T23:51:15Z",
-      "updated_at": "2026-05-30T19:22:05.258357"
+      "updated_at": "2026-05-30T19:47:39.900174"
     },
     "oatricedev/Luma#13": {
       "issue_key": "oatricedev/Luma#13",
@@ -1330,7 +1330,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 1.0,
       "start_datetime": null,
       "actual_mandays": 0.0,
@@ -1341,7 +1341,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-03-24T17:18:28Z",
-      "updated_at": "2026-05-30T19:22:05.911045"
+      "updated_at": "2026-05-30T19:47:38.501209"
     },
     "oatricedev/Luma#93": {
       "issue_key": "oatricedev/Luma#93",
@@ -1352,7 +1352,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 8.0,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-05-02T00:47:57",
       "actual_mandays": 1.0,
@@ -1363,7 +1363,7 @@
       "gh_closed_at": "2026-05-03T00:47:57.108Z",
       "gh_mandays": 1.0,
       "created_at": "2026-05-02T23:34:06.664Z",
-      "updated_at": "2026-05-30T19:22:05.915301"
+      "updated_at": "2026-05-30T19:47:36.801327"
     },
     "oatricedev/Luma#94": {
       "issue_key": "oatricedev/Luma#94",
@@ -1374,7 +1374,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-05-04T14:56:07",
       "actual_mandays": 0.5,
@@ -1385,7 +1385,7 @@
       "gh_closed_at": "2026-05-05T06:50:44.789Z",
       "gh_mandays": 0.5,
       "created_at": "2026-05-04T03:21:03.505Z",
-      "updated_at": "2026-05-30T19:22:06.560645"
+      "updated_at": "2026-05-30T19:47:36.245702"
     },
     "oatricedev/Luma#95": {
       "issue_key": "oatricedev/Luma#95",
@@ -1396,7 +1396,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-05-04T23:26:38",
       "actual_mandays": 0.5,
@@ -1407,7 +1407,7 @@
       "gh_closed_at": "2026-05-05T06:50:45.107Z",
       "gh_mandays": 0.5,
       "created_at": "2026-05-04T16:17:00.452Z",
-      "updated_at": "2026-05-30T19:22:07.149217"
+      "updated_at": "2026-05-30T19:47:35.736638"
     },
     "oatricedev/Luma#96": {
       "issue_key": "oatricedev/Luma#96",
@@ -1418,7 +1418,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-05-04T23:26:38",
       "actual_mandays": 0.5,
@@ -1429,7 +1429,7 @@
       "gh_closed_at": "2026-05-05T06:50:46.886Z",
       "gh_mandays": 0.5,
       "created_at": "2026-05-04T16:22:35.824Z",
-      "updated_at": "2026-05-30T19:22:07.749407"
+      "updated_at": "2026-05-30T19:47:35.268282"
     },
     "oatricedev/Luma#97": {
       "issue_key": "oatricedev/Luma#97",
@@ -1440,7 +1440,7 @@
       "project_name": "Luma (worktree)",
       "issue_status": "✅ Complete",
       "estimate_points": 2,
-      "post_story_point": null,
+      "post_story_point": 5.0,
       "estimated_mandays": 1.0,
       "start_datetime": "2026-05-04T06:50:45",
       "actual_mandays": 1.0,
@@ -1451,7 +1451,7 @@
       "gh_closed_at": "2026-05-05T06:50:45.703Z",
       "gh_mandays": 1.0,
       "created_at": "2026-05-04T16:48:40.193Z",
-      "updated_at": "2026-05-30T19:22:07.752089"
+      "updated_at": "2026-05-30T19:47:33.813451"
     },
     "oatricedev/Luma#101": {
       "issue_key": "oatricedev/Luma#101",
@@ -1473,7 +1473,7 @@
       "gh_closed_at": null,
       "gh_mandays": null,
       "created_at": "2026-05-30T08:17:00.399Z",
-      "updated_at": "2026-05-30T19:47:15.026580"
+      "updated_at": "2026-05-30T19:48:25.071255"
     },
     "oatricedev/Luma#100": {
       "issue_key": "oatricedev/Luma#100",
