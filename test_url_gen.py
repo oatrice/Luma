@@ -12,7 +12,7 @@ state1 = {
         "url": "https://gitlab.com/oatricedev/Luma/-/issues/101"
     }
 }
-print(f"1. Luma (GitLab with explicit URL):")
+print("1. Luma (GitLab with explicit URL):")
 print(f"   Result: {generate_url_string(state1, 'gitlab')}\n")
 
 # Test Case 2: Zenith (GitHub) - no explicit URL, falls back to string building
@@ -22,7 +22,7 @@ state2 = {
         "number": 42
     }
 }
-print(f"2. Zenith (GitHub without explicit URL):")
+print("2. Zenith (GitHub without explicit URL):")
 print(f"   Result: {generate_url_string(state2, 'github')}\n")
 
 # Test Case 3: Another GitLab repo - no explicit URL
@@ -32,7 +32,7 @@ state3 = {
         "number": 99
     }
 }
-print(f"3. Custom Repo (GitLab without explicit URL):")
+print("3. Custom Repo (GitLab without explicit URL):")
 print(f"   Result: {generate_url_string(state3, 'gitlab')}\n")
 
 # Test Case 4: Cerebro (GitLab) - no explicit URL
@@ -42,7 +42,7 @@ state4 = {
         "number": 15
     }
 }
-print(f"4. Cerebro (GitLab without explicit URL):")
+print("4. Cerebro (GitLab without explicit URL):")
 print(f"   Result: {generate_url_string(state4, 'gitlab')}\n")
 
 # Test Case 5: Cerebro (GitLab) - has explicit URL in issue_data (Real World Scenario)
@@ -53,5 +53,5 @@ state5 = {
         "url": "https://gitlab.com/oatricedev/Cerebro/-/issues/15"
     }
 }
-print(f"5. Cerebro (GitLab with explicit URL from API - Real World Scenario):")
+print("5. Cerebro (GitLab with explicit URL from API - Real World Scenario):")
 print(f"   Result: {generate_url_string(state5, 'gitlab')}\n")
