@@ -3,6 +3,7 @@ from luma_core.ui import safe_input
 import datetime
 import json
 import os
+import re
 from dataclasses import asdict
 from collections import deque
 import luma_core.usage_tracker as usage_tracker
@@ -57,8 +58,16 @@ def _get_status_icon(status: str, workflow: dict) -> str:
     return ""
 
 
+def _sanitize_branch_name(name: str) -> str:
+    """Sanitize branch name to remove invalid characters."""
+    sanitized = re.sub(r'[^a-zA-Z0-9_\-/]', '-', name)
+    sanitized = re.sub(r'-+', '-', sanitized)
+    sanitized = re.sub(r'/+', '/', sanitized)
+    return sanitized.strip('-/')
+
+
 def _build_default_branch_name(issue_nums: str, title: str) -> str:
-    slug = title.lower().replace(" ", "-").replace("[", "").replace("]", "")[:30]
+    slug = _sanitize_branch_name(title.lower())[:30].strip('-/')
     return f"feat/{issue_nums}-{slug}"
 
 
@@ -105,6 +114,9 @@ def _normalize_branch_suggestions(
         candidate = suggestion.strip()
         if not candidate:
             continue
+            
+        candidate = _sanitize_branch_name(candidate)
+        
         if issue_nums != str(primary_number):
             candidate = candidate.replace(f"/{primary_number}-", f"/{issue_nums}-")
         if _is_valid_branch_name(candidate):
