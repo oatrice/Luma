@@ -1,0 +1,6 @@
+- [x] สร้างไฟล์ทดสอบ `tests/test_branch_name_sanitization.py` (RED)
+- [x] พัฒนาฟังก์ชัน `_sanitize_branch_name` ใน `luma_core/actions/utils.py` (GREEN)
+- [x] ปรับปรุงการเรียกใช้ใน `_build_default_branch_name` และ `_normalize_branch_suggestions` (GREEN)
+- [x] ทดสอบความถูกต้องด้วย `pytest`
+- [x] จัดการ Refactor (ถ้าจำเป็น)
+- [x] อัปเดตไฟล์ `walkthrough.md` และสรุปผลลัพธ์

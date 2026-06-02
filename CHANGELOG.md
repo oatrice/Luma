@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.29.0] - 2026-06-02
+
+### Added
+- **Branch Name Sanitization**: Added `_sanitize_branch_name()` function that converts invalid characters (`:`, `?`, `*`, `[`, `]`, `\`, spaces) to hyphens and collapses consecutive hyphens, ensuring all generated branch names are valid git branch names.
+
+### Changed
+- **Branch Suggestion Filtering**: Improved `_normalize_branch_suggestions()` to reject `PromptExportModel` placeholder strings and overly long branch names (>80 chars) before they can appear in the branch selection menu.
+- **Default Branch Name Generation**: `_build_default_branch_name()` now routes the issue title through `_sanitize_branch_name()` for consistent sanitization.
+
 ## [0.28.0] - 2026-05-30
 
 ### Fixed
