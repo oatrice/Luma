@@ -114,9 +114,17 @@ def _normalize_branch_suggestions(
         candidate = suggestion.strip()
         if not candidate:
             continue
-            
+
+        # Reject PromptExportModel placeholder strings before sanitizing
+        if "[PROMPT EXPORTED]" in candidate or "Paste the AI response" in candidate:
+            continue
+
         candidate = _sanitize_branch_name(candidate)
-        
+
+        # Reject overly long branch names (likely garbage/placeholder)
+        if len(candidate) > 80:
+            continue
+
         if issue_nums != str(primary_number):
             candidate = candidate.replace(f"/{primary_number}-", f"/{issue_nums}-")
         if _is_valid_branch_name(candidate):

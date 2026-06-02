@@ -46,3 +46,44 @@ def test_normalize_branch_suggestions_with_special_chars():
         fallback_branch_name=fallback,
     )
     assert normalized == [fallback]
+
+
+def test_normalize_branch_suggestions_rejects_prompt_export_placeholder():
+    """Placeholder strings from PromptExportModel must never appear as suggestions."""
+    issue_nums = "93"
+    primary_number = 93
+    fallback = "feat/93-fallback"
+
+    # PromptExportModel placeholder contains long path-like strings
+    placeholder = (
+        "[PROMPT EXPORTED] Your prompt was saved to: "
+        "/Users/oatrice/Software-projects/Akasa/.luma/prompts/prompt_20260602_075904_66649933.md"
+    )
+    suggestions = [placeholder]
+    normalized = _normalize_branch_suggestions(
+        suggestions,
+        issue_nums=issue_nums,
+        primary_number=primary_number,
+        fallback_branch_name=fallback,
+    )
+    assert normalized == [fallback], (
+        f"Placeholder string leaked into suggestions: {normalized}"
+    )
+
+
+def test_normalize_branch_suggestions_rejects_too_long():
+    """Branch names that are too long (>80 chars) should be rejected."""
+    issue_nums = "93"
+    primary_number = 93
+    fallback = "feat/93-fallback"
+
+    long_name = "feat/93-" + "a" * 80
+    suggestions = [long_name]
+    normalized = _normalize_branch_suggestions(
+        suggestions,
+        issue_nums=issue_nums,
+        primary_number=primary_number,
+        fallback_branch_name=fallback,
+    )
+    assert normalized == [fallback]
+
