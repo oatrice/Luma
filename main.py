@@ -1067,6 +1067,10 @@ def run_interactive(args) -> int:
             }
         else:
             project = PROJECTS[project_key]
+            
+    # Update global config TARGET_DIR to the selected project's path
+    import luma_core.config
+    luma_core.config.TARGET_DIR = project["path"]
     
     # Save initial mapping if not exists
     if current_cwd not in project_map or project_map[current_cwd] != project_key:
