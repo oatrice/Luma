@@ -963,7 +963,7 @@ class PromptExportModel(BaseChatModel):
         prompt_text = _flatten_messages_to_prompt(messages)
 
         # Create export directory
-        export_path = os.path.join(config.TARGET_DIR, self.export_dir)
+        export_path = os.path.join(config.TARGET_DIR or os.getcwd(), self.export_dir)
         os.makedirs(export_path, exist_ok=True)
 
         # Generate unique filename with timestamp

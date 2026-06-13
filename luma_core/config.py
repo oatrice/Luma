@@ -247,7 +247,7 @@ AKASA_API_KEY = os.getenv("AKASA_API_KEY", "default-dev-key")
 AKASA_CHAT_ID = os.getenv("AKASA_CHAT_ID", "")
 
 # Default to current directory if not dynamically overridden
-TARGET_DIR = os.getcwd()
+TARGET_DIR = None
 
 # =============================================================================
 # Project Configuration
