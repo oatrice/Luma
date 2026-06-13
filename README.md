@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 0.26.0  
+> **Version:** 0.30.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -164,6 +164,18 @@ Further reading:
 
 ## 🚀 Usage
 
+### Global CLI Shortcut
+
+You can run Luma from any project or directory on your system using the global CLI shortcut:
+
+```bash
+luma
+```
+
+To configure this shortcut on your machine, create a script at `~/.local/bin/luma` pointing to your Luma installation, make it executable (`chmod +x`), and ensure `~/.local/bin` is in your shell's `$PATH`.
+
+Alternatively, run Luma directly from its home directory:
+
 ```bash
 # Start the Workflow Guardian
 python main.py
@@ -188,7 +200,7 @@ Successful output is emitted on `stdout` as JSON:
   "status": "success",
   "mode": "metadata",
   "result": {
-    "version": "0.26.0",
+    "version": "0.30.0",
     "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
     "dirty": true,
     "contract_version": "2.0",

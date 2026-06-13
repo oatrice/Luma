@@ -1,0 +1,5 @@
+- [x] สร้างไฟล์ `~/.local/bin/luma` ด้วย zsh wrapper script
+- [x] ตั้งค่าสิทธิ์ execute ให้กับสคริปต์ `chmod +x ~/.local/bin/luma`
+- [x] ตรวจสอบและทดสอบการรันคำสั่ง `luma` จากไดเรกทอรีต่างๆ
+- [x] ลบ local wrapper script ที่ `/Users/oatrice/Software Project/FonMaYang/luma`
+- [x] ตรวจสอบความถูกต้องหลังลบไฟล์

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.30.0] - 2026-06-13
+
+### Added
+- **Global Luma CLI Shortcut**: Created a global `luma` CLI command shortcut at `~/.local/bin/luma` to run Luma from any directory, including loading Luma `.env` variables and preserving the current working directory. Removed the redundant local `luma` wrapper script from the `FonMaYang` project.
+
 ## [0.29.0] - 2026-06-02
 
 ### Added

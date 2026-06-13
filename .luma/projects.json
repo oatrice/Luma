@@ -4,7 +4,7 @@
   "projects": {
     "1": {
       "name": "JarWise-Root",
-      "path": "/Users/oatrice/Software-projects/JarWise",
+      "path": "/Users/oatrice/Software Project/JarWise",
       "repo": "oatrice/JarWise-Root",
       "kanban_number": 7,
       "kanban_id": "PVT_kwHOATfKEM4BMuLi",
@@ -70,7 +70,7 @@
     },
     "2": {
       "name": "JarWise (Web)",
-      "path": "/Users/oatrice/Software-projects/JarWise/Web",
+      "path": "/Users/oatrice/Software Project/JarWise/Web",
       "repo": "oatrice/JarWise-Web",
       "kanban_number": 7,
       "kanban_id": "PVT_kwHOATfKEM4BMuLi",
@@ -130,7 +130,7 @@
     },
     "3": {
       "name": "JarWise (Backend)",
-      "path": "/Users/oatrice/Software-projects/JarWise/backend",
+      "path": "/Users/oatrice/Software Project/JarWise/backend",
       "repo": "oatrice/JarWise-Backend",
       "kanban_number": 7,
       "kanban_id": "PVT_kwHOATfKEM4BMuLi",
@@ -190,7 +190,7 @@
     },
     "4": {
       "name": "JarWise (Android)",
-      "path": "/Users/oatrice/Software-projects/JarWise/Android",
+      "path": "/Users/oatrice/Software Project/JarWise/Android",
       "repo": "oatrice/JarWise-Android",
       "kanban_number": 7,
       "kanban_id": "PVT_kwHOATfKEM4BMuLi",
@@ -250,7 +250,7 @@
     },
     "5": {
       "name": "Tetris Battle",
-      "path": "/Users/oatrice/Software-projects/Tetris-Battle",
+      "path": "/Users/oatrice/Software Project/Tetris-Battle",
       "repo": "oatrice/Tetris-Battle",
       "kanban_number": 6,
       "kanban_id": "PVT_kwHOATfKEM4BKZK5",
@@ -310,7 +310,7 @@
     },
     "6": {
       "name": "TheMiddleWay-Root",
-      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata",
+      "path": "/Users/oatrice/Software Project/The Middle Way -Metadata",
       "repo": "oatrice/TheMiddleWay-Metadata",
       "kanban_number": 8,
       "kanban_id": "PVT_kwHOATfKEM4BOWVD",
@@ -377,7 +377,7 @@
     },
     "7": {
       "name": "TheMiddleWay (Web)",
-      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Web",
+      "path": "/Users/oatrice/Software Project/The Middle Way -Metadata/Platforms/Web",
       "repo": "oatrice/TheMiddleWay-Web",
       "kanban_number": 8,
       "kanban_id": "PVT_kwHOATfKEM4BOWVD",
@@ -437,7 +437,7 @@
     },
     "8": {
       "name": "TheMiddleWay (Android)",
-      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Android",
+      "path": "/Users/oatrice/Software Project/The Middle Way -Metadata/Platforms/Android",
       "repo": "oatrice/TheMiddleWay-Android",
       "kanban_number": 8,
       "kanban_id": "PVT_kwHOATfKEM4BOWVD",
@@ -497,7 +497,7 @@
     },
     "9": {
       "name": "TheMiddleWay (iOS)",
-      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/iOS",
+      "path": "/Users/oatrice/Software Project/The Middle Way -Metadata/Platforms/iOS",
       "repo": "oatrice/TheMiddleWay-IOS",
       "kanban_number": 8,
       "kanban_id": "PVT_kwHOATfKEM4BOWVD",
@@ -557,7 +557,7 @@
     },
     "10": {
       "name": "TheMiddleWay (Backend)",
-      "path": "/Users/oatrice/Software-projects/The Middle Way -Metadata/Platforms/Backend",
+      "path": "/Users/oatrice/Software Project/The Middle Way -Metadata/Platforms/Backend",
       "repo": "oatrice/TheMiddleWay-Backend",
       "kanban_number": 8,
       "kanban_id": "PVT_kwHOATfKEM4BOWVD",
@@ -617,7 +617,7 @@
     },
     "11": {
       "name": "Akasa",
-      "path": "/Users/oatrice/Software-projects/Akasa",
+      "path": "/Users/oatrice/Software Project/Akasa",
       "repo": "oatrice/Akasa",
       "kanban_number": 9,
       "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
@@ -677,7 +677,7 @@
     },
     "12": {
       "name": "Luma (worktree)",
-      "path": "/Users/oatrice/Software-projects/Luma-worktrees/luma1",
+      "path": "/Users/oatrice/Software Project/Luma-worktrees/luma1",
       "repo": "oatricedev/Luma",
       "slug": "luma",
       "kanban_number": 5,
@@ -732,7 +732,7 @@
     },
     "13": {
       "name": "Cerebro",
-      "path": "/Users/oatrice/Software-projects/Cerebro",
+      "path": "/Users/oatrice/Software Project/Cerebro",
       "repo": "oatricedev/Cerebro",
       "slug": "cerebro",
       "kanban_number": 12,
@@ -793,7 +793,7 @@
     },
     "14": {
       "name": "Cerebro (worktree)",
-      "path": "/Users/oatrice/Software-projects/Cerebro-worktrees/cerebro1",
+      "path": "/Users/oatrice/Software Project/Cerebro-worktrees/cerebro1",
       "repo": "oatricedev/Cerebro",
       "slug": "cerebro1",
       "kanban_number": 12,
@@ -854,7 +854,7 @@
     },
     "15": {
       "name": "Zenith",
-      "path": "/Users/oatrice/Software-projects/Zenith",
+      "path": "/Users/oatrice/Software Project/Zenith",
       "repo": "oatricedev/Zenith",
       "slug": "zenith",
       "kanban_number": 10,
@@ -913,6 +913,15 @@
           "pr_merged": "Done"
         }
       }
+    },
+    "18": {
+      "name": "FonMaYang",
+      "path": "/Users/oatrice/Software Project/FonMaYang",
+      "repo": "oatricedev/FonMaYang",
+      "slug": "fonmayang",
+      "kanban_number": 1,
+      "kanban_id": "",
+      "platform": "gitlab"
     }
   }
 }
