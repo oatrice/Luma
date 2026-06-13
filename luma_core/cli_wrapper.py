@@ -159,7 +159,8 @@ def get_cli_wrapper(cli_tool: Optional[str] = None) -> CLIWrapper:
     """
     global _default_wrapper
     
-    if cli_tool is None and _default_wrapper is not None:
+    target_tool = cli_tool or config.VCS_CLI
+    if cli_tool is None and _default_wrapper is not None and _default_wrapper.cli_tool == target_tool:
         return _default_wrapper
     
     wrapper = CLIWrapper(cli_tool)

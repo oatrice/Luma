@@ -130,8 +130,9 @@ def _convert_glab_command(args: List[str]) -> List[str]:
 
     # Convert project item-list to board list for GitLab
     if len(new_args) >= 4 and new_args[0] == "project" and new_args[1] == "item-list":
+        repo = _get_current_gitlab_repo()
         # For GitLab, we'll use issue list with tab-separated format
-        return ["issue", "list", "--per-page", "50"]
+        return ["issue", "list", "--per-page", "50", "-R", repo]
     
     return new_args
 

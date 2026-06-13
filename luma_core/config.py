@@ -223,7 +223,16 @@ GITLAB_TOKEN = os.getenv("GITLAB_TOKEN")
 # VCS CLI Configuration
 # Controls which CLI tool to use for VCS operations: "gh" (GitHub CLI) or "glab" (GitLab CLI)
 # Default is "gh" for backward compatibility
-VCS_CLI = os.getenv("VCS_CLI", "gh")
+VCS_CLI = os.getenv("VCS_CLI")
+if not VCS_CLI:
+    VCS_CLI = "gh"
+    if os.path.exists(GLOBAL_CONFIG_FILE):
+        try:
+            with open(GLOBAL_CONFIG_FILE, "r") as f:
+                _global_cfg = json.load(f)
+                VCS_CLI = _global_cfg.get("VCS_CLI", "gh")
+        except Exception:
+            pass
 
 # Available VCS CLI options
 AVAILABLE_VCS_CLI_OPTIONS = ["gh", "glab"]
@@ -238,7 +247,7 @@ AKASA_API_KEY = os.getenv("AKASA_API_KEY", "default-dev-key")
 AKASA_CHAT_ID = os.getenv("AKASA_CHAT_ID", "")
 
 # Default to current directory if not dynamically overridden
-TARGET_DIR = os.getcwd()
+TARGET_DIR = None
 
 # =============================================================================
 # Project Configuration
@@ -329,7 +338,7 @@ CANONICAL_KANBAN_BY_REPO = {
         "kanban_number": 8,
         "kanban_id": "PVT_kwHOATfKEM4BOWVD",
     },
-    "oatrice/Akasa": {
+    "oatricedev/Akasa": {
         "kanban_number": 9,
         "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
     },
@@ -667,7 +676,7 @@ _PROJECTS_LEGACY = {
     "11": {
         "name": "Akasa",
         "path": "/Users/oatrice/Software-projects/Akasa",
-        "repo": "oatrice/Akasa",
+        "repo": "oatricedev/Akasa",
         "kanban_number": 9,
         "kanban_id": "PVT_kwHOATfKEM4BQ-3x",
     },
