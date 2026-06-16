@@ -34,4 +34,4 @@ Format: Present the solution in three distinct sections: 1. Failing Test, 2. Pas
 - **duration**: เวลาโดยประมาณ (optional)
 - **message**: รายละเอียดเพิ่มเติม (optional)
 
-> ⚙️ Prerequisites: Akasa backend ต้องรันอยู่ที่ `http://localhost:8000`
+> ⚙️ Prerequisites: Akasa backend เปลี่ยนไปใช้ production (`https://akasa-backend-6a8v.onrender.com`) อ้างอิงตาม `akasa_backend_url.md`

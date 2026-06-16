@@ -242,7 +242,7 @@ AVAILABLE_VCS_CLI_OPTIONS = ["gh", "glab"]
 VCS_TOKEN = os.getenv("VCS_TOKEN") or os.getenv("GITLAB_TOKEN") or os.getenv("GITHUB_TOKEN")
 
 # Akasa Notification Configuration
-AKASA_API_URL = os.getenv("AKASA_API_URL", "http://localhost:8000")
+AKASA_API_URL = os.getenv("AKASA_API_URL", "https://akasa-backend-6a8v.onrender.com")
 AKASA_API_KEY = os.getenv("AKASA_API_KEY", "default-dev-key")
 AKASA_CHAT_ID = os.getenv("AKASA_CHAT_ID", "")
 

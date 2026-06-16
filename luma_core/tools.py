@@ -235,8 +235,11 @@ def resolve_project_target_dir(project_path: str, cwd: str = None) -> str:
 
     if active_common_dir and project_common_dir:
         if os.path.realpath(active_common_dir) == os.path.realpath(project_common_dir):
+            # Issue #110: If Luma is run from the base repo but targets a worktree,
+            # we should preserve the worktree path instead of falling back to the base repo.
+            if not is_git_worktree(work_dir) and is_git_worktree(project_path):
+                return project_path
             return git_toplevel
-        return project_path
 
     return project_path
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.31.0] - 2026-06-16
+
+### Added
+- **VCS CLI Detection**: Implemented automatic VCS CLI detection based on project configuration.
+- **Documentation**: Reorganized and centralized feature task and implementation documentation, including new artifacts for issues #108, #109, and #110.
+
+### Changed
+- **Akasa API**: Updated the Akasa API default endpoint to use the production URL.
+
+### Fixed
+- **Publisher Agent**: Resolved an issue where `glab mr create` targeted the base repository instead of the configured target repository (Issue #109).
+- **Worktree Context**: Fixed a bug where Luma incorrectly fell back to the base repository when explicitly launched to target a worktree (Issue #110).
+
 ## [0.30.0] - 2026-06-13
 
 ### Added

@@ -52,7 +52,24 @@ class CLIWrapper:
             cli_tool: The CLI tool to use ("gh" or "glab"). If None, uses
                      config.VCS_CLI (defaults to "gh").
         """
-        self.cli_tool = cli_tool or config.VCS_CLI
+        if not cli_tool:
+            detected_tool = None
+            try:
+                from luma_core.config import TARGET_DIR, PROJECTS, detect_project_key_for_path
+                if TARGET_DIR:
+                    key = detect_project_key_for_path(TARGET_DIR, PROJECTS)
+                    if key and key in PROJECTS:
+                        proj = PROJECTS[key]
+                        platform = proj.get("platform", "").lower()
+                        if platform == "gitlab":
+                            detected_tool = "glab"
+                        elif platform == "github":
+                            detected_tool = "gh"
+            except Exception:
+                pass
+            cli_tool = detected_tool or config.VCS_CLI
+
+        self.cli_tool = cli_tool
         
         # Log initialization
         _logger.info(f"CLI Wrapper initialized with tool: {self.cli_tool}")
@@ -159,11 +176,26 @@ def get_cli_wrapper(cli_tool: Optional[str] = None) -> CLIWrapper:
     """
     global _default_wrapper
     
-    target_tool = cli_tool or config.VCS_CLI
+    detected_tool = None
+    try:
+        from luma_core.config import TARGET_DIR, PROJECTS, detect_project_key_for_path
+        if TARGET_DIR:
+            key = detect_project_key_for_path(TARGET_DIR, PROJECTS)
+            if key and key in PROJECTS:
+                proj = PROJECTS[key]
+                platform = proj.get("platform", "").lower()
+                if platform == "gitlab":
+                    detected_tool = "glab"
+                elif platform == "github":
+                    detected_tool = "gh"
+    except Exception:
+        pass
+
+    target_tool = cli_tool or detected_tool or config.VCS_CLI
     if cli_tool is None and _default_wrapper is not None and _default_wrapper.cli_tool == target_tool:
         return _default_wrapper
     
-    wrapper = CLIWrapper(cli_tool)
+    wrapper = CLIWrapper(target_tool)
     
     if cli_tool is None:
         _default_wrapper = wrapper

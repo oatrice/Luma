@@ -14,6 +14,8 @@ def create_merge_request(repo_name, title, body, source_branch, target_branch="m
         args = [
             "mr",
             "create",
+            "--repo",
+            repo_name,
             "--title",
             title,
             "--description",
