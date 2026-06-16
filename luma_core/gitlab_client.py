@@ -65,8 +65,8 @@ def get_open_merge_request(repo_name, source_branch):
     try:
         wrapper = get_cli_wrapper("glab")
 
-        # Try to get MR list without source branch filter first
-        args = ["mr", "list", "--repo", repo_name]
+        # Try to get MR list filtered by source branch
+        args = ["mr", "list", "--repo", repo_name, "--source-branch", source_branch]
 
         output = wrapper.run_cli_command(args)
 
@@ -74,11 +74,7 @@ def get_open_merge_request(repo_name, source_branch):
             # Parse output to find MR info for our branch
             lines = output.strip().split("\n")
             for line in lines:
-                # Look for lines that contain MR numbers and our branch
-                if "!" in line and (
-                    source_branch in line
-                    or any(word in line for word in source_branch.split("-"))
-                ):
+                if "!" in line:
                     # Extract MR number from line like "!123 Merge request"
                     parts = line.split()
                     for part in parts:

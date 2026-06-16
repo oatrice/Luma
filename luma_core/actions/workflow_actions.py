@@ -33,7 +33,7 @@ import os
 import json
 from dataclasses import asdict
 
-def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None, force: bool = False):
+def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False, target_repos: list = None, force: bool = False, force_export_only: bool = False):
     # Aggressive re-detection and correction of state.active_branch
     if not isinstance(state.active_branch, str):
         state.active_branch = str(state.active_branch)
@@ -163,7 +163,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         print("\n🤖 PR Creation Mode:")
         mode = (
             ui.safe_input(
-                "   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   [n] Cancel / Back to Coding\n   Select: "
+                "   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   [f] Force Export Prompt Only\n   [n] Cancel / Back to Coding\n   Select: "
             )
             .strip()
             .lower()
@@ -177,6 +177,11 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         if mode == "a":
             print("   ✅ Auto-Approve enabled for all repos.")
             auto_approve = True
+            
+        if mode == "f":
+            print("   ✅ Force Export Prompt Only enabled.")
+            auto_approve = True
+            force_export_only = True
 
     # Determine target repos (Multi-Repo Support)
     if target_repos is not None:
@@ -260,7 +265,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         # Check for existing PR
         platform = proj.get("platform", "github")
         repo_name = proj.get("repo")
-        if repo_name:
+        if repo_name and not force_export_only:
             if platform == "gitlab":
                 from luma_core.gitlab_client import get_open_merge_request
                 existing = get_open_merge_request(repo_name, state.active_branch)
@@ -269,7 +274,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
                 existing = get_open_pr(repo_name, state.active_branch)
             
             if existing:
-                pr_url = existing.get('web_url') or existing.get('html_url')
+                pr_url = existing.get('web_url') or existing.get('html_url') or existing.get('url')
                 print(
                     f"   ⏩ Skipping {proj['name']} (PR/MR already exists: {pr_url})"
                 )
@@ -333,39 +338,6 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
 
             except Exception as e:
                 print(f"   ⚠️ Failed to sync screenshots: {e}")
-
-        # --- SYNC AI BRAIN ARTIFACTS ---
-        try:
-            from luma_core.ai_brain_sync import AntigravityBrain
-
-            print("   🔄 Syncing AI Agent Brain Artifacts...")
-            brain_session = state.context.get("selected_brain_session")
-            synced_docs = AntigravityBrain.sync_to_repo(
-                target_dir, state.active_issue.number, session_path=brain_session
-            )
-
-            if synced_docs:
-                subprocess.run(
-                    ["git", "add"] + synced_docs, cwd=target_dir, check=False
-                )
-                subprocess.run(
-                    ["git", "commit", "-m", "docs: sync AI brain artifacts"],
-                    cwd=target_dir,
-                    check=False,
-                    capture_output=True,
-                )
-                print(f"   ✅ Merged AI Brain Context to {proj['name']}")
-
-                ai_brain_section = "\n\n## 🧠 AI Brain Context\n"
-                for doc in synced_docs:
-                    filename = os.path.basename(doc)
-                    if proj.get("repo") and state.active_branch:
-                        raw_url = f"https://raw.githubusercontent.com/{proj['repo']}/{state.active_branch}/{doc}"
-                        ai_brain_section += f"- [{filename}]({raw_url})\n"
-                    else:
-                        ai_brain_section += f"- [{filename}]({doc})\n"
-        except Exception as e:
-            print(f"   ⚠️ Failed to sync AI brain artifacts: {e}")
 
         # 3. Proceed to Create PR for this repo
         if not auto_approve:
@@ -458,6 +430,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "test_suggestions": "",
             "auto_approve": auto_approve,
             "project": proj,  # Add project config for platform detection
+            "force_export_only": force_export_only,
         }
 
         # Detect cross-repo links (Zenith issues) from issue body and branch
@@ -541,6 +514,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "test_suggestions": "",
             "auto_approve": auto_approve,
             "project": proj,  # Add project config for platform detection
+            "force_export_only": force_export_only,
         }
 
         # Load fresh project config to ensure we have the latest platform info
@@ -958,7 +932,7 @@ def action_guided_workflow(state: LumaState, project: dict, headless: bool = Fal
     # Check for "Yes to All" preference
     if not headless:
         choice = (
-            ui.safe_input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [n] No: ")
+            ui.safe_input("   Create PRs? [y] Yes (confirm each), [a] Yes to All (auto), [f] Force Export Prompt Only, [n] No: ")
             .strip()
             .lower()
         )
@@ -966,6 +940,9 @@ def action_guided_workflow(state: LumaState, project: dict, headless: bool = Fal
         if choice == "a":
             usage_tracker.set_sub_action("Auto:PR/Auto-Approve")
             action_create_pr(state, project, auto_approve=True, target_repos=target_planning_repos)
+        elif choice == "f":
+            usage_tracker.set_sub_action("Auto:PR/Force-Export")
+            action_create_pr(state, project, auto_approve=True, target_repos=target_planning_repos, force_export_only=True)
         elif choice == "y" or choice == "":
             usage_tracker.set_sub_action("Auto:PR/Interactive")
             action_create_pr(state, project, auto_approve=False, target_repos=target_planning_repos)

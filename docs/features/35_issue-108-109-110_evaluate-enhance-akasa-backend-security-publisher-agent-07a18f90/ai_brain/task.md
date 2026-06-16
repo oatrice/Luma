@@ -1,5 +1,0 @@
-- [x] Create `schema.sql` for telemetry database
-- [x] Create `collector.py` to gather Host OS, LM Studio, and Docker metrics
-- [x] Create `analyzer.py` to parse OpenClaw sessions and report peak RAM and avg CPU
-- [ ] Verify `collector.py` logic
-- [ ] Verify `analyzer.py` logic

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.32.0] - 2026-06-16
+
+### Added
+- **Force Export MR Prompt**: Added a new option (`[f] Force Export Prompt Only`) during PR/MR creation to extract the draft prompt without triggering the GitLab/GitHub API (Issue #111).
+- **Issue Artifacts**: Added planning and manual verification artifacts for issues #106, #107, and #111.
+
+### Fixed
+- **VS Code CLI Error**: Prevented a crash during documentation diff previews when the VS Code `code` CLI is missing, handling it gracefully with a warning (Issues #106, #107).
+- **MR URL Resolution**: Resolved a bug where existing GitLab MR URLs were incorrectly logged as `None` by falling back to the `url` property (Issue #111).
+
 ## [0.31.0] - 2026-06-16
 
 ### Added
