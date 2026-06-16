@@ -313,6 +313,11 @@ PR TEMPLATE:
 
     print(f"\n📝 Draft Prompt saved to: {draft_path}")
 
+    # Force Export Mode: return immediately without calling AI or creating PR
+    if state.get("force_export_only"):
+        print("✅ Force Export Complete. Skipping PR creation.")
+        return {"url": None}
+
     manual_body_path = os.path.join(target_dir, "draft_pr_body.md")
 
     # Check auto-approve flag from state
