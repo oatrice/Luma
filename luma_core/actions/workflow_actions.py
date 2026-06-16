@@ -163,7 +163,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         print("\n🤖 PR Creation Mode:")
         mode = (
             ui.safe_input(
-                "   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   [n] Cancel / Back to Coding\n   Select: "
+                "   [y] Interactive (Confirm each)\n   [a] Auto-Approve ALL\n   [f] Force Export Prompt Only\n   [n] Cancel / Back to Coding\n   Select: "
             )
             .strip()
             .lower()
@@ -177,6 +177,11 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
         if mode == "a":
             print("   ✅ Auto-Approve enabled for all repos.")
             auto_approve = True
+            
+        if mode == "f":
+            print("   ✅ Force Export Prompt Only enabled.")
+            auto_approve = True
+            force_export_only = True
 
     # Determine target repos (Multi-Repo Support)
     if target_repos is not None:
