@@ -1958,7 +1958,10 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                         # Open VS Code diff view for comparison
                         print("\n   📊 Opening VS Code diff...")
                         print(f"      code --diff {doc_path} {preview_path}")
-                        subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
+                        try:
+                            subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
+                        except FileNotFoundError:
+                            print("   ⚠️ VS Code CLI ('code') not found, skipping diff preview")
                         
                         save_choice = ui.safe_input("\n   💾 Save CHANGELOG changes? (y/N): ").lower()
                         if save_choice == 'y':
@@ -1985,7 +1988,10 @@ def update_multi_repo_docs(repo_configs: list, docs_agent_func=None) -> list:
                         print("\n   📄 README Preview generated")
                         print("\n   📊 Opening VS Code diff...")
                         print(f"      code --diff {doc_path} {preview_path}")
-                        subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
+                        try:
+                            subprocess.run(["code", "--diff", doc_path, preview_path], capture_output=True)
+                        except FileNotFoundError:
+                            print("   ⚠️ VS Code CLI ('code') not found, skipping diff preview")
                         
                         save_choice = ui.safe_input("\n   💾 Save README changes? (y/N): ").lower()
                         if save_choice == 'y':
