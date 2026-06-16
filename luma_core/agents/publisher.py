@@ -539,24 +539,24 @@ PR TEMPLATE:
             if existing:
                 print(f"   Updating existing MR #{existing['number']}...")
                 url = update_merge_request(
-                    state["repo"], existing["number"], title=commit_msg, body=body
+                    state["repo"], existing["number"], title=state["task"], body=body
                 )
             else:
                 print("   Creating new MR...")
                 url = create_merge_request(
-                    state["repo"], commit_msg, body, branch_name, "main"
+                    state["repo"], state["task"], body, branch_name, "main"
                 )
         else:
             existing = get_open_pr(state["repo"], branch_name)
             if existing:
                 print(f"   Updating existing PR #{existing['number']}...")
                 url = update_pull_request(
-                    state["repo"], existing["number"], title=commit_msg, body=body
+                    state["repo"], existing["number"], title=state["task"], body=body
                 )
             else:
                 print("   Creating new PR...")
                 url = create_pull_request(
-                    state["repo"], commit_msg, body, branch_name, "main"
+                    state["repo"], state["task"], body, branch_name, "main"
                 )
 
         print(f"🎉 PR Ready: {url}")
