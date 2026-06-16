@@ -339,39 +339,6 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             except Exception as e:
                 print(f"   ⚠️ Failed to sync screenshots: {e}")
 
-        # --- SYNC AI BRAIN ARTIFACTS ---
-        try:
-            from luma_core.ai_brain_sync import AntigravityBrain
-
-            print("   🔄 Syncing AI Agent Brain Artifacts...")
-            brain_session = state.context.get("selected_brain_session")
-            synced_docs = AntigravityBrain.sync_to_repo(
-                target_dir, state.active_issue.number, session_path=brain_session
-            )
-
-            if synced_docs:
-                subprocess.run(
-                    ["git", "add"] + synced_docs, cwd=target_dir, check=False
-                )
-                subprocess.run(
-                    ["git", "commit", "-m", "docs: sync AI brain artifacts"],
-                    cwd=target_dir,
-                    check=False,
-                    capture_output=True,
-                )
-                print(f"   ✅ Merged AI Brain Context to {proj['name']}")
-
-                ai_brain_section = "\n\n## 🧠 AI Brain Context\n"
-                for doc in synced_docs:
-                    filename = os.path.basename(doc)
-                    if proj.get("repo") and state.active_branch:
-                        raw_url = f"https://raw.githubusercontent.com/{proj['repo']}/{state.active_branch}/{doc}"
-                        ai_brain_section += f"- [{filename}]({raw_url})\n"
-                    else:
-                        ai_brain_section += f"- [{filename}]({doc})\n"
-        except Exception as e:
-            print(f"   ⚠️ Failed to sync AI brain artifacts: {e}")
-
         # 3. Proceed to Create PR for this repo
         if not auto_approve:
             confirm = (

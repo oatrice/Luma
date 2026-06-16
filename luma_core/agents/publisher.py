@@ -106,14 +106,15 @@ def publisher_agent(state: AgentState):
         )
 
     # 3. Add & Commit
-    try:
-        subprocess.run(["git", "add", "."], cwd=target_dir, check=True)
-        commit_msg = f"feat: {state['task'][:50]}..."
-        subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_dir)
+    if not state.get("force_export_only"):
+        try:
+            subprocess.run(["git", "add", "."], cwd=target_dir, check=True)
+            commit_msg = f"feat: {state['task'][:50]}..."
+            subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_dir)
 
-    except Exception as e:
-        print(f"⚠️ Git Local Ops failed: {e}")
-        return {}
+        except Exception as e:
+            print(f"⚠️ Git Local Ops failed: {e}")
+            return {}
 
     # 3. Generate PR Body with AI
     llm = get_llm(temperature=0.7)
@@ -158,7 +159,7 @@ def publisher_agent(state: AgentState):
             # Get cumulative stats
             try:
                 diff_stats = subprocess.check_output(
-                    ["git", "diff", "--stat", f"{base_ref}..HEAD"],
+                    ["git", "diff", "--stat", f"{base_ref}"],
                     cwd=target_dir,
                     text=True,
                 ).strip()
@@ -169,7 +170,7 @@ def publisher_agent(state: AgentState):
             try:
                 # 1. Get list of changed files
                 changed_files_raw = subprocess.check_output(
-                    ["git", "diff", "--name-only", f"{base_ref}..HEAD"],
+                    ["git", "diff", "--name-only", f"{base_ref}"],
                     cwd=target_dir,
                     text=True,
                 ).strip()
@@ -202,8 +203,8 @@ def publisher_agent(state: AgentState):
 
                 # 4. Run diff command
                 if files_to_diff:
-                    # git diff base..HEAD -- file1 file2 ...
-                    cmd = ["git", "diff", f"{base_ref}..HEAD", "--"] + files_to_diff
+                    # git diff base -- file1 file2 ...
+                    cmd = ["git", "diff", f"{base_ref}", "--"] + files_to_diff
                     full_diff = subprocess.check_output(
                         cmd, cwd=target_dir, text=True
                     ).strip()

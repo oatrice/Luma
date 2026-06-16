@@ -951,8 +951,7 @@ MENU_ACTIONS = {
     "6": {"label": "🧐 Code Review (Local)",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PR_PENDING, WorkflowPhase.REVIEWING]},
     "7": {"label": "📝 Update Docs",               "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.IDLE, WorkflowPhase.PR_PENDING, WorkflowPhase.REVIEWING, WorkflowPhase.PREFLIGHT]},
     "B": {"label": "🧠 Sync AI Agent Brain",       "valid_phases": [WorkflowPhase.CODING, WorkflowPhase.PREFLIGHT, WorkflowPhase.REVIEWING]},
-    "P": {"label": "🚀 Create/Sync PRs",           "valid_phases": "ALL"},
-    "8": {"label": "🚀 Create Pull Request",       "valid_phases": "ALL"},
+    "8": {"label": "🚀 Create/Sync Pull Request",  "valid_phases": "ALL"},
     "U": {"label": "🗺️  Update Roadmap",           "valid_phases": "ALL"},
     "L": {"label": "📊 View Usage Log",            "valid_phases": "ALL"},
     "D": {"label": "📊 Usage & Metrics Dashboard",  "valid_phases": "ALL"},
@@ -1175,12 +1174,8 @@ def run_interactive(args) -> int:
         elif choice.upper() == "B":
             run_with_notify("Sync AI Brain", project["name"], actions.action_sync_ai_brain, state, project)
             
-        elif choice == "P": # Create/Sync PRs
-            run_with_notify("Create/Sync PRs", project["name"], actions.action_create_pr, state, project)
-            save_state(state, project["path"])
-        
         elif choice == "8":
-            run_with_notify("Create PR", project["name"], actions.action_create_pr, state, project)
+            run_with_notify("Create/Sync PR", project["name"], actions.action_create_pr, state, project)
             save_state(state, project["path"])
         
         elif choice.upper() == "U":
