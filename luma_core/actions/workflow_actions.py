@@ -547,6 +547,7 @@ def action_create_pr(state: LumaState, project: dict, auto_approve: bool = False
             "test_suggestions": "",
             "auto_approve": auto_approve,
             "project": proj,  # Add project config for platform detection
+            "force_export_only": force_export_only,
         }
 
         # Load fresh project config to ensure we have the latest platform info
