@@ -18,3 +18,6 @@
 - The unit test `tests/test_pr_force_export.py` runs and passes successfully, confirming MR API calls are skipped when forced export is requested.
 - The `PR/MR already exists: None` bug is resolved because it now correctly falls back to using the `url` property from the GitLab client's response.
 - Changes for #106, #107, and #111 are all committed and successfully verified.
+
+> [!NOTE]
+> คุณสามารถเปิด Merge Request ของ branch นี้และ merge ลง main เพื่อปิด Issue 106, 107 และ 111 ได้เลยครับ
