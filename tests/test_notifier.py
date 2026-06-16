@@ -20,7 +20,7 @@ class TestNotifyTaskComplete:
         from luma_core.notifier import notify_task_complete
 
         with patch("luma_core.notifier.AKASA_CHAT_ID", "12345"), \
-             patch("luma_core.notifier.AKASA_API_URL", "http://localhost:8000"), \
+             patch("luma_core.notifier.AKASA_API_URL", "https://akasa-backend-6a8v.onrender.com"), \
              patch("luma_core.notifier.AKASA_API_KEY", "test-key"):
             result = notify_task_complete(
                 project="TestProject",
@@ -66,7 +66,7 @@ class TestNotifyTaskComplete:
         from luma_core.notifier import notify_task_complete
 
         with patch("luma_core.notifier.AKASA_CHAT_ID", "12345"), \
-             patch("luma_core.notifier.AKASA_API_URL", "http://localhost:8000"), \
+             patch("luma_core.notifier.AKASA_API_URL", "https://akasa-backend-6a8v.onrender.com"), \
              patch("luma_core.notifier.AKASA_API_KEY", "test-key"):
             result = notify_task_complete(
                 project="TestProject",
@@ -89,7 +89,7 @@ class TestNotifyTaskComplete:
         from luma_core.notifier import notify_task_complete
 
         with patch("luma_core.notifier.AKASA_CHAT_ID", "12345"), \
-             patch("luma_core.notifier.AKASA_API_URL", "http://localhost:8000"), \
+             patch("luma_core.notifier.AKASA_API_URL", "https://akasa-backend-6a8v.onrender.com"), \
              patch("luma_core.notifier.AKASA_API_KEY", "test-key"):
             notify_task_complete(
                 project="TestProject",
@@ -117,7 +117,7 @@ class TestNotifyTaskComplete:
         from luma_core.notifier import notify_task_complete
 
         with patch("luma_core.notifier.AKASA_CHAT_ID", "12345"), \
-             patch("luma_core.notifier.AKASA_API_URL", "http://localhost:8000"), \
+             patch("luma_core.notifier.AKASA_API_URL", "https://akasa-backend-6a8v.onrender.com"), \
              patch("luma_core.notifier.AKASA_API_KEY", "test-key"):
             result = notify_task_complete(
                 project="TestProject",
