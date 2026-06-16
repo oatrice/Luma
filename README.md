@@ -1,6 +1,6 @@
 # 🤖 Luma AI Architect V2: Workflow Guardian
 
-> **Version:** 0.30.0  
+> **Version:** 0.31.0  
 > **Status:** Production Ready 🚀  
 > **Goal:** Autonomous AI Software Architect for Multi-Repo Projects
 
@@ -200,7 +200,7 @@ Successful output is emitted on `stdout` as JSON:
   "status": "success",
   "mode": "metadata",
   "result": {
-    "version": "0.30.0",
+    "version": "0.31.0",
     "git_commit": "7346548185cd82dd8bea308f65015a256bc50646",
     "dirty": true,
     "contract_version": "2.0",
