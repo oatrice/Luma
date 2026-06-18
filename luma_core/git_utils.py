@@ -1,4 +1,5 @@
 import os
+import json
 from luma_core import config
 
 def ensure_artifact_gitignore(project_path: str) -> None:
@@ -7,10 +8,22 @@ def ensure_artifact_gitignore(project_path: str) -> None:
     If AUTO_UPDATE_GITIGNORE is enabled in config, this function will safely
     append the required patterns to the .gitignore file if they are missing.
     """
-    if not getattr(config, "AUTO_UPDATE_GITIGNORE", True):
+    if not project_path or not os.path.isdir(project_path):
         return
 
-    if not project_path or not os.path.isdir(project_path):
+    # Check local project overrides first
+    auto_update = getattr(config, "AUTO_UPDATE_GITIGNORE", True)
+    local_cfg_path = os.path.join(project_path, ".luma_dev.json")
+    if os.path.exists(local_cfg_path):
+        try:
+            with open(local_cfg_path, "r") as f:
+                local_cfg = json.load(f)
+                if "AUTO_UPDATE_GITIGNORE" in local_cfg:
+                    auto_update = local_cfg["AUTO_UPDATE_GITIGNORE"]
+        except Exception:
+            pass
+
+    if not auto_update:
         return
 
     gitignore_path = os.path.join(project_path, ".gitignore")
