@@ -1,5 +1,0 @@
-- [x] 🟥 RED: Create reproduction test in `tests/test_fix_roadmap_version_preservation.py`
-- [x] 🟢 GREEN: Fix `sync_roadmap_for_closed_issues`
-- [x] 🟢 GREEN: Fix `action_update_roadmap`
-- [x] ✨ REFACTOR: Ensure logic deduplication if possible
-- [x] ✅ VERIFY: Run existing and new tests

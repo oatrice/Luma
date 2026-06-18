@@ -31,3 +31,7 @@ luma_failed_prompt_*.md
 ./code_review.md
 draft_code_review*.md
 code_review_prompt*.txt
+
+# AI Agent Artifacts
+.agents/
+docs/features/
