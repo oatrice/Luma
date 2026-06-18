@@ -13,8 +13,8 @@ Key architectural components introduced:
 2. **Workflow Orchestrator**: Replaces the static menu with a state-aware dashboard.
 3. **Pre-flight Checker (`luma_core/preflight_checker.py`)**: Enforces Definition of Done using rules configured in a project-specific `.luma_rules.json` file.
 4. **Context Summarizer (`luma_core/context_summarizer.py`)**: Parses markdown rules and summarizes them for the agent.
-5. **GitHub Integration (`luma_core/github_project.py`)**: Uses `gh` CLI to fetch and sync kanban cards.
+5. **VCS/Project Integration**: Abstracts the project management layer to fetch and sync kanban cards using the configured CLI tool (`gh` for GitHub or `glab` for GitLab), enabling cross-platform workflow orchestration.
 
 ## Consequences
 - **Positive**: Agents and developers have a unified state of truth. Pre-flight checks prevent incomplete PRs. Context summarization reduces token usage and improves AI focus.
-- **Negative/Constraints**: Requires users to have `gh` CLI installed and authenticated. Introduces new config file (`.luma_rules.json`) that must be maintained per project.
+- **Negative/Constraints**: Requires users to have the relevant VCS CLI (`gh` or `glab`) installed and authenticated. Introduces new config file (`.luma_rules.json`) that must be maintained per project.
