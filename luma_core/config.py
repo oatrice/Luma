@@ -45,6 +45,13 @@ AGENT_CLI = os.getenv("AGENT_CLI", "gemini_cli")
 FALLBACK_ACTIVE_INDEX = 0
 FALLBACK_LAST_RESET = 0.0
 
+# Git Artifact Ignores
+_AUTO_UPDATE_GITIGNORE = os.getenv("LUMA_AUTO_UPDATE_GITIGNORE", "").lower()
+if _AUTO_UPDATE_GITIGNORE == "":
+    AUTO_UPDATE_GITIGNORE = True
+else:
+    AUTO_UPDATE_GITIGNORE = _AUTO_UPDATE_GITIGNORE in ("true", "1", "yes", "on")
+
 # LLM Timeout and Retry Configuration
 # Scale factor for model timeouts (e.g., 0.5 = half the default timeout)
 _LLM_TIMEOUT_SCALE_STR = os.getenv("LUMA_LLM_TIMEOUT_SCALE", "1.0")
@@ -111,6 +118,7 @@ if os.path.exists(GLOBAL_CONFIG_FILE):
             AGENT_CLI = _global_cfg.get("AGENT_CLI", AGENT_CLI)
             GEMINI_CLI_MODEL = _global_cfg.get("GEMINI_CLI_MODEL", GEMINI_CLI_MODEL)
             CODEX_CLI_MODEL = _global_cfg.get("CODEX_CLI_MODEL", CODEX_CLI_MODEL)
+            AUTO_UPDATE_GITIGNORE = _global_cfg.get("AUTO_UPDATE_GITIGNORE", AUTO_UPDATE_GITIGNORE)
             # Global fallbacks as ultimate backup
             FALLBACK_ACTIVE_INDEX = _global_cfg.get("FALLBACK_ACTIVE_INDEX", 0)
             FALLBACK_LAST_RESET = _global_cfg.get("FALLBACK_LAST_RESET", 0.0)

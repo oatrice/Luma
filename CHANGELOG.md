@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.33.0] - 2026-06-18
+
+### Added
+- **AI Artifact Lifecycle**: Automatically inject and maintain `.gitignore` rules for AI ephemeral artifacts, controlled by the `AUTO_UPDATE_GITIGNORE` toggle in local project configuration.
+
+### Changed
+- **Architecture Documentation**: Updated ADR 001 to reflect agnostic VCS CLI integration.
+- **Artifact Management**: Refactored the AI agent artifact lifecycle to improve consistency across runs.
+
+### Fixed
+- **Configuration Resolution**: Fixed an issue where the `AUTO_UPDATE_GITIGNORE` setting was not properly read from the local `.luma_dev.json` configuration file.
+
 ## [0.32.0] - 2026-06-16
 
 ### Added

@@ -1,4 +1,0 @@
-- Step 1: Navigate to a directory of a standalone project that uses GitLab issues (e.g., `cd ~/Software-projects/FonMaYang`).
-- Step 2: Start Luma by running `python3 ../Luma/main.py` and select an active issue from the GitLab Kanban board.
-- Step 3: Open the `.luma_state.json` file generated in the project directory.
-- Expected Result: Inside the `active_issues` array, verify that the `repository` field correctly reflects the standalone project's repository (e.g., `oatricedev/FonMaYang`) instead of defaulting to `oatricedev/Luma`. Additionally, verify that the `url` field points to the correct GitLab issue URL for that specific project.
