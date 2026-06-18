@@ -111,11 +111,11 @@ Luma/
 - **VCS CLI**: Must be authenticated with one of:
   - **GitHub CLI (`gh`)**: Default option for GitHub repositories
   - **GitLab CLI (`glab`)**: Alternative for GitLab repositories
-- **LLM Keys**: [.env](cci:7://file:///Users/oatrice/Software-projects/Luma-worktrees/luma1/.env:0:0-0:0) configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Supports `OPENROUTER_API_KEY` and `CODEX_CLI_API_KEY`.
+- **LLM Keys**: `.env` configured with `GOOGLE_API_KEY` (single) or `GOOGLE_API_KEYS` (multi-key comma-separated). Supports `OPENROUTER_API_KEY` and `CODEX_CLI_API_KEY`.
 
 ### VCS Configuration
 
-Configure your preferred VCS CLI in [.env](cci:7://file:///Users/oatrice/Software-projects/Luma-worktrees/luma1/.env:0:0-0:0):
+Configure your preferred VCS CLI in `.env`:
 
 ```bash
 # Use GitHub CLI (default)
@@ -285,3 +285,4 @@ Contract guarantees:
 - [x] **Platform Detection**: Automatic detection of GitHub vs GitLab repositories for unified operations. 🆕
 - [x] **GitLab Support**: Full support for GitLab repositories including merge request creation and status checking. 🆕
 - [x] **Universal Add/Remove Issues**: Add and remove issue options now available in all workflow phases, removing the previous CODING/PREFLIGHT restriction. 🆕
+- [x] **AI Artifact Lifecycle**: Automatically inject and maintain `.gitignore` rules for AI ephemeral artifacts, controlled by config toggle. 🆕
