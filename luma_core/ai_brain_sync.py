@@ -4,6 +4,8 @@ import filecmp
 import json
 from typing import Optional, List, Dict
 
+from luma_core.git_utils import ensure_artifact_gitignore
+
 class AntigravityBrain:
     DEFAULT_BRAIN_PATH = os.path.expanduser("~/.gemini/antigravity/brain/")
     ARTIFACTS = ["task.md", "implementation_plan.md", "walkthrough.md"]
@@ -178,6 +180,8 @@ class AntigravityBrain:
             if not session_path:
                 return []
 
+        ensure_artifact_gitignore(project_dir)
+
         feature_dir = cls._find_feature_dir(project_dir, issue_number)
         if not feature_dir:
             features_root = os.path.join(project_dir, "docs", "features")
@@ -327,6 +331,8 @@ class GeminiCLIBrain:
             session_path = cls.get_latest_session(project_dir, issue_number)
             if not session_path:
                 return []
+
+        ensure_artifact_gitignore(project_dir)
 
         # Find target directory
         feature_dir = AntigravityBrain._find_feature_dir(project_dir, issue_number)
